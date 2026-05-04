@@ -18,6 +18,27 @@ hydroponic-agri-management/
 └── docker-compose.yml   # MySQL + InfluxDB + EMQX infrastructure
 ```
 
+## Development Environment
+
+- **OS**: Windows 11
+- **HTTP Proxy**: `http://127.0.0.1:7897` (for git, npm, go, etc.)
+
+### Proxy Configuration
+
+```bash
+# Git
+git config http.proxy http://127.0.0.1:7897
+git config https.proxy http://127.0.0.1:7897
+
+# npm
+npm config set proxy http://127.0.0.1:7897
+npm config set https-proxy http://127.0.0.1:7897
+
+# Go modules
+set HTTP_PROXY=http://127.0.0.1:7897
+set HTTPS_PROXY=http://127.0.0.1:7897
+```
+
 ## Shared Contracts
 
 ### API Response Format
