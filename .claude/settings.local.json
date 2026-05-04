@@ -24,7 +24,8 @@
       "Bash(python3:*)",
       "Bash(docker compose:*)",
       "Bash(docker:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(export:*)"
     ]
   }
 }
