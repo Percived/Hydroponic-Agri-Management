@@ -23,6 +23,17 @@ hydroponic-agri-management/
 - **OS**: Windows 11
 - **HTTP Proxy**: `http://127.0.0.1:7897` (for git, npm, go, etc.)
 
+### Service Ports
+
+| Service | Port | Notes |
+|---------|------|-------|
+| Backend API | `3000` | Gin HTTP server |
+| Frontend Dev | `8082` | Vite dev server |
+| MySQL | `13307` | Docker mapped |
+| InfluxDB | `9087` | Docker mapped |
+| MQTT (EMQX) | `1883` | Docker mapped |
+| EMQX Dashboard | `18083` | Web UI |
+
 ### Proxy Configuration
 
 ```bash
@@ -84,6 +95,24 @@ Both frontend and backend agree on a unified JSON envelope:
 - Token obtained via `POST /api/auth/login`
 - Token storage key (frontend localStorage): `hydroponic_token`
 
+### Default Credentials
+
+| Service | Username | Password | Notes |
+|---------|----------|----------|-------|
+| Web UI (Admin) | `admin` | `admin123` | Seeded by `0002_seed_auth.up.sql` |
+| MySQL | `root` | `root` | Docker compose |
+| InfluxDB | `admin` | `admin123` | Docker compose |
+| EMQX Dashboard | `admin` | `public` | Docker compose |
+
+### Config Secrets to Change
+
+Before deploying, update these values in `packages/backend/configs/config.yaml`:
+
+| Key | Default | |
+|-----|---------|---------|
+| `auth.jwt_secret` | `change-me` | Generate a strong random secret |
+| `influx.token` | `your-token` | Match InfluxDB admin token |
+
 ## Development Commands
 
 ### Infrastructure
@@ -114,7 +143,7 @@ docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0001_in
 docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0002_seed_auth.up.sql
 
 # Start API server
-go run cmd/api/main.go      # Dev server on configured port (default :8080)
+go run cmd/api/main.go      # Dev server on configured port (default :3000)
 ```
 
 ### Quick Start (All-in-One)
