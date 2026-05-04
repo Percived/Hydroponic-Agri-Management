@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Hydroponic Agri Management Backend API
-  version: 0.1.0
+  version: 0.2.0
   description: Browser API documentation for hydroponic backend services.
 servers:
   - url: http://127.0.0.1:8080
@@ -18,6 +18,8 @@ tags:
   - name: telemetry
   - name: controls
   - name: alerts
+  - name: notification-channels
+  - name: system-config
   - name: audit
 components:
   securitySchemes:
@@ -637,6 +639,228 @@ paths:
       summary: Alert subscribe
       security:
         - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/devices/{deviceId}/telemetry-summary:
+    get:
+      tags: [devices]
+      summary: Telemetry summary with hourly averages and alerts
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date-time
+          description: Start time (default now-24h)
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date-time
+          description: End time (default now)
+      responses:
+        "200":
+          description: OK
+  /api/devices/batch-update:
+    post:
+      tags: [devices]
+      summary: Batch update devices
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_ids, updates]
+              properties:
+                device_ids:
+                  type: array
+                  items:
+                    type: integer
+                updates:
+                  type: object
+                  properties:
+                    group_id:
+                      type: integer
+                    sampling_interval_sec:
+                      type: integer
+                    status:
+                      type: string
+      responses:
+        "200":
+          description: OK
+  /api/devices/batch:
+    delete:
+      tags: [devices]
+      summary: Batch delete devices
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_ids]
+              properties:
+                device_ids:
+                  type: array
+                  items:
+                    type: integer
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: OK
+  /api/controls/batch-commands:
+    post:
+      tags: [controls]
+      summary: Batch send commands to devices
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_type, target_ids, command_type, payload]
+              properties:
+                target_type:
+                  type: string
+                  enum: [greenhouse, device_group, devices]
+                target_ids:
+                  type: array
+                  items:
+                    type: integer
+                command_type:
+                  type: string
+                payload:
+                  type: object
+                remark:
+                  type: string
+      responses:
+        "200":
+          description: OK
+  /api/telemetry/system-configs:
+    get:
+      tags: [system-config]
+      summary: List system configs
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [system-config]
+      summary: Update system config (upsert by key)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [config_key, config_value]
+              properties:
+                config_key:
+                  type: string
+                config_value:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "200":
+          description: OK
+  /api/notification-channels:
+    get:
+      tags: [notification-channels]
+      summary: List user notification channels
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [notification-channels]
+      summary: Create notification channel
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel_type, name, config, enabled]
+              properties:
+                channel_type:
+                  type: string
+                  enum: [EMAIL, SMS, WEBHOOK]
+                name:
+                  type: string
+                config:
+                  type: object
+                min_alert_level:
+                  type: string
+                  enum: [INFO, WARN, CRITICAL]
+                enabled:
+                  type: boolean
+      responses:
+        "200":
+          description: OK
+  /api/notification-channels/{channelId}:
+    put:
+      tags: [notification-channels]
+      summary: Update notification channel
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: channelId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [notification-channels]
+      summary: Delete notification channel
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: channelId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/notification-channels/{channelId}/test:
+    post:
+      tags: [notification-channels]
+      summary: Test notification channel
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: channelId
+          required: true
+          schema:
+            type: integer
       responses:
         "200":
           description: OK

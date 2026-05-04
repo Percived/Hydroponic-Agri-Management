@@ -9,9 +9,11 @@ import (
 	"hydroponic-backend/internal/auth"
 	"hydroponic-backend/internal/control"
 	"hydroponic-backend/internal/device"
+	"hydroponic-backend/internal/notification"
 	"hydroponic-backend/internal/overview"
 	"hydroponic-backend/internal/platform/config"
 	"hydroponic-backend/internal/platform/di"
+	"hydroponic-backend/internal/platform/event"
 	"hydroponic-backend/internal/platform/response"
 	"hydroponic-backend/internal/telemetry"
 
@@ -35,11 +37,12 @@ func NewRouter(cfg config.Config, log *slog.Logger, mysql *gorm.DB, influx influ
 	r.Use(CORS())
 
 	deps := di.Deps{
-		Config: cfg,
-		Log:    log,
-		MySQL:  mysql,
-		Influx: influx,
-		MQTT:   mqttClient,
+		Config:   cfg,
+		Log:      log,
+		MySQL:    mysql,
+		Influx:   influx,
+		MQTT:     mqttClient,
+		EventHub: event.NewHub(),
 	}
 
 	r.GET("/healthz", func(c *gin.Context) {
@@ -60,6 +63,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, mysql *gorm.DB, influx influ
 	alert.RegisterRoutes(api, deps)
 	auth.RegisterRoutes(api, deps)
 	audit.RegisterRoutes(api, deps)
+	notification.RegisterRoutes(api, deps)
 
 	r.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"code": 10004, "message": "not_found"})

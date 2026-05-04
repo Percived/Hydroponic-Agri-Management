@@ -338,6 +338,85 @@ func (h *Handler) ListTemplates(c *gin.Context) {
 	response.Success(c, gin.H{"items": items})
 }
 
+func (h *Handler) BatchCommands(c *gin.Context) {
+	var req struct {
+		TargetType  string                 `json:"target_type" binding:"required,oneof=greenhouse device_group devices"`
+		TargetIDs   []uint64               `json:"target_ids" binding:"required,min=1,max=100"`
+		CommandType string                 `json:"command_type" binding:"required,min=1,max=32"`
+		Payload     map[string]interface{} `json:"payload" binding:"required"`
+		Remark      string                 `json:"remark" binding:"max=255"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err)
+		return
+	}
+
+	var deviceIDs []uint64
+	switch req.TargetType {
+	case "greenhouse":
+		if err := h.db.Model(&device.Device{}).Where("greenhouse_id IN ?", req.TargetIDs).Pluck("id", &deviceIDs).Error; err != nil {
+			response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
+			return
+		}
+	case "device_group":
+		if err := h.db.Model(&device.Device{}).Where("group_id IN ?", req.TargetIDs).Pluck("id", &deviceIDs).Error; err != nil {
+			response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
+			return
+		}
+	case "devices":
+		deviceIDs = req.TargetIDs
+	}
+
+	if len(deviceIDs) == 0 {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeNotFound, "no_devices_found", nil)
+		return
+	}
+
+	var devices []device.Device
+	if err := h.db.Select("id", "device_code", "status").Where("id IN ?", deviceIDs).Find(&devices).Error; err != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
+		return
+	}
+
+	userID := currentUserID(c)
+	results := make([]gin.H, 0, len(devices))
+
+	for _, dev := range devices {
+		payloadBytes, _ := json.Marshal(req.Payload)
+		cmd := ControlCommand{
+			DeviceID:    dev.ID,
+			CommandType: req.CommandType,
+			Payload:     payloadBytes,
+			Status:      CommandStatusPending,
+			CreatedBy:   userID,
+		}
+		if err := h.db.Create(&cmd).Error; err != nil {
+			results = append(results, gin.H{"device_id": dev.ID, "status": "FAILED", "message": "create_failed"})
+			continue
+		}
+
+		publishStatus := cmd.Status
+		if dev.Status == device.DeviceStatusEnabled {
+			if h.publishCommand(dev.DeviceCode, cmd.ID, req.CommandType, req.Payload) {
+				now := time.Now().UTC()
+				publishStatus = CommandStatusSent
+				_ = h.db.Model(&cmd).Updates(map[string]interface{}{"status": CommandStatusSent, "sent_at": now}).Error
+			} else {
+				publishStatus = CommandStatusFailed
+				_ = h.db.Model(&cmd).Update("status", CommandStatusFailed).Error
+			}
+		} else {
+			publishStatus = CommandStatusFailed
+			_ = h.db.Model(&cmd).Update("status", CommandStatusFailed).Error
+		}
+
+		results = append(results, gin.H{"device_id": dev.ID, "command_id": cmd.ID, "status": publishStatus})
+	}
+
+	audit.Write(h.db, userID, "BATCH_COMMAND", "control_commands", nil, gin.H{"target_type": req.TargetType, "target_ids": req.TargetIDs, "results": results})
+	response.Success(c, gin.H{"results": results})
+}
+
 func (h *Handler) metricIDByCode(code string) (uint64, error) {
 	var m metricRef
 	if err := h.db.Table("metrics").Select("id", "code").Where("code = ?", code).First(&m).Error; err != nil {

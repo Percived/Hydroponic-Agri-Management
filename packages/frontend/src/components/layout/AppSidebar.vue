@@ -49,6 +49,14 @@
         <el-icon><Document /></el-icon>
         <span>审计日志</span>
       </el-menu-item>
+      <el-sub-menu v-if="isAdmin" index="settings">
+        <template #title>
+          <el-icon><Tools /></el-icon>
+          <span>系统设置</span>
+        </template>
+        <el-menu-item index="/settings/notification-channels">通知渠道</el-menu-item>
+        <el-menu-item index="/settings/system-config">系统配置</el-menu-item>
+      </el-sub-menu>
     </el-menu>
   </aside>
 </template>
@@ -56,7 +64,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { Monitor, Grid, TrendCharts, Setting, Bell, User, Document, HomeFilled, OfficeBuilding } from '@element-plus/icons-vue'
+import { Monitor, Grid, TrendCharts, Setting, Bell, User, Document, HomeFilled, OfficeBuilding, Tools } from '@element-plus/icons-vue'
 import { usePermission } from '@/composables/usePermission'
 import { Role } from '@/types'
 

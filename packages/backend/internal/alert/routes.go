@@ -8,7 +8,7 @@ import (
 )
 
 func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
-	h := NewHandler(deps.MySQL)
+	h := NewHandler(deps.MySQL, deps.EventHub)
 	alerts := r.Group("/alerts")
 	alerts.GET("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.List)
 	alerts.GET("/:alertId", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.Get)

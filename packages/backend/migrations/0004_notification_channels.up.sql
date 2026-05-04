@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS `notification_channels` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `user_id` BIGINT UNSIGNED NOT NULL,
+    `channel_type` VARCHAR(16) NOT NULL COMMENT 'EMAIL, SMS, WEBHOOK',
+    `name` VARCHAR(64) NOT NULL,
+    `config` JSON NOT NULL,
+    `min_alert_level` VARCHAR(16) NOT NULL DEFAULT 'WARN' COMMENT 'INFO, WARN, CRITICAL',
+    `enabled` TINYINT(1) NOT NULL DEFAULT 1,
+    `created_at` TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (`id`),
+    INDEX `idx_user_id` (`user_id`),
+    INDEX `idx_enabled` (`enabled`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

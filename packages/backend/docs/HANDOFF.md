@@ -1,10 +1,35 @@
 # 交接文档
 
-最后更新: 2026-04-23
-当前分支: (填写)
-当前重点: 为温室和设备组添加删除 API，并实现级联解绑行为。
+最后更新: 2026-05-04
+当前分支: main
+当前重点: Phase 2 完成 — 设备遥测概览、批量操作、通知渠道、系统配置。
 
-## 1. 近期变更
+## 1. 近期变更（Phase 2）
+
+### 设备模块
+- `GET /api/devices/:deviceId/telemetry-summary` — 遥测概览（每小时聚合、在线率、告警事件）
+- `POST /api/devices/batch-update` — 批量更新（status/group_id/sampling_interval_sec）
+- `DELETE /api/devices/batch` — 批量删除
+
+### 控制模块
+- `POST /api/controls/batch-commands` — 批量下发命令（按温室/分组/指定设备）
+
+### 通知模块（新）
+- 完整 CRUD：`GET/POST/PUT/DELETE /api/notification-channels`
+- `POST /api/notification-channels/:channelId/test` — Webhook 测试发送（HMAC-SHA256）
+
+### 遥测模块
+- `GET /api/telemetry/system-configs` — 查询系统配置（敏感值脱敏）
+- `PUT /api/telemetry/system-configs` — 按 key UPSERT 配置
+
+### 基础设施
+- 新增迁移：`migrations/0004_notification_channels.up.sql`
+- 注册通知路由：`internal/platform/http/router.go`
+- 更新 API 文档：`shared/docs/API_SPEC.md`（v1.1）、`shared/docs/openapi.yaml`（v0.2.0）
+
+---
+
+## 历史变更
 
 - 在设备模块中新增删除 API：
   - `DELETE /api/devices/greenhouses/:greenhouseId`
@@ -78,17 +103,17 @@
 
 ## 2. 待办事项（前 5 项）
 
-1. 继续为剩余的更新/删除 handler 添加 `RowsAffected` 检查，对不存在的资源返回 404。
-2. 为 auth/device/telemetry/control 关键路径创建首批自动化测试。
-3. 添加迁移脚本以填充 `metrics` 基线字典。
-4. 确定并实现模板应用 + 告警订阅的策略。
+1. 为通知模块 dispatch 逻辑补齐——目前 `evaluateAndTrigger` 创建告警后未实际调用 `go dispatchNotifications(alert)`。
+2. 继续为剩余的更新/删除 handler 添加 `RowsAffected` 检查，对不存在的资源返回 404。
+3. 为 auth/device/telemetry/control 关键路径创建首批自动化测试。
+4. 确定并实现控制模板应用 + 告警订阅 SSE 流式传输的策略。
 5. 对齐并验证 MQTT/Influx 在开发/生产环境中的启动行为。
 
 ## 3. 阻碍 / 风险
 
-- 仓库中目前没有自动化测试。
-- 遥测数据采集依赖数据库中已存在的 `metrics` 行。
-- 部分行为级 API 缺口目前被成功响应所掩盖。
+- 自动化测试覆盖仍然不足（仅 device 模块有少量测试）。
+- 部分行为级 API 缺口目前被成功响应所掩盖（模板应用、告警订阅）。
+- 通知模块异步 dispatch 尚未与告警引擎集成。
 
 ## 4. 验证说明
 
@@ -103,9 +128,9 @@
 
 ## 6. 快速填写模板（每次交接使用）
 
-- 日期：
-- 分支：
-- 已完成范围：
-- 待完成范围：
-- 风险：
-- 下个首要命令：
+- 日期：2026-05-04
+- 分支：main
+- 已完成范围：Phase 2 — 设备遥测概览、批量操作（设备 + 命令）、通知渠道 CRUD + Webhook 测试、系统配置管理
+- 待完成范围：通知异步 dispatch 集成、自动化测试、模板应用/告警订阅落地
+- 风险：通知 dispatch 与告警引擎未集成；自动化测试覆盖低
+- 下个首要命令：`go build ./...` / `go test ./...` / `npm run build`

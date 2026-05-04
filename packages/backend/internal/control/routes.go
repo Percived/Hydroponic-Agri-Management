@@ -12,6 +12,7 @@ func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
 	controls := r.Group("/controls")
 
 	controls.POST("/commands", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.CreateCommand)
+	controls.POST("/batch-commands", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.BatchCommands)
 	controls.GET("/commands/:commandId", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetCommand)
 	controls.GET("/commands", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.ListCommands)
 

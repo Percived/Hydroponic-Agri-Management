@@ -585,6 +585,203 @@ func (h *Handler) DeleteGroup(c *gin.Context) {
 	response.Success(c, gin.H{})
 }
 
+func (h *Handler) TelemetrySummary(c *gin.Context) {
+	deviceID, err := parseID(c.Param("deviceId"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_id", nil)
+		return
+	}
+
+	from := time.Now().Add(-24 * time.Hour)
+	if v := c.Query("from"); v != "" {
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_from", nil)
+			return
+		}
+		from = t.UTC()
+	}
+
+	to := time.Now()
+	if v := c.Query("to"); v != "" {
+		t, err := time.Parse(time.RFC3339Nano, v)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_to", nil)
+			return
+		}
+		to = t.UTC()
+	}
+
+	var dev Device
+	if err := h.db.Select("id", "sampling_interval_sec").First(&dev, deviceID).Error; err != nil {
+		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
+		return
+	}
+
+	type metricRow struct {
+		ID   uint64 `gorm:"column:id"`
+		Code string `gorm:"column:code"`
+		Name string `gorm:"column:name"`
+		Unit string `gorm:"column:unit"`
+	}
+	var metrics []metricRow
+	if err := h.db.Table("metrics").Select("id", "code", "name", "unit").Find(&metrics).Error; err != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
+		return
+	}
+
+	metricSummaries := make(map[string]gin.H)
+	for _, m := range metrics {
+		type hourlyRow struct {
+			Hour string  `gorm:"column:hour"`
+			Avg  float64 `gorm:"column:avg"`
+		}
+		var hourly []hourlyRow
+		h.db.Table("telemetry_data").
+			Select("DATE_FORMAT(collected_at, '%Y-%m-%dT%H:00:00Z') AS hour, AVG(value) AS avg").
+			Where("device_id = ? AND metric_id = ? AND collected_at >= ? AND collected_at <= ?", deviceID, m.ID, from, to).
+			Group("hour").
+			Order("hour ASC").
+			Scan(&hourly)
+
+		type agg struct {
+			Avg *float64 `gorm:"column:avg"`
+			Max *float64 `gorm:"column:max"`
+			Min *float64 `gorm:"column:min"`
+		}
+		var stat agg
+		h.db.Table("telemetry_data").
+			Select("AVG(value) AS avg, MAX(value) AS max, MIN(value) AS min").
+			Where("device_id = ? AND metric_id = ? AND collected_at >= ? AND collected_at <= ?", deviceID, m.ID, from, to).
+			Scan(&stat)
+
+		var alertCount int64
+		h.db.Table("alerts").
+			Where("device_id = ? AND metric_id = ? AND triggered_at >= ? AND triggered_at <= ?", deviceID, m.ID, from, to).
+			Count(&alertCount)
+
+		hourlyItems := make([]gin.H, 0, len(hourly))
+		for _, r := range hourly {
+			hourlyItems = append(hourlyItems, gin.H{"hour": r.Hour, "avg": r.Avg})
+		}
+
+		metricSummaries[m.Code] = gin.H{
+			"code":   m.Code,
+			"name":   m.Name,
+			"unit":   m.Unit,
+			"avg":    stat.Avg,
+			"max":    stat.Max,
+			"min":    stat.Min,
+			"alerts": alertCount,
+			"hourly": hourlyItems,
+		}
+	}
+
+	duration := to.Sub(from)
+	totalHours := int(duration.Hours())
+	if totalHours < 1 {
+		totalHours = 1
+	}
+
+	type distinctHour struct {
+		Hour string `gorm:"column:hour"`
+	}
+	var distinctHours []distinctHour
+	h.db.Table("telemetry_data").
+		Select("DISTINCT DATE_FORMAT(collected_at, '%Y-%m-%dT%H:00:00Z') AS hour").
+		Where("device_id = ? AND collected_at >= ? AND collected_at <= ?", deviceID, from, to).
+		Scan(&distinctHours)
+
+	onlineRate := float64(len(distinctHours)) / float64(totalHours)
+	if onlineRate > 1 {
+		onlineRate = 1
+	}
+
+	type alertRow struct {
+		ID          uint64    `gorm:"column:id"`
+		Type        string    `gorm:"column:type"`
+		Level       string    `gorm:"column:level"`
+		Message     string    `gorm:"column:message"`
+		Status      string    `gorm:"column:status"`
+		TriggeredAt time.Time `gorm:"column:triggered_at"`
+	}
+	var alerts []alertRow
+	h.db.Table("alerts").
+		Select("id", "type", "level", "message", "status", "triggered_at").
+		Where("device_id = ? AND triggered_at >= ? AND triggered_at <= ?", deviceID, from, to).
+		Order("triggered_at DESC").
+		Limit(50).
+		Scan(&alerts)
+
+	alertItems := make([]gin.H, 0, len(alerts))
+	for _, a := range alerts {
+		alertItems = append(alertItems, gin.H{
+			"id":           a.ID,
+			"type":         a.Type,
+			"level":        a.Level,
+			"message":      a.Message,
+			"status":       a.Status,
+			"triggered_at": a.TriggeredAt,
+		})
+	}
+
+	response.Success(c, gin.H{
+		"metrics":      metricSummaries,
+		"online_rate":  onlineRate,
+		"alert_events": alertItems,
+	})
+}
+
+func (h *Handler) BatchUpdate(c *gin.Context) {
+	var req struct {
+		DeviceIDs []uint64               `json:"device_ids" binding:"required,min=1,max=100"`
+		Updates   map[string]interface{} `json:"updates" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err)
+		return
+	}
+
+	allowedFields := map[string]bool{"group_id": true, "sampling_interval_sec": true, "status": true}
+	updates := map[string]interface{}{}
+	for k, v := range req.Updates {
+		if allowedFields[k] {
+			updates[k] = v
+		}
+	}
+	if len(updates) == 0 {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "no_valid_fields", nil)
+		return
+	}
+
+	result := h.db.Model(&Device{}).Where("id IN ?", req.DeviceIDs).Updates(updates)
+	if result.Error != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "update_failed", nil)
+		return
+	}
+
+	response.Success(c, gin.H{"affected": result.RowsAffected})
+}
+
+func (h *Handler) BatchDelete(c *gin.Context) {
+	var req struct {
+		DeviceIDs []uint64 `json:"device_ids" binding:"required,min=1,max=100"`
+		Reason    string   `json:"reason" binding:"max=255"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err)
+		return
+	}
+
+	result := h.db.Where("id IN ?", req.DeviceIDs).Delete(&Device{})
+	if result.Error != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "delete_failed", nil)
+		return
+	}
+
+	response.Success(c, gin.H{"deleted": result.RowsAffected})
+}
+
 func parsePage(c *gin.Context) (int, int) {
 	page := parseInt(c.Query("page"), 1)
 	pageSize := parseInt(c.Query("page_size"), 20)

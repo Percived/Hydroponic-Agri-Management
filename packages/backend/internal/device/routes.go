@@ -17,6 +17,9 @@ func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
 	devices.GET("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.ListDevices)
 	devices.GET("/:deviceId", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetDevice)
 	devices.GET("/:deviceId/health", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.DeviceHealth)
+	devices.GET("/:deviceId/telemetry-summary", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.TelemetrySummary)
+	devices.POST("/batch-update", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin), h.BatchUpdate)
+	devices.DELETE("/batch", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin), h.BatchDelete)
 
 	greenhouses := r.Group("/devices/greenhouses")
 	greenhouses.POST("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin), h.CreateGreenhouse)

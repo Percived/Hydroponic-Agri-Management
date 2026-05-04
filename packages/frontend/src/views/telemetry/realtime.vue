@@ -3,6 +3,8 @@
     <div class="realtime-page">
       <div class="page-header">
         <h1 class="page-title">实时数据监控</h1>
+        <span v-if="sseConnected" class="sse-status connected">● 实时连接中</span>
+        <span v-else class="sse-status disconnected">○ 连接断开</span>
       </div>
 
       <!-- 设备选择 -->
@@ -12,21 +14,12 @@
             <el-option v-for="device in sensorDevices" :key="device.id" :label="`${device.name} (${device.device_code})`" :value="device.id" />
           </el-option-group>
         </el-select>
-        <div class="auto-refresh">
-          <span>自动刷新</span>
-          <el-switch v-model="autoRefresh" />
-          <el-select v-model="refreshInterval" :disabled="!autoRefresh" style="width: 100px" size="small">
-            <el-option :value="10" label="10秒" />
-            <el-option :value="30" label="30秒" />
-            <el-option :value="60" label="60秒" />
-          </el-select>
-        </div>
-        <el-button type="primary" @click="fetchData" :loading="loading">刷新数据</el-button>
+        <el-button type="primary" @click="fetchInitialData" :loading="loading">刷新数据</el-button>
       </div>
 
       <!-- 数据卡片 -->
       <div v-if="selectedDeviceId" class="data-section">
-        <div v-if="loading" class="loading-placeholder">
+        <div v-if="loading && telemetryData.length === 0" class="loading-placeholder">
           <el-skeleton :rows="5" animated />
         </div>
         <template v-else>
@@ -36,7 +29,7 @@
           <template v-else>
             <!-- 指标卡片 -->
             <div class="metrics-grid" aria-live="polite" aria-label="实时遥测指标">
-              <el-card v-for="item in telemetryData" :key="item.metric_code" class="metric-card">
+              <el-card v-for="item in telemetryData" :key="item.metric_code" class="metric-card" :class="{ updated: updatedMetrics.has(item.metric_code) }">
                 <div class="metric-header">
                   <span class="metric-name">{{ MetricNames[item.metric_code] || item.metric_code }}</span>
                   <el-tag :type="item.quality === 0 ? 'success' : 'danger'" size="small">
@@ -79,8 +72,9 @@ import { ref, computed, watch, onMounted, onUnmounted, shallowRef } from 'vue'
 import { AppLayout } from '@/components/layout'
 import { getDevices } from '@/api/device'
 import { getLatestTelemetry, getHistoryTelemetry } from '@/api/telemetry'
+import { useTelemetrySSE } from '@/composables'
 import { formatDate, formatNumber } from '@/utils/format'
-import { LARGE_PAGE_SIZE, DEFAULT_REFRESH_INTERVAL } from '@/utils/constants'
+import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import { Device, TelemetryPoint, MetricNames, MetricUnits, DeviceType } from '@/types'
 import * as echarts from 'echarts'
 
@@ -88,13 +82,13 @@ const devices = ref<Device[]>([])
 const selectedDeviceId = ref<number | null>(null)
 const telemetryData = ref<TelemetryPoint[]>([])
 const loading = ref(false)
+const updatedMetrics = ref(new Set<string>())
 
-// 自动刷新
-const autoRefresh = ref(true)
-const refreshInterval = ref(DEFAULT_REFRESH_INTERVAL)
-let refreshTimer: ReturnType<typeof setInterval> | null = null
+// SSE
+const deviceCodes = ref<string[]>([])
+const { connected: sseConnected, latestUpdate, connect: connectSSE, disconnect: disconnectSSE } = useTelemetrySSE({ deviceCodes })
 
-// 图表 - 使用 shallowRef 避免 ECharts 实例的深度响应式代理
+// 图表
 const chartRef = ref<HTMLElement | null>(null)
 const chartInstance = shallowRef<echarts.ECharts | null>(null)
 const selectedMetric = ref('')
@@ -102,6 +96,43 @@ const historyData = ref<TelemetryPoint[]>([])
 
 // 传感器设备
 const sensorDevices = computed(() => devices.value.filter((d) => d.type === 'SENSOR'))
+
+// SSE 数据到达时更新遥测数据
+watch(latestUpdate, (update) => {
+  if (!update || !selectedDeviceId.value) return
+
+  const device = devices.value.find((d) => d.device_code === update.device_code)
+  if (!device || device.id !== selectedDeviceId.value) return
+
+  for (const m of update.metrics) {
+    const idx = telemetryData.value.findIndex((t) => t.metric_code === m.code)
+    const point: TelemetryPoint = {
+      device_id: selectedDeviceId.value,
+      metric_code: m.code,
+      value: m.value,
+      raw_value: m.value,
+      quality: 0,
+      collected_at: update.collected_at
+    }
+    if (idx >= 0) {
+      telemetryData.value[idx] = point
+    } else {
+      telemetryData.value.push(point)
+    }
+    // Flash animation
+    updatedMetrics.value = new Set(updatedMetrics.value).add(m.code)
+    setTimeout(() => {
+      const s = new Set(updatedMetrics.value)
+      s.delete(m.code)
+      updatedMetrics.value = s
+    }, 1500)
+  }
+
+  // If chart metric matches, refetch history
+  if (selectedMetric.value && update.metrics.some((m) => m.code === selectedMetric.value)) {
+    fetchHistoryData()
+  }
+})
 
 // 获取设备列表
 async function fetchDevices() {
@@ -113,8 +144,8 @@ async function fetchDevices() {
   }
 }
 
-// 获取遥测数据
-async function fetchData() {
+// 获取最新遥测（初始加载）
+async function fetchInitialData() {
   if (!selectedDeviceId.value) return
   loading.value = true
   try {
@@ -135,7 +166,7 @@ async function fetchHistoryData() {
   if (!selectedDeviceId.value || !selectedMetric.value) return
 
   const endTime = new Date()
-  const startTime = new Date(endTime.getTime() - 60 * 60 * 1000) // 1小时前
+  const startTime = new Date(endTime.getTime() - 60 * 60 * 1000)
 
   try {
     const result = await getHistoryTelemetry({
@@ -202,28 +233,16 @@ function drawChart() {
 // 设备变化
 function onDeviceChange() {
   selectedMetric.value = ''
-  fetchData()
-}
-
-// 设置自动刷新
-function setupAutoRefresh() {
-  if (refreshTimer) {
-    clearInterval(refreshTimer)
-    refreshTimer = null
+  const device = devices.value.find((d) => d.id === selectedDeviceId.value)
+  if (device) {
+    deviceCodes.value = [device.device_code]
+    connectSSE()
+  } else {
+    disconnectSSE()
+    deviceCodes.value = []
   }
-
-  if (autoRefresh.value && selectedDeviceId.value) {
-    refreshTimer = setInterval(() => {
-      fetchData()
-      fetchHistoryData()
-    }, refreshInterval.value * 1000)
-  }
+  fetchInitialData()
 }
-
-// 监听自动刷新设置
-watch([autoRefresh, refreshInterval, selectedDeviceId], () => {
-  setupAutoRefresh()
-})
 
 // 监听指标选择
 watch(selectedMetric, () => {
@@ -241,9 +260,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (refreshTimer) {
-    clearInterval(refreshTimer)
-  }
+  disconnectSSE()
   chartInstance.value?.dispose()
   window.removeEventListener('resize', handleResize)
 })
@@ -252,6 +269,9 @@ onUnmounted(() => {
 <style scoped lang="scss">
 .realtime-page {
   .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 16px;
   }
 
@@ -262,6 +282,22 @@ onUnmounted(() => {
     text-wrap: balance;
   }
 
+  .sse-status {
+    font-size: 13px;
+    padding: 4px 10px;
+    border-radius: 12px;
+
+    &.connected {
+      color: #67c23a;
+      background: #f0f9eb;
+    }
+
+    &.disconnected {
+      color: #909399;
+      background: #f5f7fa;
+    }
+  }
+
   .filter-section {
     display: flex;
     align-items: center;
@@ -270,12 +306,6 @@ onUnmounted(() => {
     padding: 16px;
     background: #fff;
     border-radius: 4px;
-  }
-
-  .auto-refresh {
-    display: flex;
-    align-items: center;
-    gap: 8px;
   }
 
   .data-section {
@@ -294,6 +324,12 @@ onUnmounted(() => {
   }
 
   .metric-card {
+    transition: box-shadow 0.3s ease;
+
+    &.updated {
+      box-shadow: 0 0 0 2px #67c23a;
+    }
+
     .metric-header {
       display: flex;
       justify-content: space-between;

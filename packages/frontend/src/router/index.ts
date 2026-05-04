@@ -83,6 +83,18 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, roles: [Role.ADMIN], title: '审计日志' }
   },
   {
+    path: '/settings/notification-channels',
+    name: 'NotificationChannels',
+    component: () => import('@/views/settings/notification-channels.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN], title: '通知渠道' }
+  },
+  {
+    path: '/settings/system-config',
+    name: 'SystemConfig',
+    component: () => import('@/views/settings/system-config.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN], title: '系统配置' }
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('@/views/NotFound.vue'),

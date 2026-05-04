@@ -31,62 +31,91 @@
             <el-icon size="32"><Bell /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">{{ overview.alerts_open }}</div>
+            <div class="stat-value">
+              {{ overview.alerts_open }}
+              <span v-if="overview.alerts_critical" class="stat-sub">({{ overview.alerts_critical }} 严重)</span>
+            </div>
             <div class="stat-label">活跃告警</div>
           </div>
         </div>
-        <div class="stat-card data">
+        <div class="stat-card total">
           <div class="stat-icon">
             <el-icon size="32"><DataLine /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">{{ formatBigNumber(overview.today_data_points ?? 0) }}</div>
-            <div class="stat-label">今日数据</div>
+            <div class="stat-value">{{ overview.devices_total ?? (overview.devices_online + overview.devices_offline) }}</div>
+            <div class="stat-label">设备总数</div>
+          </div>
+        </div>
+        <div class="stat-card today-alerts">
+          <div class="stat-icon">
+            <el-icon size="32"><Clock /></el-icon>
+          </div>
+          <div class="stat-info">
+            <div class="stat-value">{{ overview.alerts_today ?? 0 }}</div>
+            <div class="stat-label">今日告警</div>
           </div>
         </div>
       </div>
 
-      <!-- 告警列表 -->
-      <div class="section-card">
+      <!-- 温室概览 -->
+      <div v-if="overview.greenhouse_summary?.length" class="section-card">
         <div class="section-header">
-          <h2 class="section-title">告警列表（最新5条）</h2>
-          <el-button type="primary" link @click="goAlerts">查看全部告警</el-button>
+          <h2 class="section-title">温室概览</h2>
         </div>
-        <el-table :data="recentAlerts" v-loading="loading" stripe>
-          <el-table-column label="级别" width="100">
-            <template #default="{ row }">
-              <el-tag :type="getAlertLevelType(row.level)">
-                {{ getAlertLevelName(row.level) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="type" label="类型" width="100">
-            <template #default="{ row }">
-              {{ getAlertTypeName(row.type) }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="message" label="消息" min-width="200" />
-          <el-table-column prop="device_name" label="设备" width="120" />
-          <el-table-column prop="triggered_at" label="时间" width="180">
-            <template #default="{ row }">
-              {{ formatDateTime(row.triggered_at || row.created_at) }}
-            </template>
-          </el-table-column>
-        </el-table>
-        <div v-if="!loading && recentAlerts.length === 0" class="empty-alert">
-          暂无告警
+        <div class="greenhouse-grid">
+          <div
+            v-for="gh in overview.greenhouse_summary"
+            :key="gh.greenhouse_id"
+            class="greenhouse-card"
+          >
+            <div class="gh-name">{{ gh.name }}</div>
+            <div class="gh-stats">
+              <div class="gh-stat">
+                <span class="gh-stat-label">设备数</span>
+                <span class="gh-stat-value">{{ gh.device_count }}</span>
+              </div>
+              <div class="gh-stat">
+                <span class="gh-stat-label">平均温度</span>
+                <span class="gh-stat-value">{{ gh.avg_temp != null ? gh.avg_temp.toFixed(1) + '°C' : '--' }}</span>
+              </div>
+              <div class="gh-stat">
+                <span class="gh-stat-label">平均湿度</span>
+                <span class="gh-stat-value">{{ gh.avg_humidity != null ? gh.avg_humidity.toFixed(1) + '%' : '--' }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- 设备分布图表 -->
+      <!-- 设备分布 + 告警列表 -->
       <div class="charts-grid">
         <div class="chart-card">
           <h2 class="chart-title">设备类型分布</h2>
           <div ref="typeChartRef" class="chart-container" role="img" aria-label="设备类型分布饼图：显示传感器和执行器的比例"></div>
         </div>
-        <div class="chart-card">
-          <h2 class="chart-title">设备分组分布</h2>
-          <div ref="groupChartRef" class="chart-container" role="img" aria-label="设备分组分布饼图：显示各分组设备数量"></div>
+        <div class="section-card" style="margin-bottom: 0">
+          <div class="section-header">
+            <h2 class="section-title">最近命令</h2>
+            <el-button type="primary" link @click="goCommands">查看全部</el-button>
+          </div>
+          <el-table v-if="overview.recent_commands?.length" :data="overview.recent_commands" stripe size="small">
+            <el-table-column prop="command_type" label="类型" width="100" />
+            <el-table-column prop="device_name" label="设备" width="140" />
+            <el-table-column prop="status" label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="commandStatusType(row.status)" size="small">
+                  {{ row.status }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="时间" min-width="160">
+              <template #default="{ row }">
+                {{ formatDateTime(row.created_at) }}
+              </template>
+            </el-table-column>
+          </el-table>
+          <div v-else class="empty-alert">暂无命令记录</div>
         </div>
       </div>
     </div>
@@ -97,10 +126,10 @@
 import { ref, onMounted, onUnmounted, computed, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import { Monitor, Warning, Bell, DataLine } from '@element-plus/icons-vue'
+import { Monitor, Warning, Bell, DataLine, Clock } from '@element-plus/icons-vue'
 import { AppLayout } from '@/components/layout'
-import { dashboardApi, alertApi, deviceApi, deviceGroupApi } from '@/api'
-import { formatDateTime, getAlertLevelType, getAlertLevelName, getAlertTypeName } from '@/utils/format'
+import { dashboardApi } from '@/api'
+import { formatDateTime } from '@/utils/format'
 import type { DashboardOverview } from '@/types'
 
 const router = useRouter()
@@ -110,17 +139,18 @@ const loading = ref(false)
 const overview = ref<DashboardOverview>({
   devices_online: 0,
   devices_offline: 0,
-  alerts_open: 0
+  devices_total: 0,
+  alerts_open: 0,
+  alerts_critical: 0,
+  alerts_today: 0,
+  device_type_distribution: [],
+  greenhouse_summary: [],
+  recent_commands: []
 })
-const recentAlerts = ref<any[]>([])
-const typeDistribution = ref<any[]>([])
-const groupDistribution = ref<any[]>([])
 
-// 图表 - 使用 shallowRef 避免 ECharts 实例的深度响应式代理
+// 图表
 const typeChartRef = ref<HTMLElement>()
-const groupChartRef = ref<HTMLElement>()
 const typeChart = shallowRef<echarts.ECharts | null>(null)
-const groupChart = shallowRef<echarts.ECharts | null>(null)
 
 // 当前日期
 const currentDate = computed(() => {
@@ -128,73 +158,39 @@ const currentDate = computed(() => {
   return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`
 })
 
-// 格式化大数字（带万单位）
-function formatBigNumber(num: number): string {
-  if (num >= 10000) {
-    return (num / 10000).toFixed(1) + '万'
+// 命令状态标签类型
+function commandStatusType(status: string): string {
+  switch (status) {
+    case 'EXECUTED': return 'success'
+    case 'SENT': return 'primary'
+    case 'PENDING': return 'info'
+    case 'FAILED': return 'danger'
+    default: return 'info'
   }
-  return num.toLocaleString()
 }
 
-// 跳转告警页
-function goAlerts() {
-  router.push('/alerts')
+// 跳转
+function goCommands() {
+  router.push('/controls/commands')
 }
 
 // 获取数据
 async function fetchData() {
   loading.value = true
   try {
-    // 并行请求多个接口
-    const [dashboardData, alertsData, devicesData, groupsData] = await Promise.all([
-      dashboardApi.getDashboardData(),
-      alertApi.getAlerts({ page: 1, page_size: 5 }).catch(() => ({ items: [], page: 1, page_size: 5, total: 0 })),
-      deviceApi.getDevices({ page: 1, page_size: 1000 }).catch(() => ({ items: [], page: 1, page_size: 1000, total: 0 })),
-      deviceGroupApi.getDeviceGroups().catch(() => ({ items: [] }))
-    ])
-
-    // 概览数据
+    const data = await dashboardApi.getDashboardData()
     overview.value = {
-      devices_online: dashboardData.devices_online ?? 0,
-      devices_offline: dashboardData.devices_offline ?? 0,
-      alerts_open: dashboardData.alerts_open ?? 0,
-      today_data_points: dashboardData.today_data_points ?? 0
+      devices_online: data.devices_online ?? 0,
+      devices_offline: data.devices_offline ?? 0,
+      devices_total: data.devices_total ?? 0,
+      alerts_open: data.alerts_open ?? 0,
+      alerts_critical: data.alerts_critical ?? 0,
+      alerts_today: data.alerts_today ?? 0,
+      device_type_distribution: data.device_type_distribution ?? [],
+      greenhouse_summary: data.greenhouse_summary ?? [],
+      recent_commands: data.recent_commands ?? []
     }
-
-    // 最近告警 - 构建设备ID到名称的映射
-    const deviceNameMap = new Map<number, string>()
-    for (const device of devicesData.items || []) {
-      deviceNameMap.set(device.id, device.name)
-    }
-    recentAlerts.value = (alertsData.items || []).map((alert: any) => ({
-      ...alert,
-      device_name: alert.device_name || deviceNameMap.get(alert.device_id) || `设备${alert.device_id}`
-    }))
-
-    // 设备类型分布统计
-    const typeMap = new Map<string, number>()
-    for (const device of devicesData.items || []) {
-      const type = device.type || 'UNKNOWN'
-      typeMap.set(type, (typeMap.get(type) || 0) + 1)
-    }
-    typeDistribution.value = Array.from(typeMap.entries()).map(([type, count]) => ({ type, count }))
-
-    // 设备分组分布统计
-    const groupMap = new Map<string, number>()
-    const groupNames = new Map<number, string>()
-    for (const group of groupsData.items || []) {
-      groupNames.set(group.id, group.name)
-    }
-    for (const device of devicesData.items || []) {
-      if (device.group_id) {
-        const groupName = groupNames.get(device.group_id) || `分组${device.group_id}`
-        groupMap.set(groupName, (groupMap.get(groupName) || 0) + 1)
-      }
-    }
-    groupDistribution.value = Array.from(groupMap.entries()).map(([group_name, count]) => ({ group_name, count }))
-
-    // 更新图表
-    updateCharts()
+    updateTypeChart()
   } catch (error) {
     console.error('[Dashboard] Failed to fetch data:', error)
   } finally {
@@ -207,98 +203,54 @@ function initCharts() {
   if (typeChartRef.value) {
     typeChart.value = echarts.init(typeChartRef.value)
   }
-  if (groupChartRef.value) {
-    groupChart.value = echarts.init(groupChartRef.value)
-  }
 }
 
-// 更新图表
-function updateCharts() {
-  // 设备类型分布饼图
-  if (typeChart.value && typeDistribution.value.length > 0) {
-    typeChart.value.setOption({
-      tooltip: {
-        trigger: 'item',
-        formatter: '{b}: {c} ({d}%)'
-      },
-      legend: {
-        bottom: 0,
-        left: 'center'
-      },
-      series: [
-        {
-          type: 'pie',
-          radius: ['40%', '70%'],
-          avoidLabelOverlap: false,
-          itemStyle: {
-            borderRadius: 10,
-            borderColor: '#fff',
-            borderWidth: 2
-          },
-          label: {
-            show: false
-          },
-          emphasis: {
-            label: {
-              show: true,
-              fontSize: 14,
-              fontWeight: 'bold'
-            }
-          },
-          data: typeDistribution.value.map((item) => ({
-            name: item.type === 'SENSOR' ? '传感器' : '执行器',
-            value: item.count
-          }))
-        }
-      ]
-    })
+// 设备类型分布饼图
+function updateTypeChart() {
+  if (!typeChart.value) return
+  const dist = overview.value.device_type_distribution
+  if (dist.length === 0) return
+
+  const typeNames: Record<string, string> = {
+    SENSOR: '传感器',
+    ACTUATOR: '执行器'
   }
 
-  // 设备分组分布饼图
-  if (groupChart.value && groupDistribution.value.length > 0) {
-    groupChart.value.setOption({
-      tooltip: {
-        trigger: 'item',
-        formatter: '{b}: {c} ({d}%)'
-      },
-      legend: {
-        bottom: 0,
-        left: 'center'
-      },
-      series: [
-        {
-          type: 'pie',
-          radius: ['40%', '70%'],
-          avoidLabelOverlap: false,
-          itemStyle: {
-            borderRadius: 10,
-            borderColor: '#fff',
-            borderWidth: 2
-          },
-          label: {
-            show: false
-          },
-          emphasis: {
-            label: {
-              show: true,
-              fontSize: 14,
-              fontWeight: 'bold'
-            }
-          },
-          data: groupDistribution.value.map((item) => ({
-            name: item.group_name,
-            value: item.count
-          }))
-        }
-      ]
-    })
-  }
+  typeChart.value.setOption({
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} ({d}%)'
+    },
+    legend: {
+      bottom: 0,
+      left: 'center'
+    },
+    series: [
+      {
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderRadius: 10,
+          borderColor: '#fff',
+          borderWidth: 2
+        },
+        label: { show: false },
+        emphasis: {
+          label: { show: true, fontSize: 14, fontWeight: 'bold' }
+        },
+        data: dist.map((item) => ({
+          name: typeNames[item.type] || item.type,
+          value: item.count
+        }))
+      }
+    ]
+  })
 }
 
 // 窗口大小变化时重绘图表
 function handleResize() {
   typeChart.value?.resize()
-  groupChart.value?.resize()
 }
 
 onMounted(() => {
@@ -310,7 +262,6 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   typeChart.value?.dispose()
-  groupChart.value?.dispose()
 })
 </script>
 
@@ -338,11 +289,15 @@ onUnmounted(() => {
   // 指标卡片
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 16px;
     margin-bottom: 20px;
 
-    @media (max-width: 1200px) {
+    @media (max-width: 1400px) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    @media (max-width: 992px) {
       grid-template-columns: repeat(2, 1fr);
     }
 
@@ -378,6 +333,12 @@ onUnmounted(() => {
       font-size: 28px;
       font-weight: 600;
       line-height: 1.2;
+
+      .stat-sub {
+        font-size: 13px;
+        font-weight: normal;
+        color: #f56c6c;
+      }
     }
 
     .stat-label {
@@ -398,8 +359,55 @@ onUnmounted(() => {
       background: linear-gradient(135deg, #e6a23c, #f3d19e);
     }
 
-    &.data .stat-icon {
+    &.total .stat-icon {
       background: linear-gradient(135deg, #409eff, #a0cfff);
+    }
+
+    &.today-alerts .stat-icon {
+      background: linear-gradient(135deg, #909399, #c0c4cc);
+    }
+  }
+
+  // 温室概览
+  .greenhouse-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  .greenhouse-card {
+    background: #f5f7fa;
+    border-radius: 8px;
+    padding: 16px;
+    border: 1px solid #e4e7ed;
+
+    .gh-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: #303133;
+      margin-bottom: 12px;
+    }
+
+    .gh-stats {
+      display: flex;
+      gap: 16px;
+    }
+
+    .gh-stat {
+      text-align: center;
+
+      .gh-stat-label {
+        display: block;
+        font-size: 12px;
+        color: #909399;
+        margin-bottom: 4px;
+      }
+
+      .gh-stat-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: #303133;
+      }
     }
   }
 

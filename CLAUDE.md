@@ -218,6 +218,7 @@ Domain-aligned structure under `packages/frontend/src/`:
 | Backend Docs | `packages/backend/docs/` | Architecture, requirements, testing |
 | Frontend PRD | `packages/frontend/docs/FRONTEND_PRD.md` | Frontend product requirements |
 | Device Protocol | `packages/backend/docs/specs/DEVICE_PROTOCOL.md` | Device MQTT protocol spec |
+| Iteration Plan | `shared/docs/ITERATION_PLAN.md` | Phased feature roadmap (cross-team sync) |
 
 ## Package-Specific Guidance
 

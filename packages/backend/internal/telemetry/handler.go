@@ -15,6 +15,7 @@ import (
 	"hydroponic-backend/internal/device"
 	"hydroponic-backend/internal/platform/config"
 	platformErrors "hydroponic-backend/internal/platform/errors"
+	"hydroponic-backend/internal/platform/event"
 	"hydroponic-backend/internal/platform/response"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -31,10 +32,11 @@ type Handler struct {
 	mqtt   mqtt.Client
 	cfg    config.InfluxConfig
 	log    *slog.Logger
+	hub    *event.Hub
 }
 
-func NewHandler(db *gorm.DB, influx influxdb2.Client, mqttClient mqtt.Client, cfg config.InfluxConfig, log *slog.Logger) *Handler {
-	return &Handler{db: db, influx: influx, mqtt: mqttClient, cfg: cfg, log: log}
+func NewHandler(db *gorm.DB, influx influxdb2.Client, mqttClient mqtt.Client, cfg config.InfluxConfig, log *slog.Logger, hub *event.Hub) *Handler {
+	return &Handler{db: db, influx: influx, mqtt: mqttClient, cfg: cfg, log: log, hub: hub}
 }
 
 func (h *Handler) Ingest(c *gin.Context) {
@@ -122,6 +124,7 @@ func (h *Handler) Ingest(c *gin.Context) {
 
 	h.evaluateAndTrigger(dev, rows, metricByCode)
 	h.writeInflux(c, dev.DeviceCode, rows, metricByCode)
+	h.publishTelemetryEvent(dev.DeviceCode, collectedAt, req.Metrics)
 	response.Success(c, gin.H{"accepted": len(rows)})
 }
 
@@ -196,6 +199,24 @@ func (h *Handler) History(c *gin.Context) {
 	includeRaw := strings.EqualFold(c.DefaultQuery("include_raw", "false"), "true")
 	page, pageSize := parsePage(c, 100, 2000)
 
+	// Try InfluxDB when raw_value not required
+	if !includeRaw && h.influx != nil {
+		var dev device.Device
+		if err := h.db.Select("device_code").Where("id = ?", deviceID).First(&dev).Error; err == nil {
+			items, total, err := h.queryHistoryFromInflux(deviceID, dev.DeviceCode, metricCode, startTime, endTime, page, pageSize)
+			if err == nil {
+				response.Success(c, gin.H{
+					"page":      page,
+					"page_size": pageSize,
+					"total":     total,
+					"items":     items,
+				})
+				return
+			}
+			h.log.Warn("influx history query failed, falling back to MySQL", "error", err)
+		}
+	}
+
 	query := h.db.Table("telemetry_data t").
 		Select("t.device_id, m.code AS metric_code, t.value, t.raw_value, t.quality, t.collected_at").
 		Joins("JOIN metrics m ON m.id = t.metric_id").
@@ -268,6 +289,19 @@ func (h *Handler) Stats(c *gin.Context) {
 		return
 	}
 
+	// Try InfluxDB first
+	if h.influx != nil {
+		var dev device.Device
+		if err := h.db.Select("device_code").Where("id = ?", deviceID).First(&dev).Error; err == nil {
+			stats, err := h.queryStatsFromInflux(deviceID, dev.DeviceCode, metricCode, startTime, endTime)
+			if err == nil {
+				response.Success(c, *stats)
+				return
+			}
+			h.log.Warn("influx stats query failed, falling back to MySQL", "error", err)
+		}
+	}
+
 	type agg struct {
 		Avg *float64 `json:"avg"`
 		Max *float64 `json:"max"`
@@ -285,6 +319,61 @@ func (h *Handler) Stats(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"avg": res.Avg, "max": res.Max, "min": res.Min})
+}
+
+func (h *Handler) GetConfigs(c *gin.Context) {
+	var configs []SystemConfig
+	if err := h.db.Order("id ASC").Find(&configs).Error; err != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
+		return
+	}
+
+	sensitiveKeys := map[string]bool{
+		"jwt_secret":    true,
+		"db_password":   true,
+		"mqtt_password": true,
+	}
+
+	items := make([]gin.H, 0, len(configs))
+	for _, cfg := range configs {
+		value := cfg.ConfigValue
+		if sensitiveKeys[cfg.ConfigKey] {
+			value = "***"
+		}
+		items = append(items, gin.H{
+			"id":           cfg.ID,
+			"config_key":   cfg.ConfigKey,
+			"config_value": value,
+			"description":  cfg.Description,
+			"updated_at":   cfg.UpdatedAt,
+		})
+	}
+
+	response.Success(c, gin.H{"items": items})
+}
+
+func (h *Handler) UpdateConfig(c *gin.Context) {
+	var req struct {
+		ConfigKey   string `json:"config_key" binding:"required,min=1,max=64"`
+		ConfigValue string `json:"config_value" binding:"required,max=255"`
+		Description string `json:"description" binding:"max=255"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err)
+		return
+	}
+
+	entry := SystemConfig{
+		ConfigKey:   req.ConfigKey,
+		ConfigValue: req.ConfigValue,
+		Description: req.Description,
+	}
+	if err := h.db.Where("config_key = ?", req.ConfigKey).Assign(entry).FirstOrCreate(&entry).Error; err != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "update_failed", nil)
+		return
+	}
+
+	response.Success(c, gin.H{"id": entry.ID})
 }
 
 func (h *Handler) SetRetention(c *gin.Context) {
@@ -467,6 +556,22 @@ func (h *Handler) evaluateAndTrigger(sourceDevice device.Device, rows []Telemetr
 			}
 			if err := h.db.Create(&alert).Error; err != nil {
 				h.log.Warn("auto alert create failed", "rule_id", rule.ID, "error", err)
+			} else if h.hub != nil {
+				h.hub.Publish(event.SSEEvent{
+					Type: "new_alert",
+					Data: gin.H{
+						"id":           alert.ID,
+						"type":         alert.Type,
+						"level":        alert.Level,
+						"metric_id":    alert.MetricID,
+						"device_id":    alert.DeviceID,
+						"value":        alert.Value,
+						"message":      alert.Message,
+						"status":       alert.Status,
+						"triggered_at": alert.TriggeredAt,
+						"resolved_at":  alert.ResolvedAt,
+					},
+				})
 			}
 		}
 	}
@@ -489,6 +594,284 @@ func (h *Handler) publishAutoCommand(deviceCode string, commandID uint64, comman
 		return false
 	}
 	return token.Error() == nil
+}
+
+func (h *Handler) publishTelemetryEvent(deviceCode string, collectedAt time.Time, metrics []IngestTelemetryMetric) {
+	if h.hub == nil {
+		return
+	}
+	metricList := make([]gin.H, 0, len(metrics))
+	for _, m := range metrics {
+		metricList = append(metricList, gin.H{
+			"code":  m.Code,
+			"value": m.Value,
+			"unit":  m.Unit,
+		})
+	}
+	h.hub.Publish(event.SSEEvent{
+		Type: "telemetry_update",
+		Data: gin.H{
+			"device_code":  deviceCode,
+			"collected_at": collectedAt,
+			"metrics":      metricList,
+		},
+	})
+}
+
+// Subscribe handles GET /api/telemetry/subscribe for real-time telemetry via SSE.
+func (h *Handler) Subscribe(c *gin.Context) {
+	if h.hub == nil {
+		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeConflict, "sse_unavailable", nil)
+		return
+	}
+
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+
+	deviceCodes := splitCSV(c.Query("device_code"))
+	metricCodes := splitCSV(c.Query("metric_code"))
+
+	filter := func(e event.SSEEvent) bool {
+		if e.Type != "telemetry_update" {
+			return false
+		}
+		data, ok := e.Data.(gin.H)
+		if !ok {
+			return false
+		}
+		if len(deviceCodes) > 0 {
+			dc, _ := data["device_code"].(string)
+			found := false
+			for _, c := range deviceCodes {
+				if c == dc {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+		if len(metricCodes) > 0 {
+			metrics, _ := data["metrics"].([]gin.H)
+			hasMatch := false
+			for _, m := range metrics {
+				mc, _ := m["code"].(string)
+				for _, fc := range metricCodes {
+					if mc == fc {
+						hasMatch = true
+						break
+					}
+				}
+				if hasMatch {
+					break
+				}
+			}
+			if !hasMatch {
+				return false
+			}
+		}
+		return true
+	}
+
+	sub := h.hub.Subscribe(filter)
+	defer h.hub.Unsubscribe(sub)
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	flusher, _ := c.Writer.(http.Flusher)
+	ctx := c.Request.Context()
+
+	for {
+		select {
+		case ev := <-sub.Events:
+			formatted, err := event.FormatSSE(ev)
+			if err != nil {
+				continue
+			}
+			if _, err := c.Writer.Write(formatted); err != nil {
+				return
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+		case <-ticker.C:
+			if _, err := fmt.Fprintf(c.Writer, ":keepalive\n\n"); err != nil {
+				return
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// queryHistoryFromInflux queries telemetry history from InfluxDB.
+func (h *Handler) queryHistoryFromInflux(deviceID uint64, deviceCode string, metricCode string, startTime, endTime time.Time, page, pageSize int) ([]gin.H, int64, error) {
+	queryAPI := h.influx.QueryAPI(h.cfg.Org)
+
+	offset := (page - 1) * pageSize
+	flux := fmt.Sprintf(`
+from(bucket: "%s")
+  |> range(start: %s, stop: %s)
+  |> filter(fn: (r) => r._measurement == "telemetry")
+  |> filter(fn: (r) => r.device_code == "%s")
+  |> filter(fn: (r) => r.metric_code == "%s")
+  |> filter(fn: (r) => r._field == "value")
+  |> group()
+  |> sort(columns: ["_time"], desc: true)
+`, h.cfg.Bucket,
+		startTime.Format(time.RFC3339), endTime.Format(time.RFC3339),
+		deviceCode, metricCode)
+
+	result, err := queryAPI.Query(context.Background(), flux)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer result.Close()
+
+	type row struct {
+		time     time.Time
+		value    float64
+		quality  int64
+		rawValue *float64
+	}
+	allRows := make([]row, 0)
+	for result.Next() {
+		rec := result.Record()
+		r := row{time: rec.Time(), value: rec.Value().(float64)}
+		if qv, ok := rec.ValueByKey("quality").(int64); ok {
+			r.quality = qv
+		}
+		if rv, ok := rec.ValueByKey("raw_value").(float64); ok {
+			r.rawValue = &rv
+		}
+		allRows = append(allRows, r)
+	}
+
+	total := int64(len(allRows))
+
+	// Apply offset/limit
+	if offset >= len(allRows) {
+		return []gin.H{}, total, nil
+	}
+	end := offset + pageSize
+	if end > len(allRows) {
+		end = len(allRows)
+	}
+	pageRows := allRows[offset:end]
+
+	items := make([]gin.H, 0, len(pageRows))
+	for _, r := range pageRows {
+		item := gin.H{
+			"device_id":    deviceID,
+			"metric_code":  metricCode,
+			"value":        r.value,
+			"quality":      r.quality,
+			"collected_at": r.time,
+		}
+		items = append(items, item)
+	}
+
+	return items, total, nil
+}
+
+// queryStatsFromInflux queries telemetry statistics from InfluxDB.
+func (h *Handler) queryStatsFromInflux(deviceID uint64, deviceCode string, metricCode string, startTime, endTime time.Time) (*gin.H, error) {
+	queryAPI := h.influx.QueryAPI(h.cfg.Org)
+
+	flux := fmt.Sprintf(`
+from(bucket: "%s")
+  |> range(start: %s, stop: %s)
+  |> filter(fn: (r) => r._measurement == "telemetry")
+  |> filter(fn: (r) => r.device_code == "%s")
+  |> filter(fn: (r) => r.metric_code == "%s")
+  |> filter(fn: (r) => r._field == "value")
+  |> filter(fn: (r) => r.quality == "0")
+  |> group()
+  |> mean(column: "_value")
+`, h.cfg.Bucket,
+		startTime.Format(time.RFC3339), endTime.Format(time.RFC3339),
+		deviceCode, metricCode)
+
+	meanResult, err := queryAPI.Query(context.Background(), flux)
+	if err != nil {
+		return nil, err
+	}
+	defer meanResult.Close()
+
+	var avgVal *float64
+	if meanResult.Next() {
+		v := meanResult.Record().Value()
+		if fv, ok := v.(float64); ok {
+			avgVal = &fv
+		}
+	}
+
+	// Also calculate max and min via separate queries for simplicity
+	maxFlux := strings.Replace(flux, "|> mean(column: \"_value\")", "|> max(column: \"_value\")", 1)
+	maxFlux = strings.Replace(maxFlux, "|> filter(fn: (r) => r.quality == \"0\")", "|> filter(fn: (r) => r.quality == \"0\")\n  ", 1)
+	// rebuild max query properly
+	maxFlux = fmt.Sprintf(`
+from(bucket: "%s")
+  |> range(start: %s, stop: %s)
+  |> filter(fn: (r) => r._measurement == "telemetry")
+  |> filter(fn: (r) => r.device_code == "%s")
+  |> filter(fn: (r) => r.metric_code == "%s")
+  |> filter(fn: (r) => r._field == "value")
+  |> filter(fn: (r) => r.quality == "0")
+  |> max(column: "_value")
+`, h.cfg.Bucket,
+		startTime.Format(time.RFC3339), endTime.Format(time.RFC3339),
+		deviceCode, metricCode)
+
+	maxResult, err := queryAPI.Query(context.Background(), maxFlux)
+	if err != nil {
+		return nil, err
+	}
+	defer maxResult.Close()
+
+	var maxVal *float64
+	if maxResult.Next() {
+		v := maxResult.Record().Value()
+		if fv, ok := v.(float64); ok {
+			maxVal = &fv
+		}
+	}
+
+	minFlux := fmt.Sprintf(`
+from(bucket: "%s")
+  |> range(start: %s, stop: %s)
+  |> filter(fn: (r) => r._measurement == "telemetry")
+  |> filter(fn: (r) => r.device_code == "%s")
+  |> filter(fn: (r) => r.metric_code == "%s")
+  |> filter(fn: (r) => r._field == "value")
+  |> filter(fn: (r) => r.quality == "0")
+  |> min(column: "_value")
+`, h.cfg.Bucket,
+		startTime.Format(time.RFC3339), endTime.Format(time.RFC3339),
+		deviceCode, metricCode)
+
+	minResult, err := queryAPI.Query(context.Background(), minFlux)
+	if err != nil {
+		return nil, err
+	}
+	defer minResult.Close()
+
+	var minVal *float64
+	if minResult.Next() {
+		v := minResult.Record().Value()
+		if fv, ok := v.(float64); ok {
+			minVal = &fv
+		}
+	}
+
+	return &gin.H{"avg": avgVal, "max": maxVal, "min": minVal}, nil
 }
 
 func compare(value float64, operator string, threshold float64) bool {

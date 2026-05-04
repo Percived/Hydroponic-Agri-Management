@@ -15,7 +15,13 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebSearch",
       "Bash(npm run:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(ls:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(go test:*)",
+      "Bash(python3:*)"
     ]
   }
 }

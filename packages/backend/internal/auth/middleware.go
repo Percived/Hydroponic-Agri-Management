@@ -20,14 +20,18 @@ const (
 
 func AuthRequired(cfg config.AuthConfig, db *gorm.DB, roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var tokenString string
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString = strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+		} else if q := c.Query("token"); q != "" {
+			// Support token via query param for SSE EventSource (browsers cannot set headers)
+			tokenString = strings.TrimSpace(q)
+		} else {
 			response.Error(c, http.StatusUnauthorized, platformErrors.CodeUnauthorized, "unauthorized", nil)
 			c.Abort()
 			return
 		}
-
-		tokenString := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 		claims, err := ParseToken(cfg.JWTSecret, tokenString)
 		if err != nil {
 			response.Error(c, http.StatusUnauthorized, platformErrors.CodeUnauthorized, "unauthorized", nil)

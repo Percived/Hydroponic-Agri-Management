@@ -1,8 +1,8 @@
 # 项目状态
 
-最后更新: 2026-04-23
+最后更新: 2026-05-04
 负责人: 后端团队
-版本: v0.1（MVP 进行中）
+版本: v0.2（Phase 2 完成）
 
 ## 1. 项目概述
 
@@ -26,6 +26,11 @@
 - 告警列表/状态/统计 API
 - 审计日志查询 API
 - 概览仪表盘聚合
+- 设备遥测概览（每小时聚合 + 在线率 + 告警事件）
+- 批量设备操作（更新 / 删除）
+- 批量控制命令下发（按温室 / 分组 / 指定设备）
+- 通知渠道 CRUD（EMAIL / SMS / WEBHOOK）+ Webhook 测试发送（HMAC-SHA256 签名）
+- 系统配置管理（GET / PUT，敏感值自动脱敏）
 - CORS 中间件（宽松模式），用于基于浏览器的 API 演示请求
 - 浏览器 API 文档：Swagger UI（`/docs/index.html`）+ OpenAPI 规范（`/openapi.yaml`）
 
@@ -84,6 +89,8 @@ docker compose up -d
 ```bash
 docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0001_init.up.sql
 docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0002_seed_auth.up.sql
+docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0003_seed_metrics.up.sql
+docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0004_notification_channels.up.sql
 ```
 
 运行后端：
@@ -109,6 +116,7 @@ scripts/dev-login-smoke.sh
 - 告警：`internal/alert/`
 - 审计：`internal/audit/`
 - 概览：`internal/overview/`
+- 通知：`internal/notification/`
 - 迁移：`migrations/`
 - API 文档：`docs/specs/API_SPEC.md`、`docs/specs/openapi.yaml`
 
