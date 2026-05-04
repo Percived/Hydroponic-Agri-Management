@@ -111,7 +111,7 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach(async (to) => {
   // 设置页面标题
-  document.title = (to.meta.title as string) || '水培农业管理系统'
+  document.title = (to.meta.title as string) || '水培农植信息管理系统'
 
   // 不需要认证的页面直接放行
   if (!to.meta.requiresAuth) {

@@ -30,11 +30,11 @@ import AppSidebar from './AppSidebar.vue'
   left: 0;
   z-index: 9999;
   padding: 8px 16px;
-  background: #409eff;
+  background: var(--color-primary);
   color: #fff;
   text-decoration: none;
   font-size: 14px;
-  border-radius: 0 0 4px 0;
+  border-radius: 0 0 6px 0;
 
   &:focus {
     top: 0;
@@ -52,6 +52,29 @@ import AppSidebar from './AppSidebar.vue'
   padding: 20px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: #f5f7fa;
+  background: var(--bg-page);
+}
+
+// 页面过渡动画
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.page-fade-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-fade-enter-active,
+  .page-fade-leave-active {
+    transition: opacity 0.01ms !important;
+  }
 }
 </style>

@@ -246,7 +246,10 @@ func (h *Handler) DeleteRule(c *gin.Context) {
 
 func (h *Handler) ListRules(c *gin.Context) {
 	page, size := parsePage(c)
-	q := h.db.Table("control_rules r").Select("r.id, r.name, m.code AS metric_code, r.operator, r.threshold, r.target_device_id, r.enabled, r.created_at").Joins("JOIN metrics m ON m.id = r.metric_id")
+	q := h.db.Table("control_rules r").
+		Select("r.id, r.name, m.code AS metric_code, r.operator, r.threshold, r.action, r.target_device_id, d.name AS target_device_name, r.enabled, r.created_at, r.updated_at").
+		Joins("JOIN metrics m ON m.id = r.metric_id").
+		Joins("LEFT JOIN devices d ON d.id = r.target_device_id")
 	if v := strings.TrimSpace(c.Query("metric_code")); v != "" {
 		q = q.Where("m.code = ?", v)
 	}
@@ -262,14 +265,17 @@ func (h *Handler) ListRules(c *gin.Context) {
 	}
 
 	type item struct {
-		ID             uint64    `json:"id"`
-		Name           string    `json:"name"`
-		MetricCode     string    `json:"metric_code"`
-		Operator       string    `json:"operator"`
-		Threshold      float64   `json:"threshold"`
-		TargetDeviceID uint64    `json:"target_device_id"`
-		Enabled        bool      `json:"enabled"`
-		CreatedAt      time.Time `json:"created_at"`
+		ID               uint64          `json:"id"`
+		Name             string          `json:"name"`
+		MetricCode       string          `json:"metric_code"`
+		Operator         string          `json:"operator"`
+		Threshold        float64         `json:"threshold"`
+		Action           json.RawMessage `json:"action"`
+		TargetDeviceID   uint64          `json:"target_device_id"`
+		TargetDeviceName string          `json:"target_device_name"`
+		Enabled          bool            `json:"enabled"`
+		CreatedAt        time.Time       `json:"created_at"`
+		UpdatedAt        time.Time       `json:"updated_at"`
 	}
 	rows := []item{}
 	if total > 0 {

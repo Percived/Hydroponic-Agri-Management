@@ -792,7 +792,6 @@ from(bucket: "%s")
   |> filter(fn: (r) => r.device_code == "%s")
   |> filter(fn: (r) => r.metric_code == "%s")
   |> filter(fn: (r) => r._field == "value")
-  |> filter(fn: (r) => r.quality == "0")
   |> group()
   |> mean(column: "_value")
 `, h.cfg.Bucket,
@@ -814,17 +813,14 @@ from(bucket: "%s")
 	}
 
 	// Also calculate max and min via separate queries for simplicity
-	maxFlux := strings.Replace(flux, "|> mean(column: \"_value\")", "|> max(column: \"_value\")", 1)
-	maxFlux = strings.Replace(maxFlux, "|> filter(fn: (r) => r.quality == \"0\")", "|> filter(fn: (r) => r.quality == \"0\")\n  ", 1)
-	// rebuild max query properly
-	maxFlux = fmt.Sprintf(`
+	maxFlux := fmt.Sprintf(`
 from(bucket: "%s")
   |> range(start: %s, stop: %s)
   |> filter(fn: (r) => r._measurement == "telemetry")
   |> filter(fn: (r) => r.device_code == "%s")
   |> filter(fn: (r) => r.metric_code == "%s")
   |> filter(fn: (r) => r._field == "value")
-  |> filter(fn: (r) => r.quality == "0")
+  |> group()
   |> max(column: "_value")
 `, h.cfg.Bucket,
 		startTime.Format(time.RFC3339), endTime.Format(time.RFC3339),
@@ -851,7 +847,7 @@ from(bucket: "%s")
   |> filter(fn: (r) => r.device_code == "%s")
   |> filter(fn: (r) => r.metric_code == "%s")
   |> filter(fn: (r) => r._field == "value")
-  |> filter(fn: (r) => r.quality == "0")
+  |> group()
   |> min(column: "_value")
 `, h.cfg.Bucket,
 		startTime.Format(time.RFC3339), endTime.Format(time.RFC3339),

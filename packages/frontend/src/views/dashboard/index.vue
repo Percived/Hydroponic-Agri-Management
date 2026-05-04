@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="dashboard-page">
       <div class="page-header">
         <h1 class="page-title">系统概览</h1>
@@ -119,7 +118,6 @@
         </div>
       </div>
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -127,7 +125,6 @@ import { ref, onMounted, onUnmounted, computed, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { Monitor, Warning, Bell, DataLine, Clock } from '@element-plus/icons-vue'
-import { AppLayout } from '@/components/layout'
 import { dashboardApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
 import type { DashboardOverview } from '@/types'
@@ -275,14 +272,14 @@ onUnmounted(() => {
   }
 
   .page-title {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 700;
     margin: 0;
     text-wrap: balance;
   }
 
   .current-date {
-    color: #909399;
+    color: var(--color-text-secondary);
     font-size: 14px;
   }
 
@@ -307,18 +304,26 @@ onUnmounted(() => {
   }
 
   .stat-card {
-    background: #fff;
-    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: var(--radius-lg);
     padding: 20px;
     display: flex;
     align-items: center;
     gap: 16px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-card);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-card-hover);
+    }
 
     .stat-icon {
       width: 64px;
       height: 64px;
-      border-radius: 12px;
+      border-radius: 14px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -337,18 +342,18 @@ onUnmounted(() => {
       .stat-sub {
         font-size: 13px;
         font-weight: normal;
-        color: #f56c6c;
+        color: var(--color-danger);
       }
     }
 
     .stat-label {
       font-size: 14px;
-      color: #909399;
+      color: var(--color-text-secondary);
       margin-top: 4px;
     }
 
     &.online .stat-icon {
-      background: linear-gradient(135deg, #67c23a, #85ce61);
+      background: linear-gradient(135deg, var(--color-primary), var(--color-primary-lighter));
     }
 
     &.offline .stat-icon {
@@ -364,7 +369,7 @@ onUnmounted(() => {
     }
 
     &.today-alerts .stat-icon {
-      background: linear-gradient(135deg, #909399, #c0c4cc);
+      background: linear-gradient(135deg, #8b5cf6, #c4b5fd);
     }
   }
 
@@ -376,15 +381,21 @@ onUnmounted(() => {
   }
 
   .greenhouse-card {
-    background: #f5f7fa;
-    border-radius: 8px;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
     padding: 16px;
-    border: 1px solid #e4e7ed;
+    border: 1px solid var(--border-color);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+
+    &:hover {
+      border-color: var(--color-primary-light);
+      box-shadow: var(--shadow-card);
+    }
 
     .gh-name {
       font-size: 15px;
       font-weight: 600;
-      color: #303133;
+      color: var(--color-text-primary);
       margin-bottom: 12px;
     }
 
@@ -399,25 +410,25 @@ onUnmounted(() => {
       .gh-stat-label {
         display: block;
         font-size: 12px;
-        color: #909399;
+        color: var(--color-text-secondary);
         margin-bottom: 4px;
       }
 
       .gh-stat-value {
         font-size: 16px;
         font-weight: 600;
-        color: #303133;
+        color: var(--color-text-primary);
       }
     }
   }
 
   // 区块卡片
   .section-card {
-    background: #fff;
-    border-radius: 8px;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
     padding: 20px;
     margin-bottom: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-card);
   }
 
   .section-header {
@@ -435,7 +446,7 @@ onUnmounted(() => {
 
   .empty-alert {
     text-align: center;
-    color: #909399;
+    color: var(--color-text-secondary);
     padding: 40px 0;
   }
 
@@ -451,10 +462,15 @@ onUnmounted(() => {
   }
 
   .chart-card {
-    background: #fff;
-    border-radius: 8px;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
     padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    box-shadow: var(--shadow-card);
+    transition: box-shadow var(--transition-normal);
+
+    &:hover {
+      box-shadow: var(--shadow-card-hover);
+    }
   }
 
   .chart-title {

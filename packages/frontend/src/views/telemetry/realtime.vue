@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="realtime-page">
       <div class="page-header">
         <h1 class="page-title">实时数据监控</h1>
@@ -64,12 +63,10 @@
 
       <el-empty v-else description="请选择设备查看实时数据" />
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, shallowRef } from 'vue'
-import { AppLayout } from '@/components/layout'
 import { getDevices } from '@/api/device'
 import { getLatestTelemetry, getHistoryTelemetry } from '@/api/telemetry'
 import { useTelemetrySSE } from '@/composables'
@@ -215,12 +212,12 @@ function drawChart() {
         data: data.map((d) => d.value),
         smooth: true,
         itemStyle: {
-          color: '#409eff'
+          color: '#0ea882'
         },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(64, 158, 255, 0.3)' },
-            { offset: 1, color: 'rgba(64, 158, 255, 0.05)' }
+            { offset: 0, color: 'rgba(14, 168, 130, 0.3)' },
+            { offset: 1, color: 'rgba(14, 168, 130, 0.05)' }
           ])
         }
       }
@@ -272,12 +269,13 @@ onUnmounted(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
   }
 
   .page-title {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
     margin: 0;
     text-wrap: balance;
   }
@@ -288,13 +286,13 @@ onUnmounted(() => {
     border-radius: 12px;
 
     &.connected {
-      color: #67c23a;
-      background: #f0f9eb;
+      color: var(--color-primary);
+      background: var(--color-primary-bg);
     }
 
     &.disconnected {
-      color: #909399;
-      background: #f5f7fa;
+      color: var(--color-text-secondary);
+      background: var(--bg-page);
     }
   }
 
@@ -304,8 +302,8 @@ onUnmounted(() => {
     gap: 16px;
     margin-bottom: 16px;
     padding: 16px;
-    background: #fff;
-    border-radius: 4px;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
   }
 
   .data-section {
@@ -327,7 +325,7 @@ onUnmounted(() => {
     transition: box-shadow 0.3s ease;
 
     &.updated {
-      box-shadow: 0 0 0 2px #67c23a;
+      box-shadow: 0 0 0 2px var(--color-primary);
     }
 
     .metric-header {
@@ -339,25 +337,25 @@ onUnmounted(() => {
 
     .metric-name {
       font-size: 14px;
-      color: #606266;
+      color: var(--color-text-regular);
     }
 
     .metric-value {
       font-size: 32px;
       font-weight: 600;
-      color: #303133;
+      color: var(--color-text-primary);
       margin-bottom: 8px;
     }
 
     .metric-unit {
       font-size: 14px;
       font-weight: normal;
-      color: #909399;
+      color: var(--color-text-secondary);
     }
 
     .metric-time {
       font-size: 12px;
-      color: #909399;
+      color: var(--color-text-secondary);
     }
   }
 

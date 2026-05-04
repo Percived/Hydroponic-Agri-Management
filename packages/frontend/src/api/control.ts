@@ -8,6 +8,7 @@ import type {
   RuleQueryParams,
   PaginatedData
 } from '@/types'
+import { CommandType } from '@/types'
 
 // ===== 控制命令 =====
 
@@ -30,10 +31,24 @@ export const getRules = async (params?: RuleQueryParams): Promise<PaginatedData<
   const result = await get<PaginatedData<Record<string, unknown>>>('/controls/rules', params)
   return {
     ...result,
-    items: (result.items as Array<Record<string, unknown>>).map((it) => ({
-      ...(it as unknown as ControlRule),
-      metric_code: (it as any).metric_code ?? (it as any).metric
-    }))
+    items: (result.items as Array<Record<string, unknown>>).map((it) => {
+      const action = (it.action ?? it.Action) as Record<string, unknown> | undefined
+      return {
+        id: it.id as number,
+        name: it.name as string,
+        metric_code: (it.metric_code ?? it.metric) as string,
+        operator: it.operator as string,
+        threshold: it.threshold as number,
+        action: action,
+        target_device_id: it.target_device_id as number,
+        target_device_name: (it.target_device_name ?? it.TargetDeviceName ?? '') as string,
+        command_type: ((action?.command_type as string) ?? (it.command_type as string) ?? 'SWITCH') as CommandType,
+        command_payload: (action?.payload as Record<string, unknown>) ?? (it.command_payload as Record<string, unknown>) ?? {},
+        enabled: (it.enabled as boolean) ?? true,
+        created_at: it.created_at as string,
+        updated_at: (it.updated_at ?? it.UpdatedAt ?? it.created_at) as string
+      } satisfies ControlRule
+    })
   }
 }
 

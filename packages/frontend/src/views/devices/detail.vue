@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="device-detail-page">
       <div class="page-header">
         <el-button @click="goBack" :icon="ArrowLeft">返回列表</el-button>
@@ -214,7 +213,6 @@
         </template>
       </el-dialog>
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -223,7 +221,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
-import { AppLayout } from '@/components/layout'
 import { useDeviceStore } from '@/stores/device'
 import { usePermission } from '@/composables/usePermission'
 import { getCategoryName, formatDate, formatNumber } from '@/utils/format'
@@ -337,8 +334,8 @@ function renderCharts() {
         type: 'line',
         smooth: true,
         symbol: 'none',
-        lineStyle: { color: '#409eff', width: 2 },
-        areaStyle: { color: 'rgba(64,158,255,0.1)' }
+        lineStyle: { color: '#0ea882', width: 2 },
+        areaStyle: { color: 'rgba(14,168,130,0.1)' }
       }]
     })
   }
@@ -466,13 +463,13 @@ onMounted(() => { loadData() })
 <style scoped lang="scss">
 .device-detail-page {
   .page-header {
-    display: flex; align-items: center; gap: 16px; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
   }
   .page-title {
-    font-size: 18px; font-weight: 600; margin: 0; text-wrap: balance;
+    font-size: 22px; font-weight: 700; color: var(--color-text-primary); margin: 0; text-wrap: balance;
   }
   .loading-container, .error-container {
-    padding: 40px; background: #fff; border-radius: 4px;
+    padding: 40px; background: var(--bg-card); border-radius: var(--radius-md);
   }
   .info-card, .telemetry-card {
     margin-bottom: 16px;
@@ -481,19 +478,19 @@ onMounted(() => { loadData() })
     margin-top: 16px; display: flex; gap: 8px;
   }
   .loading-placeholder, .empty-placeholder {
-    padding: 20px; text-align: center; color: #909399;
+    padding: 20px; text-align: center; color: var(--color-text-secondary);
   }
   .telemetry-grid {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;
   }
   .telemetry-item {
-    padding: 16px; background: #f5f7fa; border-radius: 4px;
+    padding: 16px; background: var(--color-primary-bg-light); border-radius: var(--radius-md); border: 1px solid var(--border-color-light);
   }
-  .metric-name { font-size: 14px; color: #606266; margin-bottom: 8px; }
-  .metric-value { font-size: 24px; font-weight: 600; color: #303133; margin-bottom: 8px; }
-  .metric-unit { font-size: 14px; font-weight: normal; color: #909399; }
+  .metric-name { font-size: 14px; color: var(--color-text-regular); margin-bottom: 8px; }
+  .metric-value { font-size: 24px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 8px; }
+  .metric-unit { font-size: 14px; font-weight: normal; color: var(--color-text-secondary); }
   .metric-meta { display: flex; align-items: center; gap: 8px; }
-  .metric-time { font-size: 12px; color: #909399; }
+  .metric-time { font-size: 12px; color: var(--color-text-secondary); }
 
   .dashboard-tab {
     .dashboard-controls {
@@ -502,19 +499,22 @@ onMounted(() => { loadData() })
     .online-rate {
       display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
     }
+    :deep(.el-progress-bar__outer) {
+      background-color: var(--border-color);
+    }
     .metric-cards {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px; margin-bottom: 16px;
     }
     .metric-card {
-      .metric-unit-text { font-size: 12px; color: #909399; margin-left: 4px; }
+      .metric-unit-text { font-size: 12px; color: var(--color-text-secondary); margin-left: 4px; }
       .metric-stats {
         display: flex; gap: 16px; flex-wrap: wrap;
       }
       .stat-item {
         text-align: center;
-        .stat-label { display: block; font-size: 12px; color: #909399; }
-        .stat-value { display: block; font-size: 18px; font-weight: 600; color: #303133; }
-        .alert-count { color: #f56c6c; }
+        .stat-label { display: block; font-size: 12px; color: var(--color-text-secondary); }
+        .stat-value { display: block; font-size: 18px; font-weight: 600; color: var(--color-text-primary); }
+        .alert-count { color: var(--color-danger); }
       }
     }
     .alert-events-card {

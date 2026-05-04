@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="rules-page">
       <div class="page-header">
         <h1 class="page-title">控制规则</h1>
@@ -142,14 +141,12 @@
         </template>
       </el-dialog>
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { AppLayout } from '@/components/layout'
 import { controlApi, deviceApi } from '@/api'
 import { getCommandTypeName, getMetricName } from '@/utils/format'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
@@ -364,37 +361,42 @@ onMounted(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
   }
 
   .page-title {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
     margin: 0;
     text-wrap: balance;
   }
 
   .table-container {
-    background: #fff;
-    border-radius: 4px;
-    padding: 16px;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-card);
   }
 
   .pagination-container {
     display: flex;
     justify-content: flex-end;
-    margin-top: 16px;
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
   }
 
   .payload-code {
-    background: #f5f7fa;
-    padding: 2px 6px;
-    border-radius: 4px;
+    background: var(--color-primary-bg-light);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
     font-size: 12px;
+    border: 1px solid var(--border-color-light);
   }
 
   .payload-error {
-    color: #f56c6c;
+    color: var(--color-danger);
     font-size: 12px;
     margin-top: 4px;
   }

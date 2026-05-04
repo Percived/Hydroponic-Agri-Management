@@ -1,39 +1,131 @@
-// 颜色变量
-$primary-color: #409eff;
+// ============================================================
+// Design Tokens — SCSS Variables (for backward compatibility)
+// ============================================================
+
+// Primary palette — Agriculture teal/green
+$primary-color: #0ea882;
+$primary-light: #14c99b;
+$primary-dark: #0a8d6d;
+
 $success-color: #67c23a;
 $warning-color: #e6a23c;
 $danger-color: #f56c6c;
 $info-color: #909399;
 
-// 文字颜色
-$text-primary: #303133;
-$text-regular: #606266;
-$text-secondary: #909399;
-$text-placeholder: #c0c4cc;
+// Text
+$text-primary: #1d2129;
+$text-regular: #4e5969;
+$text-secondary: #86909c;
+$text-placeholder: #c9cdd4;
 
-// 边框颜色
-$border-color: #dcdfe6;
-$border-color-light: #e4e7ed;
-$border-color-lighter: #ebeef5;
+// Border
+$border-color: #e5e6eb;
+$border-color-light: #f0f1f2;
+$border-color-lighter: #f7f8fa;
 
-// 背景颜色
+// Background
 $bg-color: #ffffff;
-$bg-color-page: #f5f7fa;
+$bg-color-page: #f2f3f5;
 $bg-color-overlay: rgba(0, 0, 0, 0.5);
 
-// 间距
+// Spacing
 $spacing-xs: 4px;
 $spacing-sm: 8px;
 $spacing-md: 16px;
 $spacing-lg: 24px;
 $spacing-xl: 32px;
 
-// 圆角
-$border-radius-sm: 2px;
-$border-radius-md: 4px;
-$border-radius-lg: 8px;
+// Border radius
+$border-radius-sm: 4px;
+$border-radius-md: 8px;
+$border-radius-lg: 12px;
 
-// 阴影
-$box-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.12);
-$box-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
-$box-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
+// Shadows
+$box-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+$box-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+$box-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+// ============================================================
+// CSS Custom Properties — Design Tokens
+// ============================================================
+:root {
+  // ---- Primary palette (agriculture teal/green) ----
+  --color-primary: #0ea882;
+  --color-primary-light: #14c99b;
+  --color-primary-lighter: #3dd6b0;
+  --color-primary-dark: #0a8d6d;
+  --color-primary-bg: #e8f8f4;
+  --color-primary-bg-light: #f4fbf9;
+
+  // ---- Functional colors ----
+  --color-success: #67c23a;
+  --color-success-bg: #f0f9eb;
+  --color-warning: #e6a23c;
+  --color-warning-bg: #fdf6ec;
+  --color-danger: #f56c6c;
+  --color-danger-bg: #fef0f0;
+  --color-info: #909399;
+
+  // ---- Text ----
+  --color-text-primary: #1d2129;
+  --color-text-regular: #4e5969;
+  --color-text-secondary: #86909c;
+  --color-text-placeholder: #c9cdd4;
+  --color-text-inverse: #ffffff;
+
+  // ---- Background ----
+  --bg-page: #f2f3f5;
+  --bg-card: #ffffff;
+  --bg-card-hover: #fafbfc;
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+
+  // ---- Border ----
+  --border-color: #e5e6eb;
+  --border-color-light: #f0f1f2;
+
+  // ---- Border radius ----
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-round: 9999px;
+
+  // ---- Shadows ----
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.1);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.1);
+
+  // ---- Transitions ----
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow: 0.4s ease;
+
+  // ---- Spacing ----
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  // ---- Element Plus overrides ----
+  --el-color-primary: #0ea882;
+  --el-color-primary-light-3: #3dd6b0;
+  --el-color-primary-light-5: #6ce2c8;
+  --el-color-primary-light-7: #9defdd;
+  --el-color-primary-light-8: #bdf5e9;
+  --el-color-primary-light-9: #defaf4;
+  --el-color-primary-dark-2: #0a8d6d;
+  --el-color-success: #67c23a;
+  --el-color-warning: #e6a23c;
+  --el-color-danger: #f56c6c;
+  --el-color-info: #909399;
+  --el-border-radius-base: 6px;
+  --el-border-radius-small: 4px;
+  --el-border-radius-round: 9999px;
+  --el-box-shadow-light: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --el-box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --el-bg-color-page: #f2f3f5;
+  --el-text-color-primary: #1d2129;
+  --el-text-color-regular: #4e5969;
+  --el-text-color-secondary: #86909c;
+  --el-font-size-base: 14px;
+}

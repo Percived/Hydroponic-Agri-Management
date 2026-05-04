@@ -48,6 +48,7 @@ export interface ControlRule {
   metric_code: string
   operator: string
   threshold: number
+  action?: Record<string, unknown>
   target_device_id: number
   target_device_name?: string
   command_type: CommandType

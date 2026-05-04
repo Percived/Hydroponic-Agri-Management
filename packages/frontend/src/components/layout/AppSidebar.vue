@@ -3,6 +3,7 @@
     <el-menu
       :default-active="activeMenu"
       router
+      background-color="transparent"
       class="sidebar-menu"
     >
       <el-menu-item index="/">
@@ -83,7 +84,7 @@ const isAdmin = computed(() => hasRole(Role.ADMIN))
 .app-sidebar {
   width: 200px;
   background: #fff;
-  border-right: 1px solid #e6e6e6;
+  border-right: 1px solid var(--border-color);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -91,5 +92,33 @@ const isAdmin = computed(() => hasRole(Role.ADMIN))
 .sidebar-menu {
   border-right: none;
   height: 100%;
+  padding: 8px 0;
+
+  // Override Element Plus default menu styles
+  :deep(.el-menu-item),
+  :deep(.el-sub-menu__title) {
+    margin: 2px 8px;
+    border-radius: 8px;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+
+    &:hover {
+      background-color: var(--color-primary-bg-light);
+      color: var(--color-primary);
+    }
+  }
+
+  :deep(.el-menu-item.is-active) {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+    color: #fff;
+    border-radius: 8px;
+
+    .el-icon {
+      color: #fff;
+    }
+  }
+
+  :deep(.el-sub-menu.is-active > .el-sub-menu__title) {
+    color: var(--color-primary);
+  }
 }
 </style>

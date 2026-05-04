@@ -1,7 +1,7 @@
 <template>
   <header class="app-header">
     <div class="header-left">
-      <span class="logo">🌱 水培农业管理系统</span>
+      <span class="logo">水培农植信息管理系统</span>
     </div>
     <div class="header-right">
       <!-- 告警通知 -->
@@ -45,13 +45,8 @@ const alertBadgeCount = ref(0)
 const { connect: connectSSE, disconnect: disconnectSSE } = useAlertSSE({ level: 'CRITICAL' })
 
 onMounted(() => {
-  // Request browser notification permission on first interaction
   requestNotificationPermission()
-
   connectSSE()
-
-  // Wire up the count manually via polling lastAlert
-  // (The composable tracks internally; we sync badge count via a simple interval)
 })
 
 onUnmounted(() => {
@@ -87,8 +82,10 @@ async function handleCommand(command: string) {
   justify-content: space-between;
   height: 60px;
   padding: 0 20px;
-  background: #fff;
-  border-bottom: 1px solid #e6e6e6;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .header-left {
@@ -98,8 +95,11 @@ async function handleCommand(command: string) {
 
 .logo {
   font-size: 18px;
-  font-weight: 600;
-  color: #303133;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--color-primary-dark), var(--color-primary-light));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .header-right {
@@ -117,11 +117,15 @@ async function handleCommand(command: string) {
   align-items: center;
   gap: 4px;
   cursor: pointer;
-  color: #606266;
+  color: var(--color-text-regular);
   font-size: 14px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
 
   &:hover {
-    color: #409eff;
+    color: var(--color-primary);
+    background: var(--color-primary-bg-light);
   }
 }
 </style>

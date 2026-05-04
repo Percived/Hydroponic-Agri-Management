@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="device-list-page">
       <div class="page-header">
         <h1 class="page-title">设备管理</h1>
@@ -231,7 +230,6 @@
         </template>
       </el-dialog>
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -239,7 +237,6 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus, ArrowDown } from '@element-plus/icons-vue'
-import { AppLayout } from '@/components/layout'
 import { useDeviceStore } from '@/stores/device'
 import { useGreenhouseStore } from '@/stores/greenhouse'
 import { usePermission } from '@/composables/usePermission'
@@ -443,11 +440,44 @@ onMounted(() => { fetchData(); deviceStore.fetchDeviceGroups(); greenhouseStore.
 
 <style scoped lang="scss">
 .device-list-page {
-  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  .page-title { font-size: 18px; font-weight: 600; margin: 0; text-wrap: balance; }
-  .header-actions { display: flex; align-items: center; }
-  .table-container { background: #fff; border-radius: 4px; padding: 16px; }
-  .pagination-container { display: flex; justify-content: flex-end; margin-top: 16px; }
-  .ml-sm { margin-left: 8px; color: #909399; }
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .page-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+  }
+
+  .table-container {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-card);
+  }
+
+  .pagination-container {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
+  }
+
+  .ml-sm {
+    margin-left: 8px;
+    color: var(--color-text-secondary);
+  }
 }
 </style>

@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="login-card">
-      <h1 class="login-title">🌱 水培农业管理系统</h1>
+      <h1 class="login-title">🌱 水培农植信息管理系统</h1>
       <el-form
         ref="formRef"
         :model="form"
@@ -103,32 +103,86 @@ async function handleLogin() {
 
 <style scoped lang="scss">
 .login-page {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0a5c44 0%, #0ea882 30%, #1db892 60%, #a8d8b9 85%, #e8f0e3 100%);
+  overflow: hidden;
+
+  // Decorative radial gradient circles
+  &::before {
+    content: '';
+    position: absolute;
+    top: -20%;
+    right: -10%;
+    width: 500px;
+    height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.15), transparent 70%);
+    pointer-events: none;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -15%;
+    left: -5%;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1), transparent 70%);
+    pointer-events: none;
+  }
 }
 
 .login-card {
+  position: relative;
+  z-index: 1;
   width: 400px;
   padding: 40px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 20px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+
+  &:hover {
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
+  }
 }
 
 .login-title {
   text-align: center;
-  font-size: 24px;
-  font-weight: 600;
-  color: #303133;
+  font-size: 26px;
+  font-weight: 700;
   margin-bottom: 32px;
+  background: linear-gradient(135deg, var(--color-primary-dark), var(--color-primary-light));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .login-btn {
   width: 100%;
-  height: 40px;
+  height: 44px;
   font-size: 16px;
+  border-radius: 10px;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(14, 168, 130, 0.4);
+  }
+}
+
+:deep(.el-input__wrapper) {
+  border-radius: 8px;
+  transition: box-shadow var(--transition-fast);
+
+  &:hover {
+    box-shadow: 0 0 0 1px var(--color-primary-light) inset;
+  }
 }
 </style>

@@ -21,7 +21,10 @@
       "Bash(ls:*)",
       "Bash(npx vue-tsc:*)",
       "Bash(go test:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker:*)",
+      "Bash(tasklist:*)"
     ]
   }
 }

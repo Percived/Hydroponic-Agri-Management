@@ -1,11 +1,16 @@
 <template>
-  <router-view />
+  <router-view v-slot="{ Component, route }">
+    <AppLayout v-if="route.meta.requiresAuth">
+      <Transition name="page-fade" mode="out-in">
+        <component :is="Component" :key="route.path" />
+      </Transition>
+    </AppLayout>
+    <Transition v-else name="page-fade" mode="out-in">
+      <component :is="Component" :key="route.path" />
+    </Transition>
+  </router-view>
 </template>
 
 <script setup lang="ts">
-// 根组件，由路由控制页面渲染
+import AppLayout from '@/components/layout/AppLayout.vue'
 </script>
-
-<style>
-/* 全局样式在 main.ts 中引入 */
-</style>

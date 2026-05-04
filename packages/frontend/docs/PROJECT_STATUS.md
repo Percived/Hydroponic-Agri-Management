@@ -6,7 +6,7 @@
 
 ## 1. 项目概述
 
-基于 Vue 3 + TypeScript + Element Plus 构建的水培农业管理系统 Web 前端。
+基于 Vue 3 + TypeScript + Element Plus 构建的水培农植信息管理系统 Web 前端。
 核心依赖：Vite、Pinia、Vue Router、Axios、ECharts。
 
 ## 2. 当前交付状态

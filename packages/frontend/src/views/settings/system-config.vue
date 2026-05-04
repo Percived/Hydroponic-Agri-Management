@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="system-config-page">
       <div class="page-header">
         <h1 class="page-title">系统配置</h1>
@@ -36,13 +35,11 @@
         </el-table>
       </div>
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { AppLayout } from '@/components/layout'
 import { getSystemConfigs, updateSystemConfig, SystemConfigItem } from '@/api/system-config'
 import { formatDate } from '@/utils/format'
 
@@ -98,12 +95,35 @@ onMounted(() => { fetchConfigs() })
 
 <style scoped lang="scss">
 .system-config-page {
-  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  .page-title { font-size: 18px; font-weight: 600; margin: 0; }
-  .table-container { background: #fff; border-radius: 4px; padding: 16px; }
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .page-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .table-container {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-card);
+  }
+
   .editable-cell {
-    cursor: pointer; color: #409eff;
-    &:hover { text-decoration: underline; }
+    cursor: pointer;
+    color: var(--color-primary);
+
+    &:hover {
+      text-decoration: underline;
+    }
   }
 }
 </style>

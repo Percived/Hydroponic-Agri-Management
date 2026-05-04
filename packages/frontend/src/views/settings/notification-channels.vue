@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="notification-page">
       <div class="page-header">
         <h1 class="page-title">通知渠道</h1>
@@ -84,14 +83,12 @@
         </template>
       </el-dialog>
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { AppLayout } from '@/components/layout'
 import { notificationApi } from '@/api'
 import { formatDate } from '@/utils/format'
 import { NotificationChannel, ChannelTypeNames } from '@/types'
@@ -195,8 +192,26 @@ onMounted(() => { fetchChannels() })
 
 <style scoped lang="scss">
 .notification-page {
-  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  .page-title { font-size: 18px; font-weight: 600; margin: 0; }
-  .table-container { background: #fff; border-radius: 4px; padding: 16px; }
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .page-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .table-container {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-card);
+  }
 }
 </style>

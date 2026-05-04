@@ -23,16 +23,22 @@ function goHome() {
   align-items: center;
   justify-content: center;
   height: 100vh;
+  background: linear-gradient(135deg, #e8f8f4 0%, #f4fbf9 50%, #f2f3f5 100%);
 
   h1 {
-    font-size: 72px;
-    color: #409eff;
+    font-size: 96px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--color-primary-dark), var(--color-primary-light));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
     margin-bottom: 16px;
+    line-height: 1.1;
   }
 
   p {
     font-size: 18px;
-    color: #606266;
+    color: var(--color-text-regular);
     margin-bottom: 24px;
   }
 }

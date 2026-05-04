@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="device-groups-page">
       <div class="page-header">
         <h1 class="page-title">设备分组</h1>
@@ -84,7 +83,6 @@
         </template>
       </el-dialog>
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -92,7 +90,6 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { AppLayout } from '@/components/layout'
 import { getDeviceGroups, createDeviceGroup, updateDeviceGroup, deleteDeviceGroup, addDeviceToGroup, removeDeviceFromGroup } from '@/api/device-group'
 import { getDevices } from '@/api/device'
 import { greenhouseApi } from '@/api'
@@ -307,12 +304,13 @@ onMounted(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
   }
 
   .page-title {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
     margin: 0;
     text-wrap: balance;
   }
@@ -328,6 +326,14 @@ onMounted(() => {
   }
 
   .group-card {
+    border-radius: var(--radius-md);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-card-hover);
+    }
+
     .card-header {
       display: flex;
       justify-content: space-between;
@@ -336,6 +342,7 @@ onMounted(() => {
 
     .group-name {
       font-weight: 600;
+      color: var(--color-text-primary);
     }
 
     .card-actions {

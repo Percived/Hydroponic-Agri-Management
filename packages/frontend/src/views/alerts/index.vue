@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="alerts-page">
       <div class="page-header">
         <h1 class="page-title">告警中心</h1>
@@ -127,13 +126,11 @@
         </template>
       </el-dialog>
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
-import { AppLayout } from '@/components/layout'
 import { alertApi } from '@/api'
 import { usePermission } from '@/composables/usePermission'
 import { formatDateTime, getAlertTypeName, getAlertLevelType, getAlertLevelName, getAlertStatusType, getAlertStatusName } from '@/utils/format'
@@ -261,12 +258,13 @@ onMounted(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
   }
 
   .page-title {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
     margin: 0;
     text-wrap: balance;
   }
@@ -274,10 +272,11 @@ onMounted(() => {
   .stats-bar {
     display: flex;
     gap: 24px;
-    background: #fff;
+    background: var(--bg-card);
     padding: 16px 20px;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     margin-bottom: 16px;
+    box-shadow: var(--shadow-card);
   }
 
   .stat-item {
@@ -287,38 +286,44 @@ onMounted(() => {
     font-size: 14px;
 
     .stat-dot {
-      width: 8px;
-      height: 8px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
     }
 
     &.open .stat-dot {
-      background: #f56c6c;
+      background: var(--color-danger);
+      box-shadow: 0 0 6px rgba(245, 108, 108, 0.5);
     }
 
     &.ack .stat-dot {
-      background: #e6a23c;
+      background: var(--color-warning);
+      box-shadow: 0 0 6px rgba(230, 162, 60, 0.5);
     }
 
     &.closed .stat-dot {
-      background: #67c23a;
+      background: var(--color-success);
+      box-shadow: 0 0 6px rgba(103, 194, 58, 0.5);
     }
   }
 
   .table-container {
-    background: #fff;
-    border-radius: 4px;
-    padding: 16px;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-card);
   }
 
   .pagination-container {
     display: flex;
     justify-content: flex-end;
-    margin-top: 16px;
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
   }
 
   .text-muted {
-    color: #c0c4cc;
+    color: var(--color-text-placeholder);
   }
 }
 </style>
