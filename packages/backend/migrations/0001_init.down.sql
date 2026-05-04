@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS `system_configs`;
+DROP TABLE IF EXISTS `audit_logs`;
+DROP TABLE IF EXISTS `alerts`;
+DROP TABLE IF EXISTS `control_templates`;
+DROP TABLE IF EXISTS `control_rules`;
+DROP TABLE IF EXISTS `control_commands`;
+DROP TABLE IF EXISTS `telemetry_data`;
+DROP TABLE IF EXISTS `device_metrics`;
+DROP TABLE IF EXISTS `metrics`;
+DROP TABLE IF EXISTS `devices`;
+DROP TABLE IF EXISTS `device_groups`;
+DROP TABLE IF EXISTS `greenhouses`;
+DROP TABLE IF EXISTS `role_permissions`;
+DROP TABLE IF EXISTS `permissions`;
+DROP TABLE IF EXISTS `user_roles`;
+DROP TABLE IF EXISTS `roles`;
+DROP TABLE IF EXISTS `users`;

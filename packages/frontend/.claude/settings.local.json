@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:3000)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh api:*)",
+      "Bash(curl:*)",
+      "Bash(wget -qO- \"https://raw.githubusercontent.com/Shubhamsaboo/awesome-llm-apps/main/awesome_agent_skills/fullstack-developer/SKILL.md\")",
+      "mcp__ide__getDiagnostics",
+      "Bash(pkill -f \"vite\")",
+      "Bash(node -e ':*)"
+    ]
+  }
+}

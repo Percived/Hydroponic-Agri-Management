@@ -1,0 +1,39 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: hamb-mysql
+    restart: unless-stopped
+    ports:
+      - "13307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: hydroponic
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: hamb-influxdb
+    restart: unless-stopped
+    ports:
+      - "9087:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: admin123
+      DOCKER_INFLUXDB_INIT_ORG: hydroponic
+      DOCKER_INFLUXDB_INIT_BUCKET: telemetry
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: your-token
+    volumes:
+      - ./data/influxdb:/var/lib/influxdb2
+
+  emqx:
+    image: emqx/emqx:5.6
+    container_name: hamb-emqx
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "18083:18083"
+    environment:
+      EMQX_DASHBOARD__DEFAULT_USERNAME: admin
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: public

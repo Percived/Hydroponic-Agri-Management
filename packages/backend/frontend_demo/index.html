@@ -1,0 +1,1557 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hydroponic 前端演示</title>
+    <style>
+      :root {
+        --bg: #f3f5f9;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --border: #e2e8f0;
+        --accent: #2563eb;
+        --success: #16a34a;
+        --warn: #f97316;
+        --danger: #dc2626;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+          monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          "Apple Color Emoji", "Segoe UI Emoji";
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        background: var(--card);
+        border-bottom: 1px solid var(--border);
+        gap: 16px;
+      }
+      .title {
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .subtitle {
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+      .settings {
+        display: grid;
+        grid-template-columns: 220px 260px auto auto;
+        gap: 8px;
+        align-items: center;
+      }
+      .settings label {
+        display: grid;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .settings input {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        font-size: 13px;
+      }
+      .settings .actions {
+        display: flex;
+        gap: 8px;
+      }
+      button {
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        background: #fff;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      button.primary {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      button.ghost {
+        background: #fff;
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      .app {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        min-height: calc(100vh - 70px);
+      }
+      .sidebar {
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 16px;
+        display: grid;
+        gap: 8px;
+        align-content: start;
+      }
+      .nav-item {
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: transparent;
+        color: inherit;
+        border: 1px solid transparent;
+        text-align: left;
+      }
+      .nav-item.active {
+        background: #1e293b;
+        border-color: #334155;
+      }
+      .main {
+        padding: 20px;
+        display: grid;
+        gap: 12px;
+      }
+      .section {
+        display: none;
+        gap: 16px;
+      }
+      .section.active {
+        display: grid;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        display: grid;
+        gap: 12px;
+      }
+      .card h3 {
+        margin: 0;
+        font-size: 15px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+      .field label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .field input,
+      .field select,
+      .field textarea {
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        font-size: 13px;
+      }
+      .field textarea {
+        min-height: 110px;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .stat {
+        padding: 12px;
+        border-radius: 12px;
+        background: #f8fafc;
+        border: 1px solid var(--border);
+      }
+      .stat strong {
+        font-size: 18px;
+        display: block;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      th,
+      td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .output {
+        background: #0b1020;
+        color: #e2e8f0;
+        padding: 12px;
+        border-radius: 10px;
+        font-family: var(--mono);
+        font-size: 12px;
+        white-space: pre-wrap;
+        min-height: 90px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #2563eb;
+        font-size: 12px;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .note {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .footer {
+        padding: 12px 20px 24px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .small {
+        padding: 6px 10px;
+        font-size: 12px;
+      }
+      @media (max-width: 1100px) {
+        .settings {
+          grid-template-columns: 1fr;
+        }
+        .app {
+          grid-template-columns: 1fr;
+        }
+        .sidebar {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .grid-2,
+        .grid-3,
+        .stat-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <div>
+        <div class="title">水培温室管理前端演示</div>
+        <div class="subtitle">真实调用后端接口 · 纯 HTML/CSS/JS</div>
+      </div>
+      <div class="settings">
+        <label>
+          API 基地址
+          <input id="base-url" placeholder="http://localhost:8080" />
+        </label>
+        <label>
+          Token
+          <input id="token" placeholder="Bearer token" />
+        </label>
+        <div class="actions">
+          <button id="save-settings" class="primary" type="button">保存</button>
+          <button id="logout" class="ghost" type="button">退出</button>
+        </div>
+        <div class="row">
+          <span id="session-status" class="badge">未登录</span>
+        </div>
+      </div>
+    </div>
+    <div class="app">
+      <aside class="sidebar">
+        <button class="nav-item active" data-section="dashboard" type="button">
+          看板概览
+        </button>
+        <button class="nav-item" data-section="login" type="button">
+          用户登录
+        </button>
+        <button class="nav-item" data-section="manage" type="button">
+          温室与设备
+        </button>
+        <button class="nav-item" data-section="control" type="button">
+          设备控制
+        </button>
+        <button class="nav-item" data-section="query" type="button">
+          数据查询
+        </button>
+        <button class="nav-item" data-section="alerts" type="button">
+          告警管理
+        </button>
+        <button class="nav-item" data-section="ingest" type="button">
+          采集上报
+        </button>
+      </aside>
+      <main class="main">
+        <div id="global-message" class="note"></div>
+        <section id="dashboard" class="section active">
+          <div class="grid-3">
+            <div class="card">
+              <h3>系统概览</h3>
+              <div class="stat-grid">
+                <div class="stat">
+                  <strong id="stat-devices-online">-</strong>
+                  <span class="muted">在线设备</span>
+                </div>
+                <div class="stat">
+                  <strong id="stat-devices-offline">-</strong>
+                  <span class="muted">离线设备</span>
+                </div>
+                <div class="stat">
+                  <strong id="stat-alerts-open">-</strong>
+                  <span class="muted">未处理告警</span>
+                </div>
+                <div class="stat">
+                  <strong id="stat-alerts-ack">-</strong>
+                  <span class="muted">已确认</span>
+                </div>
+                <div class="stat">
+                  <strong id="stat-alerts-closed">-</strong>
+                  <span class="muted">已关闭</span>
+                </div>
+                <div class="stat">
+                  <strong id="stat-total-devices">-</strong>
+                  <span class="muted">设备总数</span>
+                </div>
+              </div>
+              <div class="actions">
+                <button id="refresh-dashboard" class="primary" type="button">
+                  刷新概览
+                </button>
+                <button id="refresh-all" type="button">刷新全部列表</button>
+              </div>
+            </div>
+            <div class="card">
+              <h3>当前选中</h3>
+              <div class="row">
+                <span class="badge" id="current-greenhouse">温室: -</span>
+                <span class="badge" id="current-group">分组: -</span>
+                <span class="badge" id="current-device">设备: -</span>
+              </div>
+              <div class="muted" id="current-user">当前用户: 未登录</div>
+              <div class="actions">
+                <button id="jump-login" class="ghost" type="button">去登录</button>
+              </div>
+            </div>
+            <div class="card">
+              <h3>最近响应</h3>
+              <div class="output" id="dashboard-output">暂无响应</div>
+            </div>
+          </div>
+        </section>
+        <section id="login" class="section">
+          <div class="grid-2">
+            <div class="card">
+              <h3>用户登录</h3>
+              <div class="field">
+                <label>用户名</label>
+                <input id="login-username" value="admin" />
+              </div>
+              <div class="field">
+                <label>密码</label>
+                <input id="login-password" type="password" value="admin123" />
+              </div>
+              <div class="actions">
+                <button id="login-btn" class="primary" type="button">登录</button>
+              </div>
+              <div class="output" id="login-output">暂无响应</div>
+            </div>
+            <div class="card">
+              <h3>会话信息</h3>
+              <div class="row">
+                <span class="badge" id="session-user">未登录</span>
+                <span class="badge" id="session-role">角色: -</span>
+              </div>
+              <div class="field">
+                <label>当前 Token</label>
+                <textarea id="session-token" readonly></textarea>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section id="manage" class="section">
+          <div class="grid-2">
+            <div class="card">
+              <h3>温室列表</h3>
+              <div class="actions">
+                <button id="load-greenhouses" class="ghost small" type="button">
+                  刷新列表
+                </button>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>名称</th>
+                    <th>位置</th>
+                    <th>描述</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="greenhouse-table"></tbody>
+              </table>
+            </div>
+            <div class="card">
+              <h3>新建温室</h3>
+              <div class="field">
+                <label>名称</label>
+                <input id="greenhouse-name" placeholder="A1 温室" />
+              </div>
+              <div class="field">
+                <label>位置</label>
+                <input id="greenhouse-location" placeholder="A1" />
+              </div>
+              <div class="field">
+                <label>描述</label>
+                <input id="greenhouse-description" placeholder="叶菜试验区" />
+              </div>
+              <div class="actions">
+                <button id="create-greenhouse" class="primary" type="button">
+                  创建温室
+                </button>
+              </div>
+              <div class="output" id="greenhouse-output">暂无响应</div>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <h3>设备分组列表</h3>
+              <div class="actions">
+                <button id="load-groups" class="ghost small" type="button">
+                  刷新列表
+                </button>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>温室</th>
+                    <th>名称</th>
+                    <th>描述</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="group-table"></tbody>
+              </table>
+            </div>
+            <div class="card">
+              <h3>新建设备分组</h3>
+              <div class="field">
+                <label>所属温室</label>
+                <select id="group-greenhouse"></select>
+              </div>
+              <div class="field">
+                <label>名称</label>
+                <input id="group-name" placeholder="A 区" />
+              </div>
+              <div class="field">
+                <label>描述</label>
+                <input id="group-description" placeholder="叶菜区" />
+              </div>
+              <div class="actions">
+                <button id="create-group" class="primary" type="button">
+                  创建分组
+                </button>
+              </div>
+              <div class="output" id="group-output">暂无响应</div>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <h3>设备列表</h3>
+              <div class="actions">
+                <button id="load-devices" class="ghost small" type="button">
+                  刷新列表
+                </button>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>编码</th>
+                    <th>名称</th>
+                    <th>类型</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="device-table"></tbody>
+              </table>
+            </div>
+            <div class="card">
+              <h3>新建设备</h3>
+              <div class="field">
+                <label>设备编码</label>
+                <input id="device-code" value="DEV-001" />
+              </div>
+              <div class="field">
+                <label>设备名称</label>
+                <input id="device-name" value="温度传感器" />
+              </div>
+              <div class="field">
+                <label>类型</label>
+                <select id="device-type">
+                  <option value="SENSOR">SENSOR</option>
+                  <option value="ACTUATOR">ACTUATOR</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>指标分类</label>
+                <input id="device-category" value="TEMP" />
+              </div>
+              <div class="field">
+                <label>协议</label>
+                <select id="device-protocol">
+                  <option value="MQTT">MQTT</option>
+                  <option value="HTTP">HTTP</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>所属温室</label>
+                <select id="device-greenhouse"></select>
+              </div>
+              <div class="field">
+                <label>所属分组</label>
+                <select id="device-group"></select>
+              </div>
+              <div class="field">
+                <label>采样间隔（秒）</label>
+                <input id="device-interval" type="number" value="60" />
+              </div>
+              <div class="actions">
+                <button id="create-device" class="primary" type="button">
+                  创建设备
+                </button>
+              </div>
+              <div class="output" id="device-output">暂无响应</div>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <h3>设备状态更新</h3>
+              <div class="field">
+                <label>设备 ID</label>
+                <input id="status-device-id" placeholder="自动带入" />
+              </div>
+              <div class="field">
+                <label>状态</label>
+                <select id="status-value">
+                  <option value="ENABLED">ENABLED</option>
+                  <option value="DISABLED">DISABLED</option>
+                </select>
+              </div>
+              <div class="actions">
+                <button id="update-device-status" class="primary" type="button">
+                  更新状态
+                </button>
+              </div>
+              <div class="output" id="device-status-output">暂无响应</div>
+            </div>
+            <div class="card">
+              <h3>设备选择提示</h3>
+              <div class="muted">
+                在列表点击“选用”，会自动填充设备 ID 与设备编码。
+              </div>
+            </div>
+          </div>
+        </section>
+        <section id="control" class="section">
+          <div class="grid-2">
+            <div class="card">
+              <h3>下发控制命令</h3>
+              <div class="field">
+                <label>设备 ID</label>
+                <input id="command-device-id" placeholder="自动带入" />
+              </div>
+              <div class="field">
+                <label>命令类型</label>
+                <input id="command-type" value="SWITCH" />
+              </div>
+              <div class="field">
+                <label>Payload JSON</label>
+                <textarea id="command-payload">{ "state": "ON" }</textarea>
+              </div>
+              <div class="actions">
+                <button id="send-command" class="primary" type="button">
+                  下发命令
+                </button>
+              </div>
+              <div class="output" id="command-output">暂无响应</div>
+            </div>
+            <div class="card">
+              <h3>阈值控制规则</h3>
+              <div class="field">
+                <label>规则名称</label>
+                <input id="rule-name" value="高温开风机" />
+              </div>
+              <div class="field">
+                <label>指标码</label>
+                <input id="rule-metric" value="TEMP" />
+              </div>
+              <div class="field">
+                <label>比较符</label>
+                <select id="rule-operator">
+                  <option value=">">></option>
+                  <option value=">=">>=</option>
+                  <option value="<"><</option>
+                  <option value="<="><=</option>
+                  <option value="==">==</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>阈值</label>
+                <input id="rule-threshold" type="number" value="30" />
+              </div>
+              <div class="field">
+                <label>目标设备 ID</label>
+                <input id="rule-device-id" placeholder="自动带入" />
+              </div>
+              <div class="field">
+                <label>启用</label>
+                <select id="rule-enabled">
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+              </div>
+              <div class="actions">
+                <button id="create-rule" class="primary" type="button">
+                  创建规则
+                </button>
+              </div>
+              <div class="output" id="rule-output">暂无响应</div>
+            </div>
+          </div>
+        </section>
+        <section id="query" class="section">
+          <div class="grid-2">
+            <div class="card">
+              <h3>最新指标数据</h3>
+              <div class="field">
+                <label>设备 ID</label>
+                <input id="latest-device-id" placeholder="自动带入" />
+              </div>
+              <div class="field">
+                <label>指标码列表</label>
+                <input id="latest-metrics" value="TEMP,HUMIDITY" />
+              </div>
+              <div class="actions">
+                <button id="query-latest" class="primary" type="button">
+                  查询最新
+                </button>
+              </div>
+              <div class="output" id="latest-output">暂无响应</div>
+            </div>
+            <div class="card">
+              <h3>历史数据查询</h3>
+              <div class="field">
+                <label>设备 ID</label>
+                <input id="history-device-id" placeholder="自动带入" />
+              </div>
+              <div class="field">
+                <label>指标码</label>
+                <input id="history-metric" value="TEMP" />
+              </div>
+              <div class="field">
+                <label>开始时间</label>
+                <input id="history-start" />
+              </div>
+              <div class="field">
+                <label>结束时间</label>
+                <input id="history-end" />
+              </div>
+              <div class="field">
+                <label>页码 / 每页</label>
+                <div class="row">
+                  <input id="history-page" type="number" value="1" />
+                  <input id="history-page-size" type="number" value="50" />
+                </div>
+              </div>
+              <div class="actions">
+                <button id="query-history" class="primary" type="button">
+                  查询历史
+                </button>
+              </div>
+              <div class="output" id="history-output">暂无响应</div>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <h3>统计数据</h3>
+              <div class="field">
+                <label>设备 ID</label>
+                <input id="stats-device-id" placeholder="自动带入" />
+              </div>
+              <div class="field">
+                <label>指标码</label>
+                <input id="stats-metric" value="TEMP" />
+              </div>
+              <div class="field">
+                <label>开始时间</label>
+                <input id="stats-start" />
+              </div>
+              <div class="field">
+                <label>结束时间</label>
+                <input id="stats-end" />
+              </div>
+              <div class="actions">
+                <button id="query-stats" class="primary" type="button">
+                  查询统计
+                </button>
+              </div>
+              <div class="output" id="stats-output">暂无响应</div>
+            </div>
+            <div class="card">
+              <h3>数据查询说明</h3>
+              <div class="muted">
+                需要设备 ID 与指标码，时间格式建议使用 ISO 8601。
+              </div>
+            </div>
+          </div>
+        </section>
+        <section id="alerts" class="section">
+          <div class="grid-2">
+            <div class="card">
+              <h3>告警列表</h3>
+              <div class="field">
+                <label>类型 / 级别 / 状态</label>
+                <div class="row">
+                  <input id="alert-type" placeholder="THRESHOLD" />
+                  <input id="alert-level" placeholder="WARN" />
+                  <input id="alert-status" placeholder="OPEN" />
+                </div>
+              </div>
+              <div class="field">
+                <label>页码 / 每页</label>
+                <div class="row">
+                  <input id="alert-page" type="number" value="1" />
+                  <input id="alert-page-size" type="number" value="20" />
+                </div>
+              </div>
+              <div class="actions">
+                <button id="load-alerts" class="primary" type="button">
+                  查询告警
+                </button>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>类型</th>
+                    <th>级别</th>
+                    <th>状态</th>
+                    <th>设备</th>
+                  </tr>
+                </thead>
+                <tbody id="alert-table"></tbody>
+              </table>
+            </div>
+            <div class="card">
+              <h3>告警状态更新</h3>
+              <div class="field">
+                <label>告警 ID</label>
+                <input id="alert-update-id" placeholder="从列表选择" />
+              </div>
+              <div class="field">
+                <label>状态</label>
+                <select id="alert-update-status">
+                  <option value="ACK">ACK</option>
+                  <option value="CLOSED">CLOSED</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>处理备注</label>
+                <input id="alert-update-comment" placeholder="已处理" />
+              </div>
+              <div class="actions">
+                <button id="update-alert" class="primary" type="button">
+                  更新告警
+                </button>
+                <button id="alert-stats" type="button">告警统计</button>
+              </div>
+              <div class="output" id="alert-output">暂无响应</div>
+            </div>
+          </div>
+        </section>
+        <section id="ingest" class="section">
+          <div class="grid-2">
+            <div class="card">
+              <h3>模拟采集上报</h3>
+              <div class="field">
+                <label>设备编码</label>
+                <input id="ingest-device-code" value="DEV-001" />
+              </div>
+              <div class="field">
+                <label>指标码 / 单位</label>
+                <div class="row">
+                  <input id="ingest-metric" value="TEMP" />
+                  <input id="ingest-unit" value="C" />
+                </div>
+              </div>
+              <div class="field">
+                <label>基准值 / 波动</label>
+                <div class="row">
+                  <input id="ingest-base" type="number" value="24" />
+                  <input id="ingest-variance" type="number" value="2" />
+                </div>
+              </div>
+              <div class="field">
+                <label>上报间隔（秒）</label>
+                <input id="ingest-interval" type="number" value="5" />
+              </div>
+              <div class="actions">
+                <button id="ingest-start" class="primary" type="button">
+                  开始上报
+                </button>
+                <button id="ingest-stop" type="button">停止</button>
+              </div>
+              <div class="output" id="ingest-output">暂无响应</div>
+            </div>
+            <div class="card">
+              <h3>上报说明</h3>
+              <div class="muted">
+                模拟上报会持续调用 /api/telemetry。可在设备列表选用设备后自动带入编码。
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <div class="footer">
+      提醒：浏览器直接请求可能需要后端开启 CORS。默认本地接口为
+      http://localhost:8080。
+    </div>
+    <script>
+      const byId = (id) => document.getElementById(id);
+
+      const state = {
+        baseUrl: "http://localhost:8080",
+        token: "",
+        user: null,
+        greenhouseId: "",
+        groupId: "",
+        deviceId: "",
+        deviceCode: "",
+        simulationTimer: null,
+      };
+
+      const storageKeys = {
+        baseUrl: "hydro.demo.baseUrl",
+        token: "hydro.demo.token",
+        user: "hydro.demo.user",
+      };
+
+      const baseUrlInput = byId("base-url");
+      const tokenInput = byId("token");
+      const sessionStatus = byId("session-status");
+      const sessionUser = byId("session-user");
+      const sessionRole = byId("session-role");
+      const sessionToken = byId("session-token");
+      const messageEl = byId("global-message");
+      const currentGreenhouse = byId("current-greenhouse");
+      const currentGroup = byId("current-group");
+      const currentDevice = byId("current-device");
+      const currentUser = byId("current-user");
+      const dashboardOutput = byId("dashboard-output");
+      const statDevicesOnline = byId("stat-devices-online");
+      const statDevicesOffline = byId("stat-devices-offline");
+      const statAlertsOpen = byId("stat-alerts-open");
+      const statAlertsAck = byId("stat-alerts-ack");
+      const statAlertsClosed = byId("stat-alerts-closed");
+      const statTotalDevices = byId("stat-total-devices");
+
+      const greenhouseTable = byId("greenhouse-table");
+      const groupTable = byId("group-table");
+      const deviceTable = byId("device-table");
+      const greenhouseSelect = byId("group-greenhouse");
+      const deviceGreenhouseSelect = byId("device-greenhouse");
+      const deviceGroupSelect = byId("device-group");
+
+      const loginOutput = byId("login-output");
+      const greenhouseOutput = byId("greenhouse-output");
+      const groupOutput = byId("group-output");
+      const deviceOutput = byId("device-output");
+      const deviceStatusOutput = byId("device-status-output");
+      const commandOutput = byId("command-output");
+      const ruleOutput = byId("rule-output");
+      const latestOutput = byId("latest-output");
+      const historyOutput = byId("history-output");
+      const statsOutput = byId("stats-output");
+      const alertOutput = byId("alert-output");
+      const ingestOutput = byId("ingest-output");
+
+      function setMessage(text) {
+        messageEl.textContent = text || "";
+      }
+
+      function formatJson(data) {
+        if (data === undefined || data === null) return "";
+        if (typeof data === "string") return data;
+        return JSON.stringify(data, null, 2);
+      }
+
+      function showOutput(el, data) {
+        if (!el) return;
+        el.textContent = formatJson(data);
+      }
+
+      function updateSessionUI() {
+        sessionStatus.textContent = state.user
+          ? `已登录 ${state.user.username}`
+          : "未登录";
+        sessionUser.textContent = state.user
+          ? `用户: ${state.user.username}`
+          : "未登录";
+        sessionRole.textContent = state.user
+          ? `角色: ${(state.user.roles || []).join(",")}`
+          : "角色: -";
+        sessionToken.value = state.token || "";
+        tokenInput.value = state.token || "";
+        currentUser.textContent = state.user
+          ? `当前用户: ${state.user.username} (${(state.user.roles || []).join(
+              ","
+            )})`
+          : "当前用户: 未登录";
+      }
+
+      function updateSelectionUI() {
+        currentGreenhouse.textContent = `温室: ${state.greenhouseId || "-"}`;
+        currentGroup.textContent = `分组: ${state.groupId || "-"}`;
+        currentDevice.textContent = `设备: ${state.deviceId || "-"}`;
+        byId("status-device-id").value = state.deviceId || "";
+        byId("command-device-id").value = state.deviceId || "";
+        byId("rule-device-id").value = state.deviceId || "";
+        byId("latest-device-id").value = state.deviceId || "";
+        byId("history-device-id").value = state.deviceId || "";
+        byId("stats-device-id").value = state.deviceId || "";
+        byId("ingest-device-code").value = state.deviceCode || "DEV-001";
+      }
+
+      function loadSettings() {
+        const baseUrl = localStorage.getItem(storageKeys.baseUrl);
+        const token = localStorage.getItem(storageKeys.token);
+        const userText = localStorage.getItem(storageKeys.user);
+        state.baseUrl = baseUrl || "http://localhost:8080";
+        state.token = token || "";
+        state.user = userText ? JSON.parse(userText) : null;
+        baseUrlInput.value = state.baseUrl;
+        updateSessionUI();
+      }
+
+      function saveSettings() {
+        state.baseUrl = baseUrlInput.value.trim() || "http://localhost:8080";
+        state.token = tokenInput.value.trim();
+        localStorage.setItem(storageKeys.baseUrl, state.baseUrl);
+        localStorage.setItem(storageKeys.token, state.token);
+        if (state.user) {
+          localStorage.setItem(storageKeys.user, JSON.stringify(state.user));
+        }
+        updateSessionUI();
+        setMessage("设置已保存");
+      }
+
+      function clearSession() {
+        state.token = "";
+        state.user = null;
+        localStorage.removeItem(storageKeys.token);
+        localStorage.removeItem(storageKeys.user);
+        updateSessionUI();
+        setMessage("已退出登录");
+      }
+
+      function buildQuery(query) {
+        if (!query) return "";
+        const params = new URLSearchParams();
+        Object.entries(query).forEach(([key, value]) => {
+          if (value === undefined || value === null || value === "") return;
+          params.append(key, value);
+        });
+        const qs = params.toString();
+        return qs ? `?${qs}` : "";
+      }
+
+      async function apiRequest({ method, path, query, body }) {
+        const base = state.baseUrl.replace(/\/+$/, "");
+        const url = `${base}${path}${buildQuery(query)}`;
+        const headers = { "Content-Type": "application/json" };
+        if (state.token) {
+          headers.Authorization = `Bearer ${state.token}`;
+        }
+        const options = { method, headers };
+        if (body !== undefined && body !== null && method !== "GET") {
+          options.body = JSON.stringify(body);
+        }
+        const started = performance.now();
+        const res = await fetch(url, options);
+        const text = await res.text();
+        let data;
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch (err) {
+          data = { raw: text };
+        }
+        const duration = Math.round(performance.now() - started);
+        if (!res.ok || (data.code !== undefined && data.code !== 0)) {
+          const message = data.message || res.statusText || "request_failed";
+          const error = new Error(message);
+          error.data = data;
+          error.status = res.status;
+          error.url = url;
+          error.duration = duration;
+          throw error;
+        }
+        return { data, url, duration };
+      }
+
+      async function handleRequest({ method, path, query, body, outputEl }) {
+        try {
+          const res = await apiRequest({ method, path, query, body });
+          if (outputEl) {
+            showOutput(outputEl, res.data);
+          }
+          showOutput(dashboardOutput, res.data);
+          setMessage(`请求成功：${method} ${path}`);
+          return res.data;
+        } catch (err) {
+          const payload = err.data || {
+            message: err.message,
+            status: err.status,
+          };
+          if (outputEl) {
+            showOutput(outputEl, payload);
+          }
+          showOutput(dashboardOutput, payload);
+          setMessage(`请求失败：${err.message}`);
+          return null;
+        }
+      }
+
+      function renderGreenhouses(items) {
+        greenhouseTable.innerHTML = (items || [])
+          .map(
+            (g) => `<tr>
+              <td>${g.id}</td>
+              <td>${g.name || ""}</td>
+              <td>${g.location || ""}</td>
+              <td>${g.description || ""}</td>
+              <td>
+                <button class="ghost small" data-greenhouse-id="${g.id}" type="button">
+                  选用
+                </button>
+              </td>
+            </tr>`
+          )
+          .join("");
+      }
+
+      function renderGroups(items) {
+        groupTable.innerHTML = (items || [])
+          .map(
+            (g) => `<tr>
+              <td>${g.id}</td>
+              <td>${g.greenhouse_id || ""}</td>
+              <td>${g.name || ""}</td>
+              <td>${g.description || ""}</td>
+              <td>
+                <button class="ghost small" data-group-id="${g.id}" type="button">
+                  选用
+                </button>
+              </td>
+            </tr>`
+          )
+          .join("");
+      }
+
+      function renderDevices(items) {
+        deviceTable.innerHTML = (items || [])
+          .map(
+            (d) => `<tr>
+              <td>${d.id}</td>
+              <td>${d.device_code || ""}</td>
+              <td>${d.name || ""}</td>
+              <td>${d.type || ""}</td>
+              <td>${d.status || ""}</td>
+              <td>
+                <button class="ghost small" data-device-id="${d.id}" data-device-code="${
+              d.device_code || ""
+            }" type="button">
+                  选用
+                </button>
+              </td>
+            </tr>`
+          )
+          .join("");
+      }
+
+      function fillSelect(selectEl, items, valueKey, labelKeys) {
+        if (!selectEl) return;
+        selectEl.innerHTML = (items || [])
+          .map((item) => {
+            const label = labelKeys
+              .map((key) => item[key])
+              .filter(Boolean)
+              .join(" / ");
+            return `<option value="${item[valueKey]}">${label}</option>`;
+          })
+          .join("");
+      }
+
+      async function loadGreenhouses() {
+        const res = await handleRequest({
+          method: "GET",
+          path: "/api/devices/greenhouses",
+          query: { page: 1, page_size: 50, keyword: "" },
+          outputEl: greenhouseOutput,
+        });
+        const items = res?.data?.items || [];
+        renderGreenhouses(items);
+        if (!state.greenhouseId && items[0]) {
+          state.greenhouseId = String(items[0].id);
+        }
+        fillSelect(greenhouseSelect, items, "id", ["id", "name"]);
+        fillSelect(deviceGreenhouseSelect, items, "id", ["id", "name"]);
+        updateSelectionUI();
+      }
+
+      async function loadGroups() {
+        const res = await handleRequest({
+          method: "GET",
+          path: "/api/device-groups",
+          query: {
+            greenhouse_id: state.greenhouseId || "",
+          },
+          outputEl: groupOutput,
+        });
+        const items = res?.data?.items || [];
+        renderGroups(items);
+        if (!state.groupId && items[0]) {
+          state.groupId = String(items[0].id);
+        }
+        fillSelect(deviceGroupSelect, items, "id", ["id", "name"]);
+        updateSelectionUI();
+      }
+
+      async function loadDevices() {
+        const res = await handleRequest({
+          method: "GET",
+          path: "/api/devices",
+          query: {
+            page: 1,
+            page_size: 50,
+            greenhouse_id: state.greenhouseId || "",
+            group_id: state.groupId || "",
+          },
+          outputEl: deviceOutput,
+        });
+        const items = res?.data?.items || [];
+        renderDevices(items);
+        if (!state.deviceId && items[0]) {
+          state.deviceId = String(items[0].id);
+          state.deviceCode = items[0].device_code || state.deviceCode;
+        }
+        statTotalDevices.textContent = String(res?.data?.total || items.length || "-");
+        updateSelectionUI();
+      }
+
+      async function loadDashboard() {
+        if (!state.token) {
+          setMessage("请先登录后再查看概览");
+          return;
+        }
+        const overview = await handleRequest({
+          method: "GET",
+          path: "/api/overview/dashboard",
+          outputEl: dashboardOutput,
+        });
+        const stats = await handleRequest({
+          method: "GET",
+          path: "/api/alerts/stats",
+          outputEl: dashboardOutput,
+        });
+        const overviewData = overview?.data || {};
+        const statsData = stats?.data || {};
+        statDevicesOnline.textContent =
+          overviewData.devices_online ?? overviewData.devicesOnline ?? "-";
+        statDevicesOffline.textContent =
+          overviewData.devices_offline ?? overviewData.devicesOffline ?? "-";
+        statAlertsOpen.textContent = statsData.open ?? overviewData.alerts_open ?? "-";
+        statAlertsAck.textContent = statsData.ack ?? "-";
+        statAlertsClosed.textContent = statsData.closed ?? "-";
+      }
+
+      function bindNavigation() {
+        document.querySelectorAll(".nav-item").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const target = btn.dataset.section;
+            document
+              .querySelectorAll(".nav-item")
+              .forEach((item) => item.classList.remove("active"));
+            btn.classList.add("active");
+            document
+              .querySelectorAll(".section")
+              .forEach((section) => section.classList.remove("active"));
+            const sectionEl = byId(target);
+            if (sectionEl) {
+              sectionEl.classList.add("active");
+            }
+          });
+        });
+      }
+
+      function setDefaultTimes() {
+        const now = new Date();
+        const end = now.toISOString();
+        const start = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+        byId("history-start").value = start;
+        byId("history-end").value = end;
+        byId("stats-start").value = start;
+        byId("stats-end").value = end;
+      }
+
+      byId("save-settings").addEventListener("click", saveSettings);
+      byId("logout").addEventListener("click", () => {
+        clearSession();
+      });
+      byId("jump-login").addEventListener("click", () => {
+        document.querySelector('[data-section="login"]').click();
+      });
+
+      byId("login-btn").addEventListener("click", async () => {
+        const username = byId("login-username").value.trim();
+        const password = byId("login-password").value.trim();
+        const res = await handleRequest({
+          method: "POST",
+          path: "/api/auth/login",
+          body: { username, password },
+          outputEl: loginOutput,
+        });
+        if (res?.data?.token) {
+          state.token = res.data.token;
+          state.user = res.data.user || null;
+          localStorage.setItem(storageKeys.token, state.token);
+          localStorage.setItem(storageKeys.user, JSON.stringify(state.user));
+          updateSessionUI();
+          loadDashboard();
+          loadGreenhouses();
+          loadGroups();
+          loadDevices();
+        }
+      });
+
+      byId("load-greenhouses").addEventListener("click", loadGreenhouses);
+      byId("load-groups").addEventListener("click", loadGroups);
+      byId("load-devices").addEventListener("click", loadDevices);
+      byId("refresh-dashboard").addEventListener("click", loadDashboard);
+      byId("refresh-all").addEventListener("click", () => {
+        loadGreenhouses();
+        loadGroups();
+        loadDevices();
+      });
+
+      byId("create-greenhouse").addEventListener("click", async () => {
+        const res = await handleRequest({
+          method: "POST",
+          path: "/api/devices/greenhouses",
+          body: {
+            name: byId("greenhouse-name").value.trim(),
+            location: byId("greenhouse-location").value.trim(),
+            description: byId("greenhouse-description").value.trim(),
+          },
+          outputEl: greenhouseOutput,
+        });
+        if (res?.data?.id) {
+          state.greenhouseId = String(res.data.id);
+          loadGreenhouses();
+        }
+      });
+
+      byId("create-group").addEventListener("click", async () => {
+        const res = await handleRequest({
+          method: "POST",
+          path: "/api/device-groups",
+          body: {
+            greenhouse_id: Number(byId("group-greenhouse").value),
+            name: byId("group-name").value.trim(),
+            description: byId("group-description").value.trim(),
+          },
+          outputEl: groupOutput,
+        });
+        if (res?.data?.id) {
+          state.groupId = String(res.data.id);
+          loadGroups();
+        }
+      });
+
+      byId("create-device").addEventListener("click", async () => {
+        const res = await handleRequest({
+          method: "POST",
+          path: "/api/devices",
+          body: {
+            device_code: byId("device-code").value.trim(),
+            name: byId("device-name").value.trim(),
+            type: byId("device-type").value,
+            category: byId("device-category").value.trim(),
+            protocol: byId("device-protocol").value,
+            greenhouse_id: Number(byId("device-greenhouse").value) || undefined,
+            group_id: Number(byId("device-group").value) || undefined,
+            sampling_interval_sec: Number(byId("device-interval").value) || 60,
+          },
+          outputEl: deviceOutput,
+        });
+        if (res?.data?.id) {
+          state.deviceId = String(res.data.id);
+          state.deviceCode = byId("device-code").value.trim();
+          loadDevices();
+        }
+      });
+
+      byId("update-device-status").addEventListener("click", async () => {
+        const deviceId = byId("status-device-id").value.trim();
+        const status = byId("status-value").value;
+        await handleRequest({
+          method: "PATCH",
+          path: `/api/devices/${deviceId}/status`,
+          body: { status },
+          outputEl: deviceStatusOutput,
+        });
+      });
+
+      greenhouseTable.addEventListener("click", (event) => {
+        const btn = event.target.closest("button[data-greenhouse-id]");
+        if (!btn) return;
+        state.greenhouseId = btn.dataset.greenhouseId;
+        updateSelectionUI();
+        loadGroups();
+        loadDevices();
+      });
+
+      groupTable.addEventListener("click", (event) => {
+        const btn = event.target.closest("button[data-group-id]");
+        if (!btn) return;
+        state.groupId = btn.dataset.groupId;
+        updateSelectionUI();
+        loadDevices();
+      });
+
+      deviceTable.addEventListener("click", (event) => {
+        const btn = event.target.closest("button[data-device-id]");
+        if (!btn) return;
+        state.deviceId = btn.dataset.deviceId;
+        state.deviceCode = btn.dataset.deviceCode || state.deviceCode;
+        updateSelectionUI();
+      });
+
+      byId("send-command").addEventListener("click", async () => {
+        let payload;
+        try {
+          payload = JSON.parse(byId("command-payload").value);
+        } catch (err) {
+          showOutput(commandOutput, { message: "payload 不是合法 JSON" });
+          return;
+        }
+        await handleRequest({
+          method: "POST",
+          path: "/api/controls/commands",
+          body: {
+            device_id: Number(byId("command-device-id").value),
+            command_type: byId("command-type").value.trim(),
+            payload,
+          },
+          outputEl: commandOutput,
+        });
+      });
+
+      byId("create-rule").addEventListener("click", async () => {
+        await handleRequest({
+          method: "POST",
+          path: "/api/controls/rules",
+          body: {
+            name: byId("rule-name").value.trim(),
+            metric_code: byId("rule-metric").value.trim(),
+            operator: byId("rule-operator").value,
+            threshold: Number(byId("rule-threshold").value),
+            action: {
+              command_type: "SWITCH",
+              payload: { state: "ON" },
+            },
+            target_device_id: Number(byId("rule-device-id").value),
+            enabled: byId("rule-enabled").value === "true",
+          },
+          outputEl: ruleOutput,
+        });
+      });
+
+      byId("query-latest").addEventListener("click", async () => {
+        await handleRequest({
+          method: "GET",
+          path: "/api/telemetry/latest",
+          query: {
+            device_id: byId("latest-device-id").value.trim(),
+            metrics: byId("latest-metrics").value.trim(),
+          },
+          outputEl: latestOutput,
+        });
+      });
+
+      byId("query-history").addEventListener("click", async () => {
+        await handleRequest({
+          method: "GET",
+          path: "/api/telemetry/history",
+          query: {
+            device_id: byId("history-device-id").value.trim(),
+            metric_code: byId("history-metric").value.trim(),
+            start_time: byId("history-start").value.trim(),
+            end_time: byId("history-end").value.trim(),
+            include_raw: false,
+            page: byId("history-page").value.trim(),
+            page_size: byId("history-page-size").value.trim(),
+          },
+          outputEl: historyOutput,
+        });
+      });
+
+      byId("query-stats").addEventListener("click", async () => {
+        await handleRequest({
+          method: "GET",
+          path: "/api/telemetry/stats",
+          query: {
+            device_id: byId("stats-device-id").value.trim(),
+            metric_code: byId("stats-metric").value.trim(),
+            start_time: byId("stats-start").value.trim(),
+            end_time: byId("stats-end").value.trim(),
+          },
+          outputEl: statsOutput,
+        });
+      });
+
+      byId("load-alerts").addEventListener("click", async () => {
+        const res = await handleRequest({
+          method: "GET",
+          path: "/api/alerts",
+          query: {
+            type: byId("alert-type").value.trim(),
+            level: byId("alert-level").value.trim(),
+            status: byId("alert-status").value.trim(),
+            page: byId("alert-page").value.trim(),
+            page_size: byId("alert-page-size").value.trim(),
+          },
+          outputEl: alertOutput,
+        });
+        const items = res?.data?.items || [];
+        byId("alert-table").innerHTML = items
+          .map(
+            (a) => `<tr>
+              <td>${a.id}</td>
+              <td>${a.type || ""}</td>
+              <td>${a.level || ""}</td>
+              <td>${a.status || ""}</td>
+              <td>${a.device_id || ""}</td>
+            </tr>`
+          )
+          .join("");
+        if (items[0]) {
+          byId("alert-update-id").value = items[0].id;
+        }
+      });
+
+      byId("update-alert").addEventListener("click", async () => {
+        const alertId = byId("alert-update-id").value.trim();
+        await handleRequest({
+          method: "PATCH",
+          path: `/api/alerts/${alertId}/status`,
+          body: {
+            status: byId("alert-update-status").value,
+            comment: byId("alert-update-comment").value.trim(),
+          },
+          outputEl: alertOutput,
+        });
+      });
+
+      byId("alert-stats").addEventListener("click", async () => {
+        await handleRequest({
+          method: "GET",
+          path: "/api/alerts/stats",
+          outputEl: alertOutput,
+        });
+      });
+
+      function randomValue(base, variance) {
+        const offset = (Math.random() * 2 - 1) * variance;
+        return Math.round((base + offset) * 100) / 100;
+      }
+
+      byId("ingest-start").addEventListener("click", () => {
+        if (state.simulationTimer) return;
+        const interval = Number(byId("ingest-interval").value) || 5;
+        state.simulationTimer = setInterval(async () => {
+          const deviceCode = byId("ingest-device-code").value.trim();
+          const metricCode = byId("ingest-metric").value.trim();
+          const unit = byId("ingest-unit").value.trim();
+          const base = Number(byId("ingest-base").value) || 0;
+          const variance = Number(byId("ingest-variance").value) || 0;
+          await handleRequest({
+            method: "POST",
+            path: "/api/telemetry",
+            body: {
+              device_code: deviceCode,
+              collected_at: new Date().toISOString(),
+              metrics: [
+                {
+                  code: metricCode,
+                  value: randomValue(base, variance),
+                  unit,
+                },
+              ],
+            },
+            outputEl: ingestOutput,
+          });
+        }, interval * 1000);
+        setMessage("模拟上报已开始");
+      });
+
+      byId("ingest-stop").addEventListener("click", () => {
+        if (state.simulationTimer) {
+          clearInterval(state.simulationTimer);
+          state.simulationTimer = null;
+          setMessage("模拟上报已停止");
+        }
+      });
+
+      bindNavigation();
+      loadSettings();
+      setDefaultTimes();
+      updateSelectionUI();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,34 @@
+app:
+  name: hydroponic-backend
+  env: dev
+
+server:
+  host: 0.0.0.0
+  port: 3000
+
+auth:
+  jwt_secret: "change-me"
+  token_expire_secs: 7200
+
+mysql:
+  host: 127.0.0.1
+  port: 13307
+  user: root
+  password: root
+  database: hydroponic
+  params: "charset=utf8mb4&parseTime=True&loc=Local"
+
+influx:
+  url: http://127.0.0.1:9087
+  token: "your-token"
+  org: hydroponic
+  bucket: telemetry
+
+mqtt:
+  broker: "tcp://127.0.0.1:1883"
+  username: "emqx"
+  password: "public"
+  client_id: "hamb-backend"
+
+log:
+  level: info

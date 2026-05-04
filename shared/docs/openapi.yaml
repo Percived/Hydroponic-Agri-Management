@@ -1,0 +1,651 @@
+openapi: 3.0.3
+info:
+  title: Hydroponic Agri Management Backend API
+  version: 0.1.0
+  description: Browser API documentation for hydroponic backend services.
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local
+tags:
+  - name: system
+  - name: auth
+  - name: users
+  - name: roles
+  - name: overview
+  - name: devices
+  - name: greenhouses
+  - name: groups
+  - name: telemetry
+  - name: controls
+  - name: alerts
+  - name: audit
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Envelope:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+        request_id:
+          type: string
+paths:
+  /healthz:
+    get:
+      tags: [system]
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+  /readyz:
+    get:
+      tags: [system]
+      summary: Readiness check
+      responses:
+        "200":
+          description: OK
+  /api/auth/login:
+    post:
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: OK
+  /api/auth/logout:
+    post:
+      tags: [auth]
+      summary: Logout
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/users:
+    get:
+      tags: [users]
+      summary: List users
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [users]
+      summary: Create user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/users/{userId}:
+    put:
+      tags: [users]
+      summary: Update user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/users/{userId}/status:
+    patch:
+      tags: [users]
+      summary: Update user status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/roles:
+    get:
+      tags: [roles]
+      summary: List roles
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [roles]
+      summary: Create role
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/roles/{roleId}:
+    put:
+      tags: [roles]
+      summary: Update role
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roleId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/overview/dashboard:
+    get:
+      tags: [overview]
+      summary: Dashboard summary
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/devices:
+    get:
+      tags: [devices]
+      summary: List devices
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [devices]
+      summary: Create device
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/devices/{deviceId}:
+    get:
+      tags: [devices]
+      summary: Get device
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [devices]
+      summary: Update device
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/devices/{deviceId}/health:
+    get:
+      tags: [devices]
+      summary: Device health
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/devices/{deviceId}/status:
+    patch:
+      tags: [devices]
+      summary: Update device status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/devices/greenhouses:
+    get:
+      tags: [greenhouses]
+      summary: List greenhouses
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [greenhouses]
+      summary: Create greenhouse
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/devices/greenhouses/{greenhouseId}:
+    get:
+      tags: [greenhouses]
+      summary: Get greenhouse
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: greenhouseId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [greenhouses]
+      summary: Update greenhouse
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: greenhouseId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [greenhouses]
+      summary: Delete greenhouse (cascade unbind)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: greenhouseId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not found
+  /api/device-groups:
+    get:
+      tags: [groups]
+      summary: List groups
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  message:
+                    type: string
+                    example: ok
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: integer
+                              format: int64
+                            name:
+                              type: string
+                            description:
+                              type: string
+                            greenhouse_id:
+                              type: integer
+                              format: int64
+                            device_count:
+                              type: integer
+                              format: int64
+                  request_id:
+                    type: string
+    post:
+      tags: [groups]
+      summary: Create group
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/device-groups/{groupId}:
+    put:
+      tags: [groups]
+      summary: Update group
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: groupId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [groups]
+      summary: Delete group (unbind devices)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: groupId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: Not found
+  /api/device-groups/{groupId}/devices/{deviceId}:
+    post:
+      tags: [groups]
+      summary: Bind device to group
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: groupId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [groups]
+      summary: Unbind device from group
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: groupId
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/telemetry:
+    post:
+      tags: [telemetry]
+      summary: Ingest telemetry
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/telemetry/latest:
+    get:
+      tags: [telemetry]
+      summary: Query latest telemetry
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/telemetry/history:
+    get:
+      tags: [telemetry]
+      summary: Query history telemetry
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/telemetry/stats:
+    get:
+      tags: [telemetry]
+      summary: Query telemetry stats
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/telemetry/retention:
+    post:
+      tags: [telemetry]
+      summary: Set retention
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/controls/commands:
+    get:
+      tags: [controls]
+      summary: List commands
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [controls]
+      summary: Create command
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/controls/commands/{commandId}:
+    get:
+      tags: [controls]
+      summary: Get command
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: commandId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/controls/rules:
+    get:
+      tags: [controls]
+      summary: List rules
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [controls]
+      summary: Create rule
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/controls/rules/{ruleId}:
+    put:
+      tags: [controls]
+      summary: Update rule
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: ruleId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [controls]
+      summary: Delete rule
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: ruleId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/controls/templates:
+    get:
+      tags: [controls]
+      summary: List templates
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [controls]
+      summary: Create template
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/controls/templates/{templateId}/apply:
+    post:
+      tags: [controls]
+      summary: Apply template
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/alerts:
+    get:
+      tags: [alerts]
+      summary: List alerts
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/alerts/{alertId}:
+    get:
+      tags: [alerts]
+      summary: Get alert
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: alertId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/alerts/{alertId}/status:
+    patch:
+      tags: [alerts]
+      summary: Update alert status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: alertId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+  /api/alerts/stats:
+    get:
+      tags: [alerts]
+      summary: Alert stats
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/alerts/subscribe:
+    get:
+      tags: [alerts]
+      summary: Alert subscribe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/audit-logs:
+    get:
+      tags: [audit]
+      summary: Query audit logs
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK

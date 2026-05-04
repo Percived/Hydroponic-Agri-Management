@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(netstat:*)",
+      "Bash(netsh interface:*)",
+      "Bash(docker ps:*)",
+      "Bash(go run:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd:*)",
+      "Bash(npx skills:*)",
+      "Bash(git config:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebSearch",
+      "Bash(npm run:*)",
+      "Bash(go build:*)"
+    ]
+  }
+}
