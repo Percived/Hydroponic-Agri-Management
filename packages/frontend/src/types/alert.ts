@@ -29,6 +29,8 @@ export interface Alert {
   device_name: string
   status: AlertStatus
   remark: string | null
+  triggered_at: string
+  resolved_at: string | null
   created_at: string
   updated_at: string
 }

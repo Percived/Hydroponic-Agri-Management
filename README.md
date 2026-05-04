@@ -1,4 +1,4 @@
-# 水培农业管理系统
+# 水培农业信息管理系统
 
 Hydroponic Agriculture Management System — 面向温室/水培环境的全栈管理平台，支持设备管理、MQTT 实时遥测、InfluxDB 时序存储、控制指令下发及基于角色的访问控制。
 

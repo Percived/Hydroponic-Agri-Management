@@ -189,11 +189,25 @@ Domain-aligned structure under `packages/frontend/src/`:
 
 ## Cross-Package Conventions
 
-### When to Update Shared Docs
+### Documentation Update Rule (MANDATORY)
 
-- If you change an API endpoint in the backend, update `shared/docs/API_SPEC.md` and `shared/docs/openapi.yaml`
-- If you add a new TypeScript type that mirrors a backend struct, align field names with the API spec
-- The `shared/docs/` directory is the **canonical source** for the API contract
+After ANY code change, you MUST update the corresponding documentation. Never skip this step.
+
+| Change Type | Documents to Update |
+|-------------|-------------------|
+| Backend API change (handler/dto/route) | `shared/docs/API_SPEC.md`, `packages/backend/docs/HANDOFF.md` |
+| Backend model/schema/migration change | `packages/backend/docs/HANDOFF.md`, `packages/backend/docs/PROJECT_STATUS.md` |
+| Frontend API/type/view change | `packages/frontend/docs/HANDOFF.md` |
+| Frontend scope/architecture change | `packages/frontend/docs/PROJECT_STATUS.md` |
+| Shared contract change | `shared/docs/API_SPEC.md` + both HANDOFF.md |
+
+Project status documents to keep in sync:
+- `shared/docs/API_SPEC.md` — canonical API reference (when endpoints/fields change)
+- `shared/docs/openapi.yaml` — OpenAPI spec (when endpoints/fields change)
+- `packages/backend/docs/HANDOFF.md` — latest changes, session context (after every backend change)
+- `packages/backend/docs/PROJECT_STATUS.md` — summary, version, migration commands (when scope changes)
+- `packages/frontend/docs/HANDOFF.md` — latest changes, session context (after every frontend change)
+- `packages/frontend/docs/PROJECT_STATUS.md` — summary, version (when scope changes)
 
 ### Adding a New API Endpoint
 

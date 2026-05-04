@@ -161,10 +161,26 @@ export const createExample = (data: CreateExampleRequest) => post<Example>('/exa
 - [x] Audit logs (admin only)
 - [x] Greenhouse management (admin only)
 
-## Documentation
+## Documentation Update Rule (MANDATORY)
+
+After ANY code change, update the corresponding documentation:
+
+| Change | Documents to Update |
+|--------|-------------------|
+| API module change (`src/api/*.ts`) | `docs/HANDOFF.md` |
+| Type definition change (`src/types/*.ts`) | `docs/HANDOFF.md`、`../../shared/docs/API_SPEC.md` |
+| View/page component change | `docs/HANDOFF.md` |
+| New feature or scope change | `docs/HANDOFF.md` + `docs/PROJECT_STATUS.md` |
+| Shared contract change | `../../shared/docs/API_SPEC.md` |
+
+See root `CLAUDE.md` for full documentation update rules.
+
+## Documentation Index
 
 - `docs/FRONTEND_PRD.md` - Product requirements
 - `docs/plans/2026-04-20-mvp-frontend-design.md` - MVP design decisions
+- `docs/HANDOFF.md` - Session handoff (update after every change)
+- `docs/PROJECT_STATUS.md` - Project status snapshot
 - `../../shared/docs/API_SPEC.md` - API specification (canonical, shared with backend)
 - `../../shared/docs/openapi.yaml` - OpenAPI 3.0.3 spec (shared with backend)
 - `../../CLAUDE.md` - Root monorepo rules and cross-package conventions

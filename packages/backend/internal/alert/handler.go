@@ -28,15 +28,17 @@ func NewHandler(db *gorm.DB, hub *event.Hub) *Handler {
 
 func (h *Handler) List(c *gin.Context) {
 	page, size := parsePage(c)
-	q := h.db.Model(&Alert{})
+	q := h.db.Table("alerts a").
+		Select("a.*, d.name AS device_name").
+		Joins("LEFT JOIN devices d ON d.id = a.device_id")
 	if v := strings.TrimSpace(c.Query("type")); v != "" {
-		q = q.Where("type = ?", v)
+		q = q.Where("a.type = ?", v)
 	}
 	if v := strings.TrimSpace(c.Query("level")); v != "" {
-		q = q.Where("level = ?", v)
+		q = q.Where("a.level = ?", v)
 	}
 	if v := strings.TrimSpace(c.Query("status")); v != "" {
-		q = q.Where("status = ?", v)
+		q = q.Where("a.status = ?", v)
 	}
 
 	var total int64
@@ -47,7 +49,7 @@ func (h *Handler) List(c *gin.Context) {
 
 	alerts := []Alert{}
 	if total > 0 {
-		if err := q.Order("triggered_at desc").Limit(size).Offset((page - 1) * size).Find(&alerts).Error; err != nil {
+		if err := q.Order("a.triggered_at desc").Limit(size).Offset((page - 1) * size).Scan(&alerts).Error; err != nil {
 			response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
 			return
 		}
@@ -67,7 +69,11 @@ func (h *Handler) Get(c *gin.Context) {
 		return
 	}
 	var a Alert
-	if err := h.db.First(&a, id).Error; err != nil {
+	if err := h.db.Table("alerts a").
+		Select("a.*, d.name AS device_name").
+		Joins("LEFT JOIN devices d ON d.id = a.device_id").
+		Where("a.id = ?", id).
+		Scan(&a).Error; err != nil || a.ID == 0 {
 		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
 		return
 	}
@@ -116,7 +122,7 @@ func (h *Handler) Stats(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
 		return
 	}
-	response.Success(c, gin.H{"open": openCount, "ack": ackCount, "closed": closedCount})
+	response.Success(c, gin.H{"open_count": openCount, "ack_count": ackCount, "closed_count": closedCount})
 }
 
 func (h *Handler) Subscribe(c *gin.Context) {
@@ -211,11 +217,13 @@ func toItem(a Alert) gin.H {
 		"level":        a.Level,
 		"metric_id":    a.MetricID,
 		"device_id":    a.DeviceID,
+		"device_name":  a.DeviceName,
 		"value":        a.Value,
 		"message":      a.Message,
 		"status":       a.Status,
 		"triggered_at": a.TriggeredAt,
 		"resolved_at":  a.ResolvedAt,
+		"created_at":   a.CreatedAt,
 	}
 }
 

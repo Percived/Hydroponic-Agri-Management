@@ -14,11 +14,14 @@ type Alert struct {
 	Level       string     `gorm:"size:16;not null"`
 	MetricID    *uint64    `gorm:""`
 	DeviceID    uint64     `gorm:"not null;index"`
+	DeviceName  string     `gorm:"->"`
 	Value       *float64   `gorm:"type:decimal(12,4)"`
 	Message     string     `gorm:"size:255;not null"`
 	Status      string     `gorm:"size:16;not null;default:OPEN"`
 	TriggeredAt time.Time  `gorm:"not null"`
 	ResolvedAt  *time.Time `gorm:""`
+	CreatedAt   time.Time  `gorm:"autoCreateTime:milli"`
+	UpdatedAt   time.Time  `gorm:"autoUpdateTime:milli"`
 }
 
 func (Alert) TableName() string { return "alerts" }

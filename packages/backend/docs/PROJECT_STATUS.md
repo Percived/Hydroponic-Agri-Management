@@ -2,7 +2,7 @@
 
 最后更新: 2026-05-04
 负责人: 后端团队
-版本: v0.2（Phase 2 完成）
+版本: v0.2.1（Phase 2 修复 + 种子数据）
 
 ## 1. 项目概述
 
@@ -31,6 +31,8 @@
 - 批量控制命令下发（按温室 / 分组 / 指定设备）
 - 通知渠道 CRUD（EMAIL / SMS / WEBHOOK）+ Webhook 测试发送（HMAC-SHA256 签名）
 - 系统配置管理（GET / PUT，敏感值自动脱敏）
+- 控制规则种子数据（22 条，覆盖 6 大指标 × 2 温室，含回差区间）
+- API 响应字段补齐：控制规则列表/告警列表返回 target_device_name / device_name
 - CORS 中间件（宽松模式），用于基于浏览器的 API 演示请求
 - 浏览器 API 文档：Swagger UI（`/docs/index.html`）+ OpenAPI 规范（`/openapi.yaml`）
 
@@ -91,6 +93,8 @@ docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0001_in
 docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0002_seed_auth.up.sql
 docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0003_seed_metrics.up.sql
 docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0004_notification_channels.up.sql
+docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0005_seed_devices.up.sql
+docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0006_seed_control_rules.up.sql
 ```
 
 运行后端：

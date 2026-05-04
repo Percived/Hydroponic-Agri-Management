@@ -82,10 +82,21 @@ Before doing full repository scans, read these files first:
 
 If the user request can be answered using these files, avoid full-codebase traversal.
 
+## Documentation Update Rule (MANDATORY)
+
+After ANY code change, update the corresponding documentation. Never skip this step.
+
+| Change Type | Documents to Update |
+|-------------|-------------------|
+| Handler/DTO/route change | `docs/HANDOFF.md` + `../../shared/docs/API_SPEC.md` |
+| Model/schema change | `docs/HANDOFF.md` + `docs/PROJECT_STATUS.md` |
+| Migration change | `docs/HANDOFF.md` + `docs/PROJECT_STATUS.md` |
+| New feature or scope change | `docs/HANDOFF.md` + `docs/PROJECT_STATUS.md` |
+| Bug fix affecting API response | `docs/HANDOFF.md` + `../../shared/docs/API_SPEC.md` |
+
 ## Context Hygiene
 
 - Prefer incremental reads over full reads
-- After making meaningful code changes, update `docs/HANDOFF.md` (required) and `docs/PROJECT_STATUS.md` (if scope/status changed)
 
 ## Shared Resources
 
