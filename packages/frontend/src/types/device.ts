@@ -1,89 +1,158 @@
-// 设备类型
-export enum DeviceType {
-  SENSOR = 'SENSOR',
-  ACTUATOR = 'ACTUATOR'
-}
+import type { PaginatedResponse } from './api'
 
-// 设备分类
-export enum DeviceCategory {
-  TEMP = 'TEMP',
-  HUMIDITY = 'HUMIDITY',
-  PH = 'PH',
-  EC = 'EC',
-  CO2 = 'CO2',
-  LIGHT = 'LIGHT',
-  FAN = 'FAN',
-  PUMP = 'PUMP',
-  VALVE = 'VALVE'
-}
-
-// 设备状态
-export enum DeviceStatus {
-  ENABLED = 'ENABLED',
-  DISABLED = 'DISABLED'
-}
-
-// 通信协议
-export enum DeviceProtocol {
-  MQTT = 'MQTT',
-  HTTP = 'HTTP'
-}
-
-// 设备
-export interface Device {
-  id: number
-  device_code: string
-  name: string
-  type: DeviceType
-  category: string
-  greenhouse_id: number | null
-  group_id: number | null
-  status: DeviceStatus
-  protocol: DeviceProtocol
-  last_seen_at: string | null
-  created_at: string
-  updated_at: string
-  sampling_interval_sec?: number
-}
-
-// 设备健康状态
-export interface DeviceHealth {
-  device_id: number
-  online: boolean
-  last_seen_at: string | null
-}
-
-// 设备分组
-export interface DeviceGroup {
+// ── Sensor Devices ──
+export interface SensorDevice {
   id: number
   greenhouse_id: number
+  growing_zone_id?: number
+  device_code: string
   name: string
-  description: string | null
+  model?: string
+  firmware_version?: string
+  status: 'ONLINE' | 'OFFLINE' | 'FAULT'
+  last_seen_at?: string
+  protocol: string
+  metadata?: Record<string, unknown>
   created_at: string
   updated_at: string
-  device_count?: number
 }
 
-// 设备查询参数
-export interface DeviceQueryParams {
-  page?: number
-  page_size?: number
-  type?: DeviceType
-  category?: string
-  group_id?: number
-  greenhouse_id?: number
-  status?: DeviceStatus
-  keyword?: string
-}
-
-// 新增/编辑设备参数
-export interface DeviceFormData {
-  device_code?: string
+export interface CreateSensorDeviceRequest {
+  greenhouse_id: number
+  growing_zone_id?: number
+  device_code: string
   name: string
-  type: DeviceType
-  category: string
-  protocol: DeviceProtocol
-  greenhouse_id?: number | null
-  group_id?: number | null
-  sampling_interval_sec?: number
+  model?: string
+  firmware_version?: string
+  protocol?: string
+  metadata?: Record<string, unknown>
 }
+
+export interface UpdateSensorDeviceRequest {
+  name?: string
+  model?: string
+  firmware_version?: string
+  status?: string
+  growing_zone_id?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface SensorDeviceListResponse extends PaginatedResponse<SensorDevice> {}
+
+// ── Sensor Channels ──
+export interface SensorChannel {
+  id: number
+  sensor_device_id: number
+  channel_code: string
+  metric_code: string
+  unit: string
+  precision_digits: number
+  range_min?: number
+  range_max?: number
+  sampling_interval_sec: number
+  enabled: number
+  last_reported_at?: string
+  metadata?: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateSensorChannelRequest {
+  sensor_device_id: number
+  channel_code: string
+  metric_code: string
+  unit: string
+  precision_digits?: number
+  range_min?: number
+  range_max?: number
+  sampling_interval_sec?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface UpdateSensorChannelRequest {
+  channel_code?: string
+  metric_code?: string
+  unit?: string
+  precision_digits?: number
+  range_min?: number
+  range_max?: number
+  sampling_interval_sec?: number
+  enabled?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface SensorChannelListResponse extends PaginatedResponse<SensorChannel> {}
+
+// ── Actuator Devices ──
+export interface ActuatorDevice {
+  id: number
+  greenhouse_id: number
+  growing_zone_id?: number
+  device_code: string
+  name: string
+  model?: string
+  firmware_version?: string
+  status: 'ONLINE' | 'OFFLINE' | 'FAULT'
+  last_seen_at?: string
+  protocol: string
+  metadata?: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateActuatorDeviceRequest {
+  greenhouse_id: number
+  growing_zone_id?: number
+  device_code: string
+  name: string
+  model?: string
+  firmware_version?: string
+  protocol?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface UpdateActuatorDeviceRequest {
+  name?: string
+  model?: string
+  firmware_version?: string
+  status?: string
+  growing_zone_id?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface ActuatorDeviceListResponse extends PaginatedResponse<ActuatorDevice> {}
+
+// ── Actuator Channels ──
+export type ActuatorType = 'PUMP' | 'AERATOR' | 'FAN' | 'VALVE' | 'SHADE' | 'LED' | 'HEATER' | 'CO2_GEN' | 'FOGGER'
+
+export interface ActuatorChannel {
+  id: number
+  actuator_device_id: number
+  channel_code: string
+  actuator_type: ActuatorType
+  current_state: string
+  rated_power_watt?: number
+  enabled: number
+  metadata?: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateActuatorChannelRequest {
+  actuator_device_id: number
+  channel_code: string
+  actuator_type: ActuatorType
+  rated_power_watt?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface UpdateActuatorChannelRequest {
+  channel_code?: string
+  actuator_type?: ActuatorType
+  rated_power_watt?: number
+  enabled?: number
+  current_state?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface ActuatorChannelListResponse extends PaginatedResponse<ActuatorChannel> {}

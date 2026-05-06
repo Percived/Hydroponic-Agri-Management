@@ -8,11 +8,14 @@ import (
 )
 
 func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
-	h := NewHandler(deps.MySQL, deps.EventHub)
+	h := NewHandler(deps.MySQL)
+
 	alerts := r.Group("/alerts")
-	alerts.GET("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.List)
-	alerts.GET("/:alertId", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.Get)
-	alerts.PATCH("/:alertId/status", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.UpdateStatus)
-	alerts.GET("/stats", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.Stats)
-	alerts.GET("/subscribe", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.Subscribe)
+	alerts.POST("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.CreateAlert)
+	alerts.GET("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.ListAlerts)
+	alerts.GET("/stats", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetAlertStats)
+	alerts.GET("/:id", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetAlert)
+	alerts.PATCH("/:id/status", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.UpdateAlertStatus)
+	alerts.GET("/:id/timeline", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetAlertTimeline)
+	alerts.POST("/:id/timeline", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.AddTimelineEvent)
 }

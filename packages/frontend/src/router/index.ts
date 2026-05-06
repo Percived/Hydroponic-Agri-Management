@@ -2,7 +2,6 @@ import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
 import { Role } from '@/types'
 import { getToken } from '@/utils/storage'
 
-// 路由配置
 const routes: RouteRecordRaw[] = [
   {
     path: '/login',
@@ -16,60 +15,141 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/dashboard/index.vue'),
     meta: { requiresAuth: true, title: '首页' }
   },
+  // ── 资产中心 ──
   {
-    path: '/devices',
-    name: 'DeviceList',
+    path: '/assets/sensor-devices',
+    name: 'SensorDevices',
     component: () => import('@/views/devices/list.vue'),
-    meta: { requiresAuth: true, title: '设备列表' }
+    meta: { requiresAuth: true, title: '传感器设备' }
   },
   {
-    path: '/devices/:id',
-    name: 'DeviceDetail',
-    component: () => import('@/views/devices/detail.vue'),
-    meta: { requiresAuth: true, title: '设备详情' }
+    path: '/assets/actuator-devices',
+    name: 'ActuatorDevices',
+    component: () => import('@/views/devices/list.vue'),
+    meta: { requiresAuth: true, title: '执行器设备' }
   },
   {
-    path: '/greenhouses',
+    path: '/assets/greenhouses',
     name: 'Greenhouses',
     component: () => import('@/views/greenhouses/index.vue'),
     meta: { requiresAuth: true, roles: [Role.ADMIN], title: '温室管理' }
   },
   {
-    path: '/device-groups',
-    name: 'DeviceGroups',
-    component: () => import('@/views/device-groups/index.vue'),
-    meta: { requiresAuth: true, title: '设备分组' }
+    path: '/assets/growing-zones',
+    name: 'GrowingZones',
+    component: () => import('@/views/greenhouses/zones.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '种植区管理' }
   },
+  // ── 采集中心 ──
   {
-    path: '/telemetry/realtime',
+    path: '/collection/realtime',
     name: 'TelemetryRealtime',
     component: () => import('@/views/telemetry/realtime.vue'),
-    meta: { requiresAuth: true, title: '实时数据' }
+    meta: { requiresAuth: true, title: '实时曲线' }
   },
   {
-    path: '/telemetry/history',
+    path: '/collection/history',
     name: 'TelemetryHistory',
     component: () => import('@/views/telemetry/history.vue'),
-    meta: { requiresAuth: true, title: '历史数据' }
+    meta: { requiresAuth: true, title: '历史趋势' }
   },
   {
-    path: '/alerts',
-    name: 'Alerts',
-    component: () => import('@/views/alerts/index.vue'),
-    meta: { requiresAuth: true, title: '告警中心' }
+    path: '/collection/batch-trends',
+    name: 'BatchTrends',
+    component: () => import('@/views/telemetry/batch-trends.vue'),
+    meta: { requiresAuth: true, title: '批次趋势' }
+  },
+  // ── 策略控制 ──
+  {
+    path: '/strategy/policies',
+    name: 'ControlPolicies',
+    component: () => import('@/views/controls/rules.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '控制策略' }
   },
   {
-    path: '/controls/commands',
+    path: '/strategy/climate',
+    name: 'ClimateProfiles',
+    component: () => import('@/views/climate/index.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '气候联动' }
+  },
+  {
+    path: '/strategy/commands',
     name: 'ControlCommands',
     component: () => import('@/views/controls/commands.vue'),
-    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '控制命令' }
+    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '指令下发' }
+  },
+  // ── 营养液 ──
+  {
+    path: '/nutrient/tanks',
+    name: 'NutrientTanks',
+    component: () => import('@/views/nutrient/tanks.vue'),
+    meta: { requiresAuth: true, title: '营养液槽' }
   },
   {
-    path: '/controls/rules',
-    name: 'ControlRules',
-    component: () => import('@/views/controls/rules.vue'),
-    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '控制规则' }
+    path: '/nutrient/ion-tests',
+    name: 'IonTests',
+    component: () => import('@/views/nutrient/ion-tests.vue'),
+    meta: { requiresAuth: true, title: '离子检测' }
   },
+  {
+    path: '/nutrient/recipes',
+    name: 'NutrientRecipes',
+    component: () => import('@/views/recipes/index.vue'),
+    meta: { requiresAuth: true, title: '营养配方' }
+  },
+  // ── 告警处置 ──
+  {
+    path: '/alerts/list',
+    name: 'Alerts',
+    component: () => import('@/views/alerts/index.vue'),
+    meta: { requiresAuth: true, title: '告警列表' }
+  },
+  {
+    path: '/alerts/timeline',
+    name: 'AlertTimeline',
+    component: () => import('@/views/alerts/timeline.vue'),
+    meta: { requiresAuth: true, title: '告警时间线' }
+  },
+  // ── 批次管理 ──
+  {
+    path: '/batches/ledger',
+    name: 'BatchLedger',
+    component: () => import('@/views/batches/ledger.vue'),
+    meta: { requiresAuth: true, title: '批次台账' }
+  },
+  {
+    path: '/batches/harvest',
+    name: 'HarvestRecords',
+    component: () => import('@/views/batches/harvest.vue'),
+    meta: { requiresAuth: true, title: '采收记录' }
+  },
+  {
+    path: '/batches/stage-plans',
+    name: 'BatchStagePlans',
+    component: () => import('@/views/batches/stage-plans.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '阶段计划' }
+  },
+  {
+    path: '/batches/review',
+    name: 'BatchReview',
+    component: () => import('@/views/batches/review.vue'),
+    meta: { requiresAuth: true, title: '批次复盘' }
+  },
+  // ── 植保 ──
+  {
+    path: '/pest/observations',
+    name: 'PestObservations',
+    component: () => import('@/views/pest/observations.vue'),
+    meta: { requiresAuth: true, title: '病虫害观察' }
+  },
+  // ── 能耗 ──
+  {
+    path: '/energy/records',
+    name: 'EnergyRecords',
+    component: () => import('@/views/energy/records.vue'),
+    meta: { requiresAuth: true, title: '能耗记录' }
+  },
+  // ── Admin ──
   {
     path: '/users',
     name: 'Users',
@@ -88,12 +168,17 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/settings/notification-channels.vue'),
     meta: { requiresAuth: true, roles: [Role.ADMIN], title: '通知渠道' }
   },
-  {
-    path: '/settings/system-config',
-    name: 'SystemConfig',
-    component: () => import('@/views/settings/system-config.vue'),
-    meta: { requiresAuth: true, roles: [Role.ADMIN], title: '系统配置' }
-  },
+  // ── Legacy redirects ──
+  { path: '/devices', redirect: '/assets/sensor-devices' },
+  { path: '/devices/:id', redirect: '/assets/sensor-devices' },
+  { path: '/greenhouses', redirect: '/assets/greenhouses' },
+  { path: '/device-groups', redirect: '/assets/greenhouses' },
+  { path: '/telemetry/realtime', redirect: '/collection/realtime' },
+  { path: '/telemetry/history', redirect: '/collection/history' },
+  { path: '/controls/commands', redirect: '/strategy/commands' },
+  { path: '/controls/rules', redirect: '/strategy/policies' },
+  { path: '/alerts', redirect: '/alerts/list' },
+  { path: '/alerts/workflow', redirect: '/alerts/timeline' },
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
@@ -102,36 +187,29 @@ const routes: RouteRecordRaw[] = [
   }
 ]
 
-// 创建路由实例
 const router = createRouter({
   history: createWebHistory(),
   routes
 })
 
-// 路由守卫
 router.beforeEach(async (to) => {
-  // 设置页面标题
   document.title = (to.meta.title as string) || '水培农植信息管理系统'
 
-  // 不需要认证的页面直接放行
   if (!to.meta.requiresAuth) {
     return true
   }
 
-  // 检查是否登录
   const token = getToken()
   if (!token) {
     return { name: 'Login', query: { redirect: to.fullPath } }
   }
 
-  // 角色权限检查
   const requiredRoles = to.meta.roles as Role[] | undefined
   if (requiredRoles && requiredRoles.length > 0) {
-    // 动态获取用户角色
     const { useAuthStore } = await import('@/stores/auth')
     const authStore = useAuthStore()
     if (!authStore.hasAnyRole(requiredRoles)) {
-      return { name: 'DeviceList' }
+      return { name: 'SensorDevices' }
     }
   }
 

@@ -1,86 +1,330 @@
 # 交接文档
 
-最后更新: 2026-05-04
+最后更新: 2026-05-06
 当前分支: main
-当前重点: API 响应字段补齐 + 控制规则种子数据 + 文档同步更新。
+当前重点: v2.0.0 架构 —— 18 领域模块全量落地，193 个 API 端点。
 
-## 1. 近期变更（2026-05-04 会话）
+## 0. 近期变更（v2.0.0 重构）
 
-### API 响应字段补齐（Bug Fix）
-- **控制规则列表** `GET /api/controls/rules`：
-  - 新增 LEFT JOIN devices 填充 `target_device_name`
-  - 新增返回 `action`（JSON，含 command_type + payload）、`updated_at`
-- **告警列表/详情** `GET /api/alerts`、`GET /api/alerts/:id`：
-  - 新增 LEFT JOIN devices 填充 `device_name`
-  - 新增返回 `created_at`
-  - Alert 模型新增 `DeviceName`（gorm:"->"）、`CreatedAt`、`UpdatedAt`
-- **告警统计** `GET /api/alerts/stats`：
-  - 返回 key 从 `open/ack/closed` 修正为 `open_count/ack_count/closed_count`（对齐前端 AlertStats 接口）
+v2.0.0 是项目架构的根本性重构，涉及以下重大变化：
 
-### 前端类型与 API 层修复
-- `types/control.ts` — ControlRule 新增 `action` 可选字段
-- `types/alert.ts` — Alert 新增 `triggered_at`、`resolved_at` 字段
-- `api/control.ts` — `getRules` 从 `action` JSON 中提取 `command_type` + `command_payload`
+### 设备模块拆分（device -> sensor/actuator 独立实体）
 
-### 控制规则种子数据（新）
-- `migrations/0006_seed_control_rules.up.sql` — 22 条自动控制规则
-  - 覆盖 TEMP/HUMIDITY/PH/EC/CO2/LIGHT 六大指标
-  - 1号温室（叶菜）12 条 + 2号温室（草莓）10 条
-  - 每对开关规则含回差区间，避免阈值波动反复触发
+旧架构使用单一 `devices` 表承载所有设备，v2.0.0 拆分为四张独立表：
+- `sensor_devices` + `sensor_channels` — 传感器设备与采集通道（温度、湿度、pH、EC 等）
+- `actuator_devices` + `actuator_channels` — 执行器设备与控制通道（水泵、风机、LED、阀门等）
 
-### 文档更新
-- `shared/docs/API_SPEC.md` — ControlRule/Alert 数据模型 & 响应示例同步更新
+对应 API 路径：
+- `/api/sensor-devices` — 传感器设备 CRUD（5 个端点）
+- `/api/sensor-channels` — 传感器通道 CRUD（5 个端点）
+- `/api/actuator-devices` — 执行器设备 CRUD（5 个端点）
+- `/api/actuator-channels` — 执行器通道 CRUD（5 个端点）
+
+### 控制模块拆分（control -> command + policy）
+
+旧 `internal/control` 模块承载了命令下发与策略规则双重职责，v2.0.0 拆分为两个独立模块：
+- **command** (`internal/command/`) — 命令下发与回执追踪：`/api/commands`
+  - 模型：`ControlCommand`、`CommandReceipt`
+  - 命令状态机：`PENDING / QUEUED / SENT / ACKED / TIMEOUT / FAILED`
+  - 子资源：`/api/commands/{id}/receipts`（回执查询与创建）
+  - 动作：`send`、`ack`
+- **policy** (`internal/policy/`) — 控制策略引擎：`/api/policies`、`/api/policy-executions`
+  - 模型：`ControlPolicy`、`PolicyCondition`、`PolicyTarget`、`PolicyExecution`
+  - 策略类型：`THRESHOLD / SCHEDULE / DURATION`
+  - 动作：`publish`、`archive`、`execute`
+  - 子资源：`/api/policies/{id}/conditions`、`/api/policies/{id}/targets`
+
+### 10+ 新领域模块
+
+v2.0.0 新增了一批完整的业务领域模块，覆盖水培农业全流程：
+
+| 模块 | 目录 | API 前缀 | 说明 |
+|------|------|---------|------|
+| climate | `internal/climate/` | `/api/climate-profiles`, `/api/climate-execution-logs` | 气候环境配置（多阶段控制） |
+| crop | `internal/crop/` | `/api/crop-varieties`, `/api/growth-stages`, `/api/batches`, `/api/batch-stage-plans`, `/api/harvests` | 作物品种、生长阶段、种植批次 |
+| energy | `internal/energy/` | `/api/energy-records` | 能耗记录与汇总 |
+| greenhouse | `internal/greenhouse/` | `/api/greenhouses`, `/api/growing-zones` | 温室与种植区管理 |
+| metric | `internal/metric/` | `/api/metrics` | 指标定义字典 |
+| nutrient | `internal/nutrient/` | `/api/nutrient-tanks`, `/api/solution-changes`, `/api/ion-tests`, `/api/concentrate-inventory`, `/api/concentrate-usage-logs` | 营养液管理（DWC 核心） |
+| pest | `internal/pest/` | `/api/pest-observations`, `/api/treatment-records` | 病虫害观察与治理 |
+| recipe | `internal/recipe/` | `/api/recipes`, `/api/recipe-bindings` | 营养液配方与批次绑定 |
+| review | `internal/review/` | `/api/reviews` | 批次复盘快照 |
+
+### 迁移归并
+
+- 主迁移文件合并至 `migrations/merged/all.up.sql`（整合全部 schema 初始化、种子数据与 PRD v1 结构，可一次性离线执行）
+- 原始编号迁移文件保留不变，合并文件用于审阅与离线执行场景
+- 含 Phase 0-5 演示种子数据（覆盖园区/温室/三层设备、测点与采样、批次与阶段、配方与目标、策略与回执、告警处置闭环、复盘快照）
+
+### API 路径重构（扁平命名）
+
+所有 API 路径采用扁平命名规范，不再使用嵌套式层级：
+- `/api/sensor-devices`（非 `/api/devices/sensors`）
+- `/api/actuator-devices`（非 `/api/devices/actuators`）
+- `/api/commands`（非 `/api/controls/commands`）
+- `/api/policies`（非 `/api/controls/policies`）
+- `/api/greenhouses`、`/api/growing-zones`
+
+### 共享契约更新
+
+- `shared/docs/API_SPEC.md` 更新至 v2.0.0，包含 **193 个端点**，分布至 21 个模块路由组
+- `shared/docs/openapi.yaml` 同步更新
 
 ---
 
-## 2. 历史变更
+## 1. 当前架构
 
-### Phase 2
-- 设备模块：`GET /api/devices/:deviceId/telemetry-summary`、`POST /api/devices/batch-update`、`DELETE /api/devices/batch`
-- 控制模块：`POST /api/controls/batch-commands`
-- 通知模块：完整 CRUD + Webhook 测试（HMAC-SHA256）
-- 遥测模块：`GET/PUT /api/telemetry/system-configs`
-- 基础设施：`migrations/0004_notification_channels.up.sql`、`migrations/0005_seed_devices.up.sql`
+### 1.1 18 个领域模块总览
 
-### 更早变更
-- 在设备模块中新增删除 API：
-  - `DELETE /api/devices/greenhouses/:greenhouseId`
-  - `DELETE /api/device-groups/:groupId`
-- 设备模块 handler 测试、温室/分组级联解绑行为
-- Swagger UI、OpenAPI 规范、API 演示页面等
+项目根路径：`packages/backend/`
+
+```
+internal/
+├── alert/          # 告警管理与处置闭环
+├── audit/          # 审计日志
+├── auth/           # JWT 认证 + RBAC（ADMIN/OPERATOR/VIEWER）
+├── climate/        # 气候环境配置（多阶段控制）
+├── command/        # 控制命令下发与回执追踪
+├── crop/           # 作物品种、生长阶段、种植批次
+├── device/         # 传感器/执行器设备与通道管理
+├── energy/         # 能耗记录与汇总
+├── greenhouse/     # 温室与种植区管理
+├── metric/         # 指标定义字典与通道测点绑定
+├── notification/   # 通知渠道（EMAIL/SMS/WEBHOOK）
+├── nutrient/       # 营养液管理（液箱/换液/离子检测/浓缩液）
+├── overview/       # 仪表盘聚合查询
+├── pest/           # 病虫害观察与治理
+├── platform/       # 基础设施（config/db/di/errors/http/influx/logger/mqtt/response/event）
+├── policy/         # 控制策略引擎（阈值/定时/持续时长）
+├── recipe/         # 营养液配方与批次绑定
+├── review/         # 批次复盘快照
+└── telemetry/      # 遥测数据采集与查询（InfluxDB + MySQL 双写）
+```
+
+### 1.2 模块职责与 API 路径对照
+
+| # | 模块 | API 路径前缀 | 端点数 | 职责 |
+|---|------|------------|--------|------|
+| 1 | auth | `/api/auth`, `/api/users`, `/api/roles` | 9 | 登录/登出/用户 CRUD/角色 CRUD |
+| 2 | overview | `/api/overview` | 1 | 仪表盘聚合（设备在线率、告警统计、遥测摘要） |
+| 3 | greenhouse | `/api/greenhouses`, `/api/growing-zones` | 11 | 温室 CRUD、种植区 CRUD、温室嵌套分区 |
+| 4 | device | `/api/sensor-devices`, `/api/sensor-channels`, `/api/actuator-devices`, `/api/actuator-channels` | 20 | 传感器/执行器设备与通道 CRUD |
+| 5 | metric | `/api/metrics` | 2 | 指标定义字典查询 |
+| 6 | telemetry | `/api/telemetry` | 5 | 遥测采集/实时查询/历史查询/删除 |
+| 7 | command | `/api/commands` | 8 | 命令 CRUD、发送/确认、回执管理 |
+| 8 | policy | `/api/policies`, `/api/policy-executions` | 22 | 策略 CRUD、条件/目标子资源、发布/归档/执行 |
+| 9 | alert | `/api/alerts` | 7 | 告警 CRUD、统计、状态变更、时间线 |
+| 10 | notification | `/api/notification-channels` | 5 | 通知渠道 CRUD + 测试发送 |
+| 11 | audit | `/api/audit-logs` | 1 | 审计日志查询 |
+| 12 | crop | `/api/crop-varieties`, `/api/growth-stages`, `/api/batches`, `/api/batch-stage-plans`, `/api/harvests` | 22 | 品种/生长阶段/批次/阶段计划/收获管理 |
+| 13 | recipe | `/api/recipes`, `/api/recipe-bindings` | 13 | 营养液配方 CRUD、配方目标值、批次绑定 |
+| 14 | climate | `/api/climate-profiles`, `/api/climate-execution-logs` | 17 | 环境配置多阶段管理、阶段动作、执行日志 |
+| 15 | nutrient | `/api/nutrient-tanks`, `/api/solution-changes`, `/api/ion-tests`, `/api/concentrate-inventory`, `/api/concentrate-usage-logs` | 20 | 液箱/换液/离子检测/浓缩液库存与消耗 |
+| 16 | energy | `/api/energy-records` | 8 | 能耗记录 CRUD、温室/批次/汇总查询 |
+| 17 | pest | `/api/pest-observations`, `/api/treatment-records` | 15 | 病虫害观察 CRUD、治理记录 CRUD |
+| 18 | review | `/api/reviews` | 7 | 复盘快照 CRUD、自动生成、批次快照查询 |
+
+**合计：193 个 API 端点**
+
+### 1.3 基础设施层（platform/）
+
+```
+internal/platform/
+├── config/         # Viper 配置加载（configs/config.yaml）
+├── db/             # MySQL 连接池初始化
+├── di/             # 统一依赖注入结构体 Deps
+├── errors/         # 业务错误码定义
+├── event/          # 事件中心（EventHub）
+├── http/           # Gin 路由组装（router.go）+ 中间件（CORS/RequestID/Logger）
+├── influx/         # InfluxDB 客户端初始化
+├── logger/         # slog 日志初始化
+├── mqtt/           # MQTT 客户端初始化
+└── response/       # 统一 JSON 响应封装
+```
+
+### 1.4 每个领域模块的标准文件结构
+
+每个模块遵循统一约定（model.go / dto.go / handler.go / routes.go）：
+
+```
+internal/<module>/
+├── model.go    # GORM 数据模型
+├── dto.go      # 请求/响应 DTO
+├── handler.go  # HTTP 处理器（依赖注入：*gorm.DB）
+└── routes.go   # 路由注册（签名：RegisterRoutes(r *gin.RouterGroup, deps di.Deps)）
+```
+
+### 1.5 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 语言 | Go 1.24 |
+| HTTP | Gin 1.11 |
+| ORM | GORM 1.31（MySQL 驱动） |
+| 时序数据库 | InfluxDB 2.7 |
+| 消息中间件 | EMQX 5.6（MQTT，paho.mqtt.golang） |
+| 鉴权 | JWT（golang-jwt/v5） |
+| 校验 | go-playground/validator/v10 |
+| 配置 | Viper |
+| API 文档 | Swagger（swaggo） |
+| 事件 | 内置 EventHub（platform/event） |
+
+### 1.6 数据流
+
+```
+设备 (MQTT) -> EMQX Broker -> Backend (MQTT Client) -> InfluxDB (时序数据)
+                                                      -> MySQL   (元数据 + 双写明细)
+浏览器  <->  Frontend (Vue SPA)  <->  Backend API (Gin)  <->  MySQL  +  InfluxDB
+```
+
+### 1.7 环境变量与配置
+
+| 变量前缀 | 用途 | 默认配置源 |
+|----------|------|-----------|
+| `HAMB_*` | 覆盖 configs/config.yaml 中的任意配置项 | `configs/config.yaml` |
+
+关键配置项（部署前应变更）：
+- `auth.jwt_secret` — JWT 签名密钥（默认 `change-me`）
+- `influx.token` — InfluxDB 管理 Token（默认 `your-token`）
 
 ---
 
-## 3. 待办事项（前 5 项）
+## 2. 关键设计决策
 
-1. 为通知模块 dispatch 逻辑补齐——目前 `evaluateAndTrigger` 创建告警后未实际调用 `go dispatchNotifications(alert)`。
-2. 继续为剩余的更新/删除 handler 添加 `RowsAffected` 检查，对不存在的资源返回 404。
-3. 为 auth/device/telemetry/control 关键路径创建首批自动化测试。
-4. 确定并实现控制模板应用 + 告警订阅 SSE 流式传输的策略。
-5. 对齐并验证 MQTT/Influx 在开发/生产环境中的启动行为。
+### 2.1 传感器/执行器设备拆分
+
+v2.0.0 将设备分为两大类，各自承载独立的表结构：
+
+- **SensorDevice + SensorChannel**：关注数据采集。通道包含 `metric_code`、`unit`、`range_min/max`、`sampling_interval_sec` 等采集相关字段。
+- **ActuatorDevice + ActuatorChannel**：关注控制执行。通道包含 `actuator_type`（PUMP/AERATOR/FAN/VALVE/SHADE/LED/HEATER/CO2_GEN/FOGGER）、`current_state`（ON/OFF）、`rated_power_watt` 等执行相关字段。
+
+设计理由：传感器和执行器在业务上语义完全不同，拆分为独立实体使遥测采集与控制命令下发路径各司其职，避免字段混杂和语义歧义。
+
+### 2.2 Command + Policy 模式分离
+
+控制域拆分为两个独立模块：
+
+- **command** (`/api/commands`)：原子命令下发层。负责单条命令的创建、MQTT 发送、设备回执追踪。适用场景：手动操作单台设备。
+- **policy** (`/api/policies`)：规则引擎层。负责策略定义（阈值/定时/持续时长）、条件组合、目标指定、自动执行记录。适用场景：自动化环境调控。
+
+设计理由：命令是"怎么做"，策略是"什么时候做"。分离后命令模块保持轻量（单设备、一次操作），策略模块承载复杂规则编排。
+
+### 2.3 扁平 API 路径命名
+
+所有 API 路径采用扁平风格，以实体名为前缀：
+
+```
+/api/sensor-devices     （非 /api/devices/sensors）
+/api/actuator-devices   （非 /api/devices/actuators）
+/api/sensor-channels    （非 /api/channels/sensors）
+/api/commands           （非 /api/controls/commands）
+/api/policies           （非 /api/controls/policies）
+/api/policy-executions  （非 /api/policies/executions）
+/api/notification-channels（非 /api/channels/notifications）
+```
+
+设计理由：避免深层嵌套导致的路由歧义（如 `/api/channels` 是传感器通道还是通知渠道？），每个实体独占一个前缀，语义清晰。
+
+### 2.4 无物理外键约束
+
+所有 MySQL 表之间不创建 FOREIGN KEY 约束，依赖以下机制保证数据一致性：
+- 逻辑关联字段（如 `greenhouse_id`、`actuator_device_id`、`batch_id`）
+- 数据库索引（在关联字段上创建 INDEX 加速查询）
+- 应用层校验（handler 中验证关联实体是否存在）
+
+设计理由：避免物理外键带来的级联操作风险、迁移顺序依赖和运维成本，在应用层保持灵活可控。
+
+### 2.5 MySQL + InfluxDB 双存储
+
+| 数据类型 | 存储 | 用途 |
+|----------|------|------|
+| 遥测时序数据 | InfluxDB（主） + MySQL `telemetry_samples`（辅助） | InfluxDB 作为高性能时序存储，MySQL 作为降级回退与关联查询 |
+| 业务元数据 | MySQL | 设备、温室、批次、策略、配方等所有领域实体 |
+| 历史查询 | InfluxDB 优先，失败降级至 MySQL | `GET /api/telemetry/query` 支持 `source` 参数指定数据源 |
+
+### 2.6 统一 API 响应格式
+
+所有 API 返回统一的 JSON 信封：
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": {},
+  "request_id": "req_xxxx"
+}
+```
+
+业务错误码体系：
+
+| code | 含义 | HTTP |
+|------|------|------|
+| 0 | 成功 | 200/201 |
+| 10001 | 参数校验失败 | 400 |
+| 10002 | 未登录或 Token 无效 | 401 |
+| 10003 | 权限不足 | 403 |
+| 10004 | 资源不存在 | 404 |
+| 10005 | 资源冲突 | 409 |
+| 10006 | 频率限制 | 429 |
+| 10007 | 设备离线 | 409 |
+| 10008 | 规则冲突 | 409 |
+| 10009 | 数据超出物理范围 | 422 |
+| 10010 | 设备编码重复 | 409 |
+
+### 2.7 RBAC 角色体系
+
+| 角色 | 权限范围 |
+|------|---------|
+| ADMIN | 全量访问（用户管理、设备编辑、策略发布、系统配置） |
+| OPERATOR | 查询 + 设备控制 + 告警处置 + 策略执行 |
+| VIEWER | 仅查询类接口 |
+
+---
+
+## 3. 待办事项（前 5 项，按优先级排列）
+
+1. 为 v2.0.0 新增模块补齐自动化测试覆盖（climate、command、crop、energy、nutrient、pest、policy、recipe、review 模块当前测试覆盖几乎为零）。
+2. 检查所有更新/删除 handler 的 `RowsAffected` 返回值，对不存在的资源返回 404（当前多个 handler 未做此检查，可能返回 200）。
+3. 通知模块 `dispatch` 逻辑与告警引擎的集成仍未完成 —— `evaluateAndTrigger` 创建告警后未实际调用 `go dispatchNotifications(alert)`。
+4. 补齐策略引擎的自动化评估调度（定时扫描 `enabled=1` 的策略并对比实时遥测决定是否触发执行）。
+5. 对齐并验证 MQTT/InfluxDB 在生产环境中的配置与启动行为。
+
+---
 
 ## 4. 阻碍 / 风险
 
-- 自动化测试覆盖仍然不足（仅 device 模块有少量测试）。
-- 部分行为级 API 缺口目前被成功响应所掩盖（模板应用、告警订阅）。
-- 通知模块异步 dispatch 尚未与告警引擎集成。
+- **测试覆盖不足**：18 个模块中仅 alert、device、telemetry 有核心路径测试，其余 10 个新模块（climate/command/crop/energy/greenhouse/metric/nutrient/pest/recipe/review）无专门测试。大规模重构后的回归风险较高。
+- **多模块 RowsAffected 缺失**：部分 handler 对不存在的资源更新/删除仍返回成功，前端可能误判操作结果。
+- **通知 dispatch 未集成**：告警创建后通知渠道 dispatch 尚未串联，告警闭环不完整。
+- **策略自动评估未落地**：policy 模块当前仅支持手动执行，缺少后台定时轮询或事件驱动的自动触发链路。
+- **迁移文件管理**：`migrations/merged/` 提供合并版本，但原始编号文件（0001-0012）与合并文件并存，新开发者可能不清楚以哪个为准。
+
+---
 
 ## 5. 验证说明
 
-- 如果本地 shell 中 Go 工具链不可用，则无法从终端验证编译/测试状态。
-- 使用 `scripts/status-snapshot.ps1` 可快速刷新结构快照。
+- 执行 `go build ./...` 确保所有模块编译通过。
+- 执行 `go test ./...` 运行全部测试（注意：部分测试依赖 MySQL 连接，需在 Docker 环境启动后执行）。
+- 使用 `docker compose up -d` 启动基础设施（MySQL + InfluxDB + EMQX）。
+- 运行 `migrations/merged/all.up.sql` 以初始化/重建全量数据库 schema。
+- 使用 `go run cmd/api/main.go` 启动后端服务，访问 `http://localhost:3000/healthz` 验证存活状态。
+- API 文档可通过 `http://localhost:3000/docs/index.html`（Swagger UI）查看。
+
+---
 
 ## 6. 下个会话如何继续
 
-1. 阅读 `docs/PROJECT_STATUS.md`。
-2. 阅读本文件（`docs/HANDOFF.md`）。
-3. 从待办事项 #1 开始，除非优先级发生变化。
+1. 阅读 `docs/PROJECT_STATUS.md` —— 了解版本状态、已知缺口与风险。
+2. 阅读本文件（`docs/HANDOFF.md`）—— 了解当前架构全貌与近期变更。
+3. 从待办事项 #1 开始（补齐新模块测试），除非优先级发生变化。
+
+---
 
 ## 7. 快速填写模板（每次交接使用）
 
-- 日期：2026-05-04
+- 日期：2026-05-06
 - 分支：main
-- 已完成范围：API 响应字段补齐（控制规则/告警列表 device_name、action、stats keys）+ 前端类型同步 + 22 条控制规则种子数据 + 文档更新
-- 待完成范围：通知异步 dispatch 集成、自动化测试、模板应用/告警订阅落地
-- 风险：通知 dispatch 与告警引擎未集成；自动化测试覆盖低
-- 下个首要命令：`go build ./...` / `go test ./...` / `npm run build`
+- 已完成范围：v2.0.0 架构重构完成 —— 18 个领域模块全部落地，193 个 API 端点到位。设备模块拆分为 sensor/actuator 独立实体，control 拆分为 command + policy，新增 climate/crop/energy/greenhouse/metric/nutrient/pest/recipe/review 模块，API 路径采用扁平命名，MySQL 迁移归并至 merged/all.up.sql，共享契约 API_SPEC.md 更新至 v2.0.0。
+- 待完成范围：补齐新模块自动化测试、检查 RowsAffected 处理、通知 dispatch 集成、策略自动评估调度、生产环境 MQTT/Influx 配置验证。
+- 风险：新增模块测试覆盖几乎为零、通知 dispatch 未与告警引擎集成、策略自动执行链路缺失。
+- 下个首要命令：`docker compose up -d && go test ./... && go run cmd/api/main.go`

@@ -1,26 +1,23 @@
 import { get, post } from './request'
-import { TelemetryPoint, TelemetryStats, TelemetryLatestParams, TelemetryHistoryParams, TelemetryStatsParams, PaginatedData } from '@/types'
+import type {
+  TelemetryRecord,
+  TelemetryListResponse,
+  IngestTelemetryRequest,
+  TelemetryQueryParams
+} from '@/types'
 
-// 获取最新遥测数据
-export function getLatestTelemetry(params: TelemetryLatestParams): Promise<{ items: TelemetryPoint[] }> {
-  return get<{ items: TelemetryPoint[] }>('/telemetry/latest', params as unknown as Record<string, string>)
-}
+// 批量摄入遥测数据
+export const ingestTelemetry = (data: IngestTelemetryRequest) =>
+  post<{ accepted: number }>('/telemetry/ingest', data)
 
-// 获取历史遥测数据
-export function getHistoryTelemetry(params: TelemetryHistoryParams): Promise<PaginatedData<TelemetryPoint>> {
-  return get<PaginatedData<TelemetryPoint>>('/telemetry/history', params as unknown as Record<string, string>)
-}
+// 查询遥测数据
+export const queryTelemetry = (params: TelemetryQueryParams) =>
+  get<TelemetryListResponse>('/telemetry/query', params as Record<string, unknown>)
 
-// 获取遥测统计
-export function getTelemetryStats(params: TelemetryStatsParams): Promise<TelemetryStats> {
-  return get<TelemetryStats>('/telemetry/stats', params as unknown as Record<string, string>)
-}
+// 查询通道最新遥测值
+export const getChannelLatest = (channelId: number) =>
+  get<TelemetryRecord>(`/telemetry/channels/${channelId}/latest`)
 
-// 上报遥测数据
-export function postTelemetry(data: {
-  device_code: string
-  collected_at?: string
-  metrics: Array<{ code: string; value: number; unit?: string }>
-}): Promise<{ accepted: number }> {
-  return post<{ accepted: number }>('/telemetry', data)
-}
+// 查询通道遥测历史
+export const getChannelHistory = (channelId: number, params?: TelemetryQueryParams) =>
+  get<TelemetryListResponse>(`/telemetry/channels/${channelId}/history`, params as Record<string, unknown>)

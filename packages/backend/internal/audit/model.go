@@ -12,6 +12,9 @@ type AuditLog struct {
 	TargetType string          `gorm:"size:64;not null"`
 	TargetID   *uint64         `gorm:""`
 	Detail     json.RawMessage `gorm:"type:json"`
+	RequestID  string          `gorm:"column:request_id;size:64"`
+	BeforeData json.RawMessage `gorm:"column:before_data;type:json"`
+	AfterData  json.RawMessage `gorm:"column:after_data;type:json"`
 	CreatedAt  time.Time       `gorm:"autoCreateTime:milli"`
 }
 

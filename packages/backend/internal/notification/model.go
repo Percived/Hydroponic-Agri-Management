@@ -9,6 +9,7 @@ const (
 	ChannelEmail   = "EMAIL"
 	ChannelSMS     = "SMS"
 	ChannelWebhook = "WEBHOOK"
+	ChannelInApp   = "IN_APP"
 )
 
 type NotificationChannel struct {

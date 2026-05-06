@@ -139,8 +139,7 @@ npm run type-check          # TypeScript check only (vue-tsc --noEmit)
 cd packages/backend
 
 # Run database migrations
-docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0001_init.up.sql
-docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0002_seed_auth.up.sql
+docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/merged/all.up.sql
 
 # Start API server
 go run cmd/api/main.go      # Dev server on configured port (default :3000)
@@ -152,7 +151,8 @@ go run cmd/api/main.go      # Dev server on configured port (default :3000)
 # 1. Start infrastructure
 docker compose up -d
 
-# 2. Run migrations (see above)
+# 2. Run migrations
+docker compose exec -T mysql mysql -uroot -proot hydroponic < packages/backend/migrations/merged/all.up.sql
 
 # 3. Start backend (terminal 1)
 cd packages/backend && go run cmd/api/main.go
@@ -231,8 +231,6 @@ Project status documents to keep in sync:
 | OpenAPI Spec | `shared/docs/openapi.yaml` | OpenAPI 3.0.3 machine-readable spec |
 | Backend Docs | `packages/backend/docs/` | Architecture, requirements, testing |
 | Frontend PRD | `packages/frontend/docs/FRONTEND_PRD.md` | Frontend product requirements |
-| Device Protocol | `packages/backend/docs/specs/DEVICE_PROTOCOL.md` | Device MQTT protocol spec |
-| Iteration Plan | `shared/docs/ITERATION_PLAN.md` | Phased feature roadmap (cross-team sync) |
 
 ## Package-Specific Guidance
 

@@ -14,6 +14,13 @@ export interface PaginatedData<T> {
   items: T[]
 }
 
+export interface PaginatedResponse<T> {
+  items: T[]
+  total: number
+  page: number
+  page_size: number
+}
+
 // 业务错误码
 export enum ErrorCode {
   SUCCESS = 0,

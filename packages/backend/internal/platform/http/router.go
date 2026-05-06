@@ -7,14 +7,24 @@ import (
 	"hydroponic-backend/internal/alert"
 	"hydroponic-backend/internal/audit"
 	"hydroponic-backend/internal/auth"
-	"hydroponic-backend/internal/control"
+	"hydroponic-backend/internal/climate"
+	"hydroponic-backend/internal/command"
+	"hydroponic-backend/internal/crop"
 	"hydroponic-backend/internal/device"
+	"hydroponic-backend/internal/energy"
+	"hydroponic-backend/internal/greenhouse"
+	"hydroponic-backend/internal/metric"
 	"hydroponic-backend/internal/notification"
+	"hydroponic-backend/internal/nutrient"
 	"hydroponic-backend/internal/overview"
+	"hydroponic-backend/internal/pest"
 	"hydroponic-backend/internal/platform/config"
 	"hydroponic-backend/internal/platform/di"
 	"hydroponic-backend/internal/platform/event"
 	"hydroponic-backend/internal/platform/response"
+	"hydroponic-backend/internal/policy"
+	"hydroponic-backend/internal/recipe"
+	"hydroponic-backend/internal/review"
 	"hydroponic-backend/internal/telemetry"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -56,12 +66,54 @@ func NewRouter(cfg config.Config, log *slog.Logger, mysql *gorm.DB, influx influ
 	r.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/openapi.yaml")))
 
 	api := r.Group("/api")
-	overview.RegisterRoutes(api, deps)
-	device.RegisterRoutes(api, deps)
-	telemetry.RegisterRoutes(api, deps)
-	control.RegisterRoutes(api, deps)
-	alert.RegisterRoutes(api, deps)
+
+	// Core modules
 	auth.RegisterRoutes(api, deps)
+	overview.RegisterRoutes(api, deps)
+
+	// Organization & facilities
+	greenhouse.RegisterRoutes(api, deps)
+
+	// Device management
+	device.RegisterRoutes(api, deps)
+
+	// Metric definitions
+	metric.RegisterRoutes(api, deps)
+
+	// Telemetry
+	telemetry.RegisterRoutes(api, deps)
+
+	// Nutrient management (DWC core)
+	nutrient.RegisterRoutes(api, deps)
+
+	// Crop & batch management
+	crop.RegisterRoutes(api, deps)
+
+	// Recipe management
+	recipe.RegisterRoutes(api, deps)
+
+	// Climate control (multi-stage)
+	climate.RegisterRoutes(api, deps)
+
+	// Control policies
+	policy.RegisterRoutes(api, deps)
+
+	// Command dispatch
+	command.RegisterRoutes(api, deps)
+
+	// Alerts
+	alert.RegisterRoutes(api, deps)
+
+	// Energy consumption
+	energy.RegisterRoutes(api, deps)
+
+	// Pest & disease
+	pest.RegisterRoutes(api, deps)
+
+	// Batch review
+	review.RegisterRoutes(api, deps)
+
+	// Audit & notification
 	audit.RegisterRoutes(api, deps)
 	notification.RegisterRoutes(api, deps)
 

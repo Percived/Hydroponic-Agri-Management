@@ -1,10 +1,12 @@
 openapi: 3.0.3
 info:
   title: Hydroponic Agri Management Backend API
-  version: 0.2.0
-  description: Browser API documentation for hydroponic backend services.
+  version: 2.0.0
+  description: |
+    Backend API documentation for hydroponic management system (v2.0.0).
+    See shared/docs/API_SPEC.md for the complete canonical API reference (193 endpoints across 21 modules).
 servers:
-  - url: http://127.0.0.1:8080
+  - url: http://127.0.0.1:3000
     description: Local
 tags:
   - name: system
@@ -12,15 +14,38 @@ tags:
   - name: users
   - name: roles
   - name: overview
-  - name: devices
   - name: greenhouses
-  - name: groups
+  - name: growing-zones
+  - name: sensor-devices
+  - name: sensor-channels
+  - name: actuator-devices
+  - name: actuator-channels
   - name: telemetry
-  - name: controls
+  - name: metrics
+  - name: commands
+  - name: policies
+  - name: policy-executions
   - name: alerts
   - name: notification-channels
-  - name: system-config
   - name: audit
+  - name: crop-varieties
+  - name: growth-stages
+  - name: batches
+  - name: batch-stage-plans
+  - name: harvests
+  - name: recipes
+  - name: recipe-bindings
+  - name: climate-profiles
+  - name: climate-execution-logs
+  - name: nutrient-tanks
+  - name: solution-changes
+  - name: ion-tests
+  - name: concentrate-inventory
+  - name: concentrate-usage-logs
+  - name: energy-records
+  - name: pest-observations
+  - name: treatment-records
+  - name: reviews
 components:
   securitySchemes:
     bearerAuth:
@@ -41,6 +66,7 @@ components:
         request_id:
           type: string
 paths:
+  # ======================== system ========================
   /healthz:
     get:
       tags: [system]
@@ -55,6 +81,8 @@ paths:
       responses:
         "200":
           description: OK
+
+  # ======================== auth ========================
   /api/auth/login:
     post:
       tags: [auth]
@@ -83,6 +111,8 @@ paths:
       responses:
         "200":
           description: OK
+
+  # ======================== users ========================
   /api/users:
     get:
       tags: [users]
@@ -97,39 +127,59 @@ paths:
       summary: Create user
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Created
   /api/users/{userId}:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
     put:
       tags: [users]
       summary: Update user
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: userId
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         "200":
           description: OK
   /api/users/{userId}/status:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
     patch:
       tags: [users]
       summary: Update user status
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: userId
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         "200":
           description: OK
+
+  # ======================== roles ========================
   /api/roles:
     get:
       tags: [roles]
@@ -144,24 +194,38 @@ paths:
       summary: Create role
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Created
   /api/roles/{roleId}:
+    parameters:
+      - name: roleId
+        in: path
+        required: true
+        schema:
+          type: string
     put:
       tags: [roles]
       summary: Update role
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: roleId
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         "200":
           description: OK
+
+  # ======================== overview ========================
   /api/overview/dashboard:
     get:
       tags: [overview]
@@ -171,83 +235,23 @@ paths:
       responses:
         "200":
           description: OK
-  /api/devices:
-    get:
-      tags: [devices]
-      summary: List devices
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: OK
+
+  # ======================== greenhouses ========================
+  /api/greenhouses:
     post:
-      tags: [devices]
-      summary: Create device
+      tags: [greenhouses]
+      summary: Create greenhouse (ADMIN)
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
-        "200":
-          description: OK
-  /api/devices/{deviceId}:
-    get:
-      tags: [devices]
-      summary: Get device
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: deviceId
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: OK
-    put:
-      tags: [devices]
-      summary: Update device
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: deviceId
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: OK
-  /api/devices/{deviceId}/health:
-    get:
-      tags: [devices]
-      summary: Device health
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: deviceId
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: OK
-  /api/devices/{deviceId}/status:
-    patch:
-      tags: [devices]
-      summary: Update device status
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: deviceId
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: OK
-  /api/devices/greenhouses:
+        "201":
+          description: Created
     get:
       tags: [greenhouses]
       summary: List greenhouses
@@ -256,336 +260,900 @@ paths:
       responses:
         "200":
           description: OK
-    post:
+  /api/greenhouses/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
       tags: [greenhouses]
-      summary: Create greenhouse
+      summary: Update greenhouse (ADMIN)
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         "200":
           description: OK
-  /api/devices/greenhouses/{greenhouseId}:
     get:
       tags: [greenhouses]
       summary: Get greenhouse
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: greenhouseId
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: OK
-    put:
-      tags: [greenhouses]
-      summary: Update greenhouse
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: greenhouseId
-          required: true
-          schema:
-            type: integer
       responses:
         "200":
           description: OK
     delete:
       tags: [greenhouses]
-      summary: Delete greenhouse (cascade unbind)
+      summary: Delete greenhouse (ADMIN)
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: greenhouseId
-          required: true
-          schema:
-            type: integer
       responses:
         "200":
           description: OK
-        "404":
-          description: Not found
-  /api/device-groups:
+  /api/greenhouses/{id}/zones:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
     get:
-      tags: [groups]
-      summary: List groups
+      tags: [greenhouses]
+      summary: List zones by greenhouse
       security:
         - bearerAuth: []
       responses:
         "200":
           description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  code:
-                    type: integer
-                    example: 0
-                  message:
-                    type: string
-                    example: ok
-                  data:
-                    type: object
-                    properties:
-                      items:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            id:
-                              type: integer
-                              format: int64
-                            name:
-                              type: string
-                            description:
-                              type: string
-                            greenhouse_id:
-                              type: integer
-                              format: int64
-                            device_count:
-                              type: integer
-                              format: int64
-                  request_id:
-                    type: string
+
+  # ======================== growing-zones ========================
+  /api/growing-zones:
     post:
-      tags: [groups]
-      summary: Create group
+      tags: [growing-zones]
+      summary: Create growing zone (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [growing-zones]
+      summary: List growing zones
       security:
         - bearerAuth: []
       responses:
         "200":
           description: OK
-  /api/device-groups/{groupId}:
+  /api/growing-zones/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
     put:
-      tags: [groups]
-      summary: Update group
+      tags: [growing-zones]
+      summary: Update growing zone (ADMIN/OPERATOR)
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: groupId
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    get:
+      tags: [growing-zones]
+      summary: Get growing zone
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: OK
     delete:
-      tags: [groups]
-      summary: Delete group (unbind devices)
+      tags: [growing-zones]
+      summary: Delete growing zone (ADMIN)
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: groupId
-          required: true
-          schema:
-            type: integer
       responses:
         "200":
           description: OK
-        "404":
-          description: Not found
-  /api/device-groups/{groupId}/devices/{deviceId}:
+
+  # ======================== sensor-devices ========================
+  /api/sensor-devices:
     post:
-      tags: [groups]
-      summary: Bind device to group
+      tags: [sensor-devices]
+      summary: Create sensor device (ADMIN/OPERATOR)
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: groupId
-          required: true
-          schema:
-            type: integer
-        - in: path
-          name: deviceId
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [sensor-devices]
+      summary: List sensor devices
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/sensor-devices/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      tags: [sensor-devices]
+      summary: Update sensor device (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    get:
+      tags: [sensor-devices]
+      summary: Get sensor device
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: OK
     delete:
-      tags: [groups]
-      summary: Unbind device from group
+      tags: [sensor-devices]
+      summary: Delete sensor device (ADMIN)
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: groupId
-          required: true
-          schema:
-            type: integer
-        - in: path
-          name: deviceId
-          required: true
-          schema:
-            type: integer
+      responses:
+        "200":
+          description: OK
+
+  # ======================== sensor-channels ========================
+  /api/sensor-channels:
+    post:
+      tags: [sensor-channels]
+      summary: Create sensor channel (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [sensor-channels]
+      summary: List sensor channels
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/sensor-channels/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      tags: [sensor-channels]
+      summary: Update sensor channel (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    get:
+      tags: [sensor-channels]
+      summary: Get sensor channel
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [sensor-channels]
+      summary: Delete sensor channel (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== actuator-devices ========================
+  /api/actuator-devices:
+    post:
+      tags: [actuator-devices]
+      summary: Create actuator device (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [actuator-devices]
+      summary: List actuator devices
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/actuator-devices/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      tags: [actuator-devices]
+      summary: Update actuator device (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    get:
+      tags: [actuator-devices]
+      summary: Get actuator device
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [actuator-devices]
+      summary: Delete actuator device (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== actuator-channels ========================
+  /api/actuator-channels:
+    post:
+      tags: [actuator-channels]
+      summary: Create actuator channel (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [actuator-channels]
+      summary: List actuator channels
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/actuator-channels/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      tags: [actuator-channels]
+      summary: Update actuator channel (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    get:
+      tags: [actuator-channels]
+      summary: Get actuator channel
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [actuator-channels]
+      summary: Delete actuator channel (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== telemetry ========================
+  /api/telemetry/ingest:
+    post:
+      tags: [telemetry]
+      summary: Ingest telemetry data (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/telemetry/query:
+    get:
+      tags: [telemetry]
+      summary: Query telemetry records
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/telemetry/channels/{channelId}/latest:
+    parameters:
+      - name: channelId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [telemetry]
+      summary: Get latest telemetry by channel
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/telemetry/channels/{channelId}/history:
+    parameters:
+      - name: channelId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [telemetry]
+      summary: Get telemetry history by channel
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: OK
   /api/telemetry:
+    delete:
+      tags: [telemetry]
+      summary: Delete telemetry before timestamp (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== metrics ========================
+  /api/metrics:
+    get:
+      tags: [metrics]
+      summary: List metric definitions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/metrics/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [metrics]
+      summary: Get metric definition
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== commands ========================
+  /api/commands:
     post:
-      tags: [telemetry]
-      summary: Ingest telemetry
+      tags: [commands]
+      summary: Create command (ADMIN/OPERATOR)
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
-        "200":
-          description: OK
-  /api/telemetry/latest:
+        "201":
+          description: Created
     get:
-      tags: [telemetry]
-      summary: Query latest telemetry
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: OK
-  /api/telemetry/history:
-    get:
-      tags: [telemetry]
-      summary: Query history telemetry
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: OK
-  /api/telemetry/stats:
-    get:
-      tags: [telemetry]
-      summary: Query telemetry stats
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: OK
-  /api/telemetry/retention:
-    post:
-      tags: [telemetry]
-      summary: Set retention
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: OK
-  /api/controls/commands:
-    get:
-      tags: [controls]
+      tags: [commands]
       summary: List commands
       security:
         - bearerAuth: []
       responses:
         "200":
           description: OK
-    post:
-      tags: [controls]
-      summary: Create command
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: OK
-  /api/controls/commands/{commandId}:
+  /api/commands/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
     get:
-      tags: [controls]
-      summary: Get command
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: commandId
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: OK
-  /api/controls/rules:
-    get:
-      tags: [controls]
-      summary: List rules
+      tags: [commands]
+      summary: Get command detail
       security:
         - bearerAuth: []
       responses:
         "200":
           description: OK
+  /api/commands/{id}/send:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
     post:
-      tags: [controls]
-      summary: Create rule
+      tags: [commands]
+      summary: Send/dispatch command (ADMIN/OPERATOR)
       security:
         - bearerAuth: []
       responses:
         "200":
           description: OK
-  /api/controls/rules/{ruleId}:
+  /api/commands/{id}/ack:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [commands]
+      summary: Acknowledge command (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/commands/{id}/receipts:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [commands]
+      summary: Create receipt (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [commands]
+      summary: List receipts
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/commands/{id}/receipts/{receiptId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: receiptId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [commands]
+      summary: Get receipt
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== policies ========================
+  /api/policies:
+    post:
+      tags: [policies]
+      summary: Create policy (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [policies]
+      summary: List policies
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/policies/full:
+    post:
+      tags: [policies]
+      summary: Create policy with nested conditions/targets (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/policies/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [policies]
+      summary: Get policy detail (with conditions and targets)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
     put:
-      tags: [controls]
-      summary: Update rule
+      tags: [policies]
+      summary: Update policy (ADMIN/OPERATOR)
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: ruleId
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         "200":
           description: OK
     delete:
-      tags: [controls]
-      summary: Delete rule
+      tags: [policies]
+      summary: Delete policy (ADMIN)
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: ruleId
-          required: true
-          schema:
-            type: integer
       responses:
         "200":
           description: OK
-  /api/controls/templates:
+  /api/policies/{id}/publish:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [policies]
+      summary: Publish policy (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/policies/{id}/archive:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [policies]
+      summary: Archive policy (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/policies/{id}/execute:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [policies]
+      summary: Manually execute policy (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/policies/{id}/executions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
     get:
-      tags: [controls]
-      summary: List templates
+      tags: [policies]
+      summary: List executions for policy
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/policies/{id}/conditions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [policies]
+      summary: List conditions
       security:
         - bearerAuth: []
       responses:
         "200":
           description: OK
     post:
-      tags: [controls]
-      summary: Create template
+      tags: [policies]
+      summary: Add condition (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/policies/{id}/conditions/{conditionId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: conditionId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [policies]
+      summary: Get condition
       security:
         - bearerAuth: []
       responses:
         "200":
           description: OK
-  /api/controls/templates/{templateId}/apply:
+    put:
+      tags: [policies]
+      summary: Update condition (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [policies]
+      summary: Delete condition (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/policies/{id}/targets:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [policies]
+      summary: List targets
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
     post:
-      tags: [controls]
-      summary: Apply template
+      tags: [policies]
+      summary: Add target (ADMIN/OPERATOR)
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: templateId
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/policies/{id}/targets/{targetId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: targetId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [policies]
+      summary: Get target
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: OK
+    put:
+      tags: [policies]
+      summary: Update target (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [policies]
+      summary: Delete target (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== policy-executions ========================
+  /api/policy-executions:
+    get:
+      tags: [policy-executions]
+      summary: List all executions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/policy-executions/{executionId}:
+    parameters:
+      - name: executionId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [policy-executions]
+      summary: Get execution detail
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== alerts ========================
   /api/alerts:
+    post:
+      tags: [alerts]
+      summary: Create alert (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
     get:
       tags: [alerts]
       summary: List alerts
@@ -594,85 +1162,69 @@ paths:
       responses:
         "200":
           description: OK
-  /api/alerts/{alertId}:
-    get:
-      tags: [alerts]
-      summary: Get alert
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: alertId
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: OK
-  /api/alerts/{alertId}/status:
-    patch:
-      tags: [alerts]
-      summary: Update alert status
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: alertId
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: OK
   /api/alerts/stats:
     get:
       tags: [alerts]
-      summary: Alert stats
+      summary: Get alert statistics
       security:
         - bearerAuth: []
       responses:
         "200":
           description: OK
-  /api/alerts/subscribe:
+  /api/alerts/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
     get:
       tags: [alerts]
-      summary: Alert subscribe
+      summary: Get alert detail
       security:
         - bearerAuth: []
       responses:
         "200":
           description: OK
-  /api/devices/{deviceId}/telemetry-summary:
+  /api/alerts/{id}/status:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      tags: [alerts]
+      summary: Update alert status (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+  /api/alerts/{id}/timeline:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
     get:
-      tags: [devices]
-      summary: Telemetry summary with hourly averages and alerts
+      tags: [alerts]
+      summary: Get timeline events
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: deviceId
-          required: true
-          schema:
-            type: integer
-        - in: query
-          name: from
-          schema:
-            type: string
-            format: date-time
-          description: Start time (default now-24h)
-        - in: query
-          name: to
-          schema:
-            type: string
-            format: date-time
-          description: End time (default now)
       responses:
         "200":
           description: OK
-  /api/devices/batch-update:
     post:
-      tags: [devices]
-      summary: Batch update devices
+      tags: [alerts]
+      summary: Add timeline event (ADMIN/OPERATOR)
       security:
         - bearerAuth: []
       requestBody:
@@ -681,112 +1233,15 @@ paths:
           application/json:
             schema:
               type: object
-              required: [device_ids, updates]
-              properties:
-                device_ids:
-                  type: array
-                  items:
-                    type: integer
-                updates:
-                  type: object
-                  properties:
-                    group_id:
-                      type: integer
-                    sampling_interval_sec:
-                      type: integer
-                    status:
-                      type: string
       responses:
-        "200":
-          description: OK
-  /api/devices/batch:
-    delete:
-      tags: [devices]
-      summary: Batch delete devices
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [device_ids]
-              properties:
-                device_ids:
-                  type: array
-                  items:
-                    type: integer
-                reason:
-                  type: string
-      responses:
-        "200":
-          description: OK
-  /api/controls/batch-commands:
-    post:
-      tags: [controls]
-      summary: Batch send commands to devices
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [target_type, target_ids, command_type, payload]
-              properties:
-                target_type:
-                  type: string
-                  enum: [greenhouse, device_group, devices]
-                target_ids:
-                  type: array
-                  items:
-                    type: integer
-                command_type:
-                  type: string
-                payload:
-                  type: object
-                remark:
-                  type: string
-      responses:
-        "200":
-          description: OK
-  /api/telemetry/system-configs:
-    get:
-      tags: [system-config]
-      summary: List system configs
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: OK
-    put:
-      tags: [system-config]
-      summary: Update system config (upsert by key)
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [config_key, config_value]
-              properties:
-                config_key:
-                  type: string
-                config_value:
-                  type: string
-                description:
-                  type: string
-      responses:
-        "200":
-          description: OK
+        "201":
+          description: Created
+
+  # ======================== notification-channels ========================
   /api/notification-channels:
     get:
       tags: [notification-channels]
-      summary: List user notification channels
+      summary: List channels
       security:
         - bearerAuth: []
       responses:
@@ -794,7 +1249,7 @@ paths:
           description: OK
     post:
       tags: [notification-channels]
-      summary: Create notification channel
+      summary: Create channel (ADMIN/OPERATOR)
       security:
         - bearerAuth: []
       requestBody:
@@ -803,71 +1258,1448 @@ paths:
           application/json:
             schema:
               type: object
-              required: [channel_type, name, config, enabled]
-              properties:
-                channel_type:
-                  type: string
-                  enum: [EMAIL, SMS, WEBHOOK]
-                name:
-                  type: string
-                config:
-                  type: object
-                min_alert_level:
-                  type: string
-                  enum: [INFO, WARN, CRITICAL]
-                enabled:
-                  type: boolean
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Created
   /api/notification-channels/{channelId}:
+    parameters:
+      - name: channelId
+        in: path
+        required: true
+        schema:
+          type: string
     put:
       tags: [notification-channels]
-      summary: Update notification channel
+      summary: Update channel (ADMIN/OPERATOR)
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: channelId
-          required: true
-          schema:
-            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         "200":
           description: OK
     delete:
       tags: [notification-channels]
-      summary: Delete notification channel
+      summary: Delete channel (ADMIN/OPERATOR)
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: channelId
-          required: true
-          schema:
-            type: integer
       responses:
         "200":
           description: OK
   /api/notification-channels/{channelId}/test:
+    parameters:
+      - name: channelId
+        in: path
+        required: true
+        schema:
+          type: string
     post:
       tags: [notification-channels]
-      summary: Test notification channel
+      summary: Test channel (ADMIN/OPERATOR)
       security:
         - bearerAuth: []
-      parameters:
-        - in: path
-          name: channelId
-          required: true
-          schema:
-            type: integer
       responses:
         "200":
           description: OK
+
+  # ======================== audit ========================
   /api/audit-logs:
     get:
       tags: [audit]
-      summary: Query audit logs
+      summary: List audit logs (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== crop-varieties ========================
+  /api/crop-varieties:
+    get:
+      tags: [crop-varieties]
+      summary: List varieties
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [crop-varieties]
+      summary: Create variety (ADMIN)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/crop-varieties/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [crop-varieties]
+      summary: Get variety
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [crop-varieties]
+      summary: Update variety (ADMIN)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [crop-varieties]
+      summary: Delete variety (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== growth-stages ========================
+  /api/growth-stages:
+    get:
+      tags: [growth-stages]
+      summary: List stages
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [growth-stages]
+      summary: Create stage (ADMIN)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/growth-stages/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [growth-stages]
+      summary: Get stage
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [growth-stages]
+      summary: Update stage (ADMIN)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [growth-stages]
+      summary: Delete stage (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== batches ========================
+  /api/batches:
+    get:
+      tags: [batches]
+      summary: List batches
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [batches]
+      summary: Create batch (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/batches/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [batches]
+      summary: Get batch detail
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [batches]
+      summary: Update batch (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [batches]
+      summary: Delete batch (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/batches/{id}/transition:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [batches]
+      summary: Transition batch status (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+
+  # ======================== batch-stage-plans ========================
+  /api/batch-stage-plans:
+    get:
+      tags: [batch-stage-plans]
+      summary: List stage plans
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [batch-stage-plans]
+      summary: Create stage plan (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/batch-stage-plans/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [batch-stage-plans]
+      summary: Get stage plan
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [batch-stage-plans]
+      summary: Update stage plan (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [batch-stage-plans]
+      summary: Delete stage plan (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== harvests ========================
+  /api/harvests:
+    get:
+      tags: [harvests]
+      summary: List harvests (filterable by batch_id)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [harvests]
+      summary: Create harvest (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/harvests/summary/{batchId}:
+    parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [harvests]
+      summary: Get harvest summary for batch
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== recipes ========================
+  /api/recipes:
+    get:
+      tags: [recipes]
+      summary: List recipes
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [recipes]
+      summary: Create recipe (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/recipes/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [recipes]
+      summary: Get recipe detail
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [recipes]
+      summary: Update recipe (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [recipes]
+      summary: Delete recipe (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/recipes/{id}/publish:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [recipes]
+      summary: Publish recipe (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/recipes/{id}/targets:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [recipes]
+      summary: Get recipe targets
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [recipes]
+      summary: Update recipe targets (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+  /api/recipes/{id}/bind:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [recipes]
+      summary: Bind recipe to batch (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+
+  # ======================== recipe-bindings ========================
+  /api/recipe-bindings:
+    get:
+      tags: [recipe-bindings]
+      summary: List bindings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/recipe-bindings/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [recipe-bindings]
+      summary: Get binding
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [recipe-bindings]
+      summary: Update binding (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [recipe-bindings]
+      summary: Delete binding (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== climate-profiles ========================
+  /api/climate-profiles:
+    post:
+      tags: [climate-profiles]
+      summary: Create profile (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [climate-profiles]
+      summary: List profiles
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/climate-profiles/full:
+    post:
+      tags: [climate-profiles]
+      summary: Create profile with stages (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/climate-profiles/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [climate-profiles]
+      summary: Get profile detail
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [climate-profiles]
+      summary: Update profile (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [climate-profiles]
+      summary: Delete profile (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/climate-profiles/{id}/stages:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [climate-profiles]
+      summary: Add stage (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [climate-profiles]
+      summary: List stages
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/climate-profiles/{id}/stages/{stageId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: stageId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [climate-profiles]
+      summary: Get stage detail
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [climate-profiles]
+      summary: Update stage (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [climate-profiles]
+      summary: Delete stage (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/climate-profiles/{id}/stages/{stageId}/actions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: stageId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [climate-profiles]
+      summary: Add action (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [climate-profiles]
+      summary: List actions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/climate-profiles/{id}/stages/{stageId}/actions/{actionId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: stageId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: actionId
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      tags: [climate-profiles]
+      summary: Update action (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [climate-profiles]
+      summary: Delete action (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/climate-profiles/{id}/execute:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [climate-profiles]
+      summary: Execute profile (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/climate-profiles/{id}/execution-logs:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [climate-profiles]
+      summary: List execution logs for profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== climate-execution-logs ========================
+  /api/climate-execution-logs:
+    get:
+      tags: [climate-execution-logs]
+      summary: List all execution logs
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== nutrient-tanks ========================
+  /api/nutrient-tanks:
+    get:
+      tags: [nutrient-tanks]
+      summary: List tanks
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [nutrient-tanks]
+      summary: Create tank (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/nutrient-tanks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [nutrient-tanks]
+      summary: Get tank
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [nutrient-tanks]
+      summary: Update tank (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [nutrient-tanks]
+      summary: Delete tank (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== solution-changes ========================
+  /api/solution-changes:
+    get:
+      tags: [solution-changes]
+      summary: List solution changes
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [solution-changes]
+      summary: Create solution change (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/solution-changes/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [solution-changes]
+      summary: Get solution change
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== ion-tests ========================
+  /api/ion-tests:
+    get:
+      tags: [ion-tests]
+      summary: List ion tests
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [ion-tests]
+      summary: Create ion test (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/ion-tests/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [ion-tests]
+      summary: Get ion test
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [ion-tests]
+      summary: Update ion test (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [ion-tests]
+      summary: Delete ion test (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== concentrate-inventory ========================
+  /api/concentrate-inventory:
+    get:
+      tags: [concentrate-inventory]
+      summary: List inventory
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [concentrate-inventory]
+      summary: Create inventory (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/concentrate-inventory/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [concentrate-inventory]
+      summary: Get inventory
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    put:
+      tags: [concentrate-inventory]
+      summary: Update inventory (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [concentrate-inventory]
+      summary: Delete inventory (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== concentrate-usage-logs ========================
+  /api/concentrate-usage-logs:
+    get:
+      tags: [concentrate-usage-logs]
+      summary: List usage logs
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    post:
+      tags: [concentrate-usage-logs]
+      summary: Create usage log (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+
+  # ======================== energy-records ========================
+  /api/energy-records:
+    post:
+      tags: [energy-records]
+      summary: Create record (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [energy-records]
+      summary: List records
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/energy-records/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      tags: [energy-records]
+      summary: Update record (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    get:
+      tags: [energy-records]
+      summary: Get record
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [energy-records]
+      summary: Delete record (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/energy-records/greenhouse/{greenhouseId}:
+    parameters:
+      - name: greenhouseId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [energy-records]
+      summary: List by greenhouse
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/energy-records/batch/{batchId}:
+    parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [energy-records]
+      summary: List by batch
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/energy-records/summary:
+    get:
+      tags: [energy-records]
+      summary: Get summary statistics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== pest-observations ========================
+  /api/pest-observations:
+    post:
+      tags: [pest-observations]
+      summary: Create observation (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [pest-observations]
+      summary: List observations
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/pest-observations/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      tags: [pest-observations]
+      summary: Update observation (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    get:
+      tags: [pest-observations]
+      summary: Get observation
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [pest-observations]
+      summary: Delete observation (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/pest-observations/greenhouse/{greenhouseId}:
+    parameters:
+      - name: greenhouseId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [pest-observations]
+      summary: List by greenhouse
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/pest-observations/batch/{batchId}:
+    parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [pest-observations]
+      summary: List by batch
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/pest-observations/{id}/treatments:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [pest-observations]
+      summary: Get treatments for observation
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== treatment-records ========================
+  /api/treatment-records:
+    post:
+      tags: [treatment-records]
+      summary: Create treatment (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [treatment-records]
+      summary: List treatments
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/treatment-records/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      tags: [treatment-records]
+      summary: Update treatment (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    get:
+      tags: [treatment-records]
+      summary: Get treatment
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [treatment-records]
+      summary: Delete treatment (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/treatment-records/greenhouse/{greenhouseId}:
+    parameters:
+      - name: greenhouseId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [treatment-records]
+      summary: List by greenhouse
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/treatment-records/batch/{batchId}:
+    parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [treatment-records]
+      summary: List by batch
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  # ======================== reviews ========================
+  /api/reviews:
+    post:
+      tags: [reviews]
+      summary: Create review snapshot (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+    get:
+      tags: [reviews]
+      summary: List reviews
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/reviews/generate:
+    post:
+      tags: [reviews]
+      summary: Auto-generate review (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Created
+  /api/reviews/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      tags: [reviews]
+      summary: Update review (ADMIN/OPERATOR)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+    get:
+      tags: [reviews]
+      summary: Get review detail
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+    delete:
+      tags: [reviews]
+      summary: Delete review (ADMIN)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+  /api/reviews/batches/{batchId}:
+    parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [reviews]
+      summary: Get reviews by batch
       security:
         - bearerAuth: []
       responses:

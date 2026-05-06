@@ -42,15 +42,26 @@ packages/backend/
 ├── cmd/api/main.go           # Entry point
 ├── configs/config.yaml       # Default configuration
 ├── internal/
-│   ├── alert/                # Alert module (dto, handler, model, routes)
-│   ├── audit/                # Audit log module
+│   ├── alert/                # Alert & alert workflow
+│   ├── audit/                # Audit log
 │   ├── auth/                 # Auth (JWT, middleware, password)
-│   ├── control/              # Control commands & rules
-│   ├── device/               # Devices, greenhouses, device groups
+│   ├── climate/              # Climate profiles & execution logs
+│   ├── command/              # Command dispatch & receipts
+│   ├── crop/                 # Crop varieties, growth stages, batches
+│   ├── device/               # Sensor/actuator devices, channels, topology
+│   ├── energy/               # Energy consumption records
+│   ├── greenhouse/           # Greenhouses, parks, growing zones
+│   ├── metric/               # Metric definitions & channel bindings
+│   ├── notification/         # Notification channels
+│   ├── nutrient/             # Nutrient tanks, solution changes, ion tests
 │   ├── overview/             # Dashboard overview
+│   ├── pest/                 # Pest observations & treatment records
 │   ├── platform/             # Infrastructure (config, db, di, errors, http, influx, logger, mqtt, response)
+│   ├── policy/               # Control policies (conditions, schedules, targets)
+│   ├── recipe/               # Nutrient recipes & targets
+│   ├── review/               # Batch review snapshots
 │   └── telemetry/            # Telemetry ingestion & query
-├── docs/                     # Backend-specific docs (analysis, architecture, testing)
+├── docs/                     # Backend-specific docs
 ├── migrations/               # SQL migrations
 └── scripts/                  # Dev scripts
 ```

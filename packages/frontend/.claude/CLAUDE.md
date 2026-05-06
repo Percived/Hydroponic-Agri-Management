@@ -37,15 +37,15 @@ npm run lint       # ESLint check and fix
 
 ```
 src/
-├── api/           # API modules (auth.ts, device.ts, telemetry.ts, device-group.ts, dashboard.ts, alert.ts, control.ts, user.ts, audit.ts)
+├── api/           # 20 API modules (alert, audit, auth, climate, control, crop, dashboard, device, energy, greenhouse, index, metric, notification, nutrient, pest, policy, recipe, request, telemetry, user)
 ├── assets/        # Static assets (styles/variables.scss, styles/global.scss)
-├── components/    # Shared components (layout/)
+├── components/    # Shared components (batch/, charts/, control/, device/, layout/, telemetry/)
 ├── composables/   # Vue composables (useAuth.ts, usePermission.ts)
 ├── router/        # Route configuration with guards
-├── stores/        # Pinia stores (auth.ts, device.ts)
-├── types/         # TypeScript definitions (user.ts, device.ts, telemetry.ts, api.ts, dashboard.ts, alert.ts, control.ts, audit.ts)
+├── stores/        # Pinia stores (auth.ts, greenhouse.ts)
+├── types/         # 20 TypeScript definition files (alert, api, audit, climate, control, crop, dashboard, device, domain, energy, greenhouse, index, metric, notification, nutrient, pest, policy, recipe, telemetry, user)
 ├── utils/         # Utilities (storage.ts, format.ts)
-└── views/         # Page components (login/, dashboard/, devices/, device-groups/, telemetry/, alerts/, controls/, users/, audit-logs/)
+└── views/         # 17 view directories (alerts/, audit-logs/, batches/, climate/, common/, controls/, dashboard/, devices/, energy/, greenhouses/, login/, nutrient/, pest/, recipes/, settings/, telemetry/, users/)
 ```
 
 ### API Layer
@@ -139,27 +139,22 @@ export const createExample = (data: CreateExampleRequest) => post<Example>('/exa
 |----------|-------------|------------|
 | `VITE_API_BASE_URL` | `http://localhost:8080/api` | Configure in `.env.production` |
 
-## Implemented Features
+## Implemented Features (v0.7.0)
 
-### Phase 1 (MVP - Core Features)
 - [x] Login page with JWT authentication
-- [x] Device list and detail pages
-- [x] Device groups management
-- [x] Telemetry realtime data view
-- [x] Telemetry history data view
-- [x] Route guards with auth check
-- [x] Permission-based access control
-
-### Phase 2 (Enhanced Features)
 - [x] Dashboard with overview stats and charts
-- [x] Alert center with status handling
-- [x] Control commands dispatch
-- [x] Control rules management
-
-### Phase 3 (Admin Features)
+- [x] Asset Center: sensor/actuator device lists, greenhouse/zones management
+- [x] Collection Center: realtime curves, history trends, batch trends
+- [x] Strategy Control: control policies (threshold + schedule), climate profiles, command dispatch
+- [x] Nutrient Management: tanks, ion tests, recipes
+- [x] Alerts: list with workflow (assign/takeover/close), timeline view
+- [x] Batch Management: ledger, harvest records, stage plans, batch review
+- [x] Pest observations & energy records
 - [x] User management (admin only)
 - [x] Audit logs (admin only)
-- [x] Greenhouse management (admin only)
+- [x] Notification channels (admin only)
+- [x] Route guards with auth + role-based access control
+- [x] 26 routes across 17 view directories
 
 ## Documentation Update Rule (MANDATORY)
 

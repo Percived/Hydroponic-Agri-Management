@@ -1,98 +1,87 @@
-import { get, post, put, patch, del } from './request'
-import { Device, DeviceHealth, DeviceQueryParams, DeviceFormData, PaginatedData } from '@/types'
+import { get, post, put, del } from './request'
+import type {
+  SensorDevice,
+  SensorDeviceListResponse,
+  CreateSensorDeviceRequest,
+  UpdateSensorDeviceRequest,
+  SensorChannel,
+  SensorChannelListResponse,
+  CreateSensorChannelRequest,
+  UpdateSensorChannelRequest,
+  ActuatorDevice,
+  ActuatorDeviceListResponse,
+  CreateActuatorDeviceRequest,
+  UpdateActuatorDeviceRequest,
+  ActuatorChannel,
+  ActuatorChannelListResponse,
+  CreateActuatorChannelRequest,
+  UpdateActuatorChannelRequest
+} from '@/types'
 
-// 获取设备列表
-export function getDevices(params: DeviceQueryParams): Promise<PaginatedData<Device>> {
-  return get<PaginatedData<Device>>('/devices', params)
-}
+// ===== Sensor Devices =====
 
-// 获取设备详情
-export function getDevice(id: number): Promise<Device> {
-  return get<Device>(`/devices/${id}`)
-}
+export const getSensorDevices = (params?: Record<string, unknown>) =>
+  get<SensorDeviceListResponse>('/sensor-devices', params)
 
-// 新增设备
-export function createDevice(data: DeviceFormData): Promise<{ id: number }> {
-  return post<{ id: number }>('/devices', data)
-}
+export const getSensorDevice = (id: number) =>
+  get<SensorDevice>(`/sensor-devices/${id}`)
 
-// 更新设备
-export function updateDevice(id: number, data: Partial<DeviceFormData>): Promise<void> {
-  return put<void>(`/devices/${id}`, data)
-}
+export const createSensorDevice = (data: CreateSensorDeviceRequest) =>
+  post<{ id: number }>('/sensor-devices', data)
 
-// 更新设备状态
-export function updateDeviceStatus(id: number, status: string): Promise<void> {
-  return patch<void>(`/devices/${id}/status`, { status })
-}
+export const updateSensorDevice = (id: number, data: UpdateSensorDeviceRequest) =>
+  put<SensorDevice>(`/sensor-devices/${id}`, data)
 
-// 获取设备健康状态
-export function getDeviceHealth(id: number): Promise<DeviceHealth> {
-  return get<DeviceHealth>(`/devices/${id}/health`)
-}
+export const deleteSensorDevice = (id: number) =>
+  del<void>(`/sensor-devices/${id}`)
 
-// 删除设备
-export function deleteDevice(id: number): Promise<void> {
-  return del<void>(`/devices/${id}`)
-}
+// ===== Sensor Channels =====
 
-// 设备遥测概览
-export interface TelemetryMetricSummary {
-  code: string
-  name: string
-  unit: string
-  avg: number | null
-  max: number | null
-  min: number | null
-  alerts: number
-  hourly: { hour: string; avg: number }[]
-}
+export const getSensorChannels = (params?: Record<string, unknown>) =>
+  get<SensorChannelListResponse>('/sensor-channels', params)
 
-export interface AlertEvent {
-  id: number
-  type: string
-  level: string
-  message: string
-  status: string
-  triggered_at: string
-}
+export const getSensorChannel = (id: number) =>
+  get<SensorChannel>(`/sensor-channels/${id}`)
 
-export interface TelemetrySummary {
-  metrics: Record<string, TelemetryMetricSummary>
-  online_rate: number
-  alert_events: AlertEvent[]
-}
+export const createSensorChannel = (data: CreateSensorChannelRequest) =>
+  post<{ id: number }>('/sensor-channels', data)
 
-export function getTelemetrySummary(id: number, from?: string, to?: string): Promise<TelemetrySummary> {
-  return get<TelemetrySummary>(`/devices/${id}/telemetry-summary`, { from, to })
-}
+export const updateSensorChannel = (id: number, data: UpdateSensorChannelRequest) =>
+  put<SensorChannel>(`/sensor-channels/${id}`, data)
 
-// 批量更新设备
-export function batchUpdateDevices(deviceIds: number[], updates: Record<string, any>): Promise<{ affected: number }> {
-  return post<{ affected: number }>('/devices/batch-update', { device_ids: deviceIds, updates })
-}
+export const deleteSensorChannel = (id: number) =>
+  del<void>(`/sensor-channels/${id}`)
 
-// 批量删除设备
-export function batchDeleteDevices(deviceIds: number[], reason?: string): Promise<{ deleted: number }> {
-  return del<{ deleted: number }>('/devices/batch', { data: { device_ids: deviceIds, reason } })
-}
+// ===== Actuator Devices =====
 
-// 批量下发命令
-export interface BatchCommandRequest {
-  target_type: 'greenhouse' | 'device_group' | 'devices'
-  target_ids: number[]
-  command_type: string
-  payload: Record<string, any>
-  remark?: string
-}
+export const getActuatorDevices = (params?: Record<string, unknown>) =>
+  get<ActuatorDeviceListResponse>('/actuator-devices', params)
 
-export interface BatchCommandResult {
-  device_id: number
-  command_id?: number
-  status: string
-  message?: string
-}
+export const getActuatorDevice = (id: number) =>
+  get<ActuatorDevice>(`/actuator-devices/${id}`)
 
-export function batchCommands(data: BatchCommandRequest): Promise<{ results: BatchCommandResult[] }> {
-  return post<{ results: BatchCommandResult[] }>('/controls/batch-commands', data)
-}
+export const createActuatorDevice = (data: CreateActuatorDeviceRequest) =>
+  post<{ id: number }>('/actuator-devices', data)
+
+export const updateActuatorDevice = (id: number, data: UpdateActuatorDeviceRequest) =>
+  put<ActuatorDevice>(`/actuator-devices/${id}`, data)
+
+export const deleteActuatorDevice = (id: number) =>
+  del<void>(`/actuator-devices/${id}`)
+
+// ===== Actuator Channels =====
+
+export const getActuatorChannels = (params?: Record<string, unknown>) =>
+  get<ActuatorChannelListResponse>('/actuator-channels', params)
+
+export const getActuatorChannel = (id: number) =>
+  get<ActuatorChannel>(`/actuator-channels/${id}`)
+
+export const createActuatorChannel = (data: CreateActuatorChannelRequest) =>
+  post<{ id: number }>('/actuator-channels', data)
+
+export const updateActuatorChannel = (id: number, data: UpdateActuatorChannelRequest) =>
+  put<ActuatorChannel>(`/actuator-channels/${id}`, data)
+
+export const deleteActuatorChannel = (id: number) =>
+  del<void>(`/actuator-channels/${id}`)

@@ -1,357 +1,416 @@
 <template>
-    <div class="rules-page">
-      <div class="page-header">
-        <h1 class="page-title">控制规则</h1>
-        <el-button type="primary" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon>
-          新增规则
-        </el-button>
-      </div>
-
-      <!-- 规则列表 -->
-      <div class="table-container">
-        <el-table :data="rules" v-loading="loading" stripe>
-          <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="name" label="规则名称" width="150" />
-          <el-table-column prop="metric_code" label="监控指标" width="100">
-            <template #default="{ row }">
-              {{ getMetricName(row.metric_code) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="条件" width="150">
-            <template #default="{ row }">
-              {{ row.metric_code }} {{ row.operator }} {{ row.threshold }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="target_device_name" label="目标设备" width="120" />
-          <el-table-column label="执行动作" min-width="180">
-            <template #default="{ row }">
-              {{ getCommandTypeName(row.command_type) }}:
-              <code class="payload-code">{{ JSON.stringify(row.command_payload) }}</code>
-            </template>
-          </el-table-column>
-          <el-table-column prop="enabled" label="状态" width="100">
-            <template #default="{ row }">
-              <el-switch
-                :model-value="row.enabled"
-                @change="(val: boolean) => toggleRuleStatus(row, val)"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="150" fixed="right">
-            <template #default="{ row }">
-              <el-button type="primary" link @click="openEditDialog(row)">编辑</el-button>
-              <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <!-- 分页 -->
-        <div class="pagination-container">
-          <el-pagination
-            v-model:current-page="pagination.page"
-            v-model:page-size="pagination.pageSize"
-            :total="total"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next, jumper"
-            @size-change="fetchData"
-            @current-change="fetchData"
-          />
-        </div>
-      </div>
-
-      <!-- 新增/编辑规则弹窗 -->
-      <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑规则' : '新增规则'" width="600px">
-        <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
-          <el-form-item label="规则名称" prop="name">
-            <el-input v-model="formData.name" placeholder="请输入规则名称" maxlength="64" />
-          </el-form-item>
-          <el-form-item label="监控指标" prop="metric_code">
-            <el-select v-model="formData.metric_code" placeholder="请选择监控指标" style="width: 100%">
-              <el-option label="温度" value="TEMP" />
-              <el-option label="湿度" value="HUMIDITY" />
-              <el-option label="pH值" value="PH" />
-              <el-option label="电导率" value="EC" />
-              <el-option label="CO2" value="CO2" />
-              <el-option label="光照" value="LIGHT" />
-            </el-select>
-          </el-form-item>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="比较运算" prop="operator">
-                <el-select v-model="formData.operator" placeholder="请选择" style="width: 100%">
-                  <el-option label="大于 (>)" value=">" />
-                  <el-option label="大于等于 (>=)" value=">=" />
-                  <el-option label="小于 (<)" value="<" />
-                  <el-option label="小于等于 (<=)" value="<=" />
-                  <el-option label="等于 (==)" value="==" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="阈值" prop="threshold">
-                <el-input-number v-model="formData.threshold" :precision="2" style="width: 100%" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-form-item label="目标设备" prop="target_device_id">
-            <el-select
-              v-model="formData.target_device_id"
-              :placeholder="actuatorsLoading ? '正在加载执行器...' : '请选择执行器'"
-              :disabled="actuatorsLoading"
-              filterable
-              style="width: 100%"
-            >
-              <el-option
-                v-for="device in actuators"
-                :key="device.id"
-                :label="device.name"
-                :value="device.id"
-              />
-            </el-select>
-          </el-form-item>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="命令类型" prop="command_type">
-                <el-select v-model="formData.command_type" placeholder="请选择" style="width: 100%">
-                  <el-option label="开关" value="SWITCH" />
-                  <el-option label="设置值" value="SET_VALUE" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="是否启用" prop="enabled">
-                <el-switch v-model="formData.enabled" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-form-item label="执行动作" prop="command_payload">
-            <el-input
-              v-model="payloadStr"
-              type="textarea"
-              :rows="3"
-              placeholder='请输入 JSON 格式负载，如 {"state": "ON"}'
-            />
-            <div v-if="payloadError" class="payload-error">{{ payloadError }}</div>
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
-        </template>
-      </el-dialog>
+  <div class="rules-page">
+    <div class="page-header">
+      <h1 class="page-title">阈值策略</h1>
+      <el-button type="primary" @click="openCreateDialog">
+        <el-icon><Plus /></el-icon>
+        新增阈值策略
+      </el-button>
     </div>
+
+    <div class="table-container">
+      <el-table :data="policies" v-loading="loading" stripe>
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="policy_code" label="策略编码" width="150" />
+        <el-table-column prop="name" label="策略名称" min-width="160" />
+        <el-table-column prop="priority" label="优先级" width="90" />
+        <el-table-column prop="retry_limit" label="重试" width="80" />
+        <el-table-column prop="timeout_sec" label="超时(s)" width="90" />
+        <el-table-column prop="enabled" label="启用" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.enabled === 1 ? 'success' : 'info'">{{ row.enabled === 1 ? '启用' : '停用' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="version" label="版本" width="100" />
+        <el-table-column label="操作" width="250" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="openEditDialog(row)">编辑</el-button>
+            <el-button type="warning" link @click="handlePublish(row)">发布</el-button>
+            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="fetchData"
+          @current-change="fetchData"
+        />
+      </div>
+    </div>
+
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑阈值策略' : '新增阈值策略'" width="760px">
+      <el-form :model="formData" label-width="120px">
+        <el-form-item label="策略编码">
+          <el-input v-model="formData.policy_code" :disabled="isEdit" />
+        </el-form-item>
+        <el-form-item label="策略名称">
+          <el-input v-model="formData.name" />
+        </el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="所属温室">
+              <el-select v-model="formData.greenhouse_id" placeholder="请选择温室" filterable style="width: 100%">
+                <el-option v-for="gh in greenhouses" :key="gh.id" :label="gh.name" :value="gh.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="种植区">
+              <el-select v-model="formData.growing_zone_id" placeholder="可选" clearable style="width: 100%">
+                <el-option v-for="zone in growingZones" :key="zone.id" :label="zone.name" :value="zone.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="优先级">
+              <el-input-number v-model="formData.priority" :min="1" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="策略类型">
+              <el-select v-model="formData.policy_type" style="width: 100%">
+                <el-option label="阈值" value="THRESHOLD" />
+                <el-option label="定时" value="SCHEDULE" />
+                <el-option label="时长" value="DURATION" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="重试次数">
+              <el-input-number v-model="formData.retry_limit" :min="0" :max="10" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="超时(秒)">
+              <el-input-number v-model="formData.timeout_sec" :min="1" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-divider>策略条件</el-divider>
+        <el-form-item label="指标代码">
+          <el-select v-model="conditionForm.metric_code" placeholder="选择指标" style="width: 100%">
+            <el-option v-for="m in metricOptions" :key="m.value" :label="m.label" :value="m.value" />
+          </el-select>
+        </el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="运算符">
+              <el-select v-model="conditionForm.operator" style="width: 100%">
+                <el-option label="大于 >" value=">" />
+                <el-option label="大于等于 >=" value=">=" />
+                <el-option label="小于 <" value="<" />
+                <el-option label="小于等于 <=" value="<=" />
+                <el-option label="等于 =" value="=" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="阈值">
+              <el-input-number v-model="conditionForm.threshold_value" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="8">
+            <el-form-item label="滞后值">
+              <el-input-number v-model="conditionForm.hysteresis" :min="0" :precision="2" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="窗口(秒)">
+              <el-input-number v-model="conditionForm.window_sec" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="持续(秒)">
+              <el-input-number v-model="conditionForm.required_duration_sec" :min="0" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-divider>目标动作</el-divider>
+        <el-form-item label="执行器通道">
+          <el-select v-model="targetChannelId" placeholder="选择执行器通道" filterable style="width: 100%">
+            <el-option v-for="ch in actuatorChannels" :key="ch.id" :label="`${ch.channel_code} (${ch.actuator_type})`" :value="ch.id" />
+          </el-select>
+        </el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="命令类型">
+              <el-select v-model="targetCommandType" style="width: 100%">
+                <el-option label="开关" value="SWITCH" />
+                <el-option label="设置值" value="SET_VALUE" />
+                <el-option label="校准" value="CALIBRATE" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="执行顺序">
+              <el-input-number v-model="targetExecutionOrder" :min="0" :max="99" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="命令负载">
+          <el-input v-model="targetPayloadRaw" type="textarea" :rows="3" placeholder='{"state":"ON"}' />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">保存</el-button>
+      </template>
+    </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
-import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
+import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { controlApi, deviceApi } from '@/api'
-import { getCommandTypeName, getMetricName } from '@/utils/format'
+import { deviceApi, policyApi, greenhouseApi } from '@/api'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
-import { CommandType, DeviceType } from '@/types'
-import type { ControlRule, ControlRuleFormData, Device } from '@/types'
+import type { ControlPolicy, ActuatorChannel, Greenhouse, GrowingZone } from '@/types'
 
-// 数据
 const loading = ref(false)
-const rules = ref<ControlRule[]>([])
+const submitLoading = ref(false)
+const policies = ref<ControlPolicy[]>([])
 const total = ref(0)
+const pagination = reactive({ page: 1, pageSize: 20 })
+const actuatorChannels = ref<ActuatorChannel[]>([])
+const greenhouses = ref<Greenhouse[]>([])
+const growingZones = ref<GrowingZone[]>([])
 
-// 执行器列表（用于规则目标设备下拉）
-const actuators = ref<Device[]>([])
-const actuatorsLoading = ref(false)
-
-async function loadActuators() {
-  actuatorsLoading.value = true
-  try {
-    const result = await deviceApi.getDevices({
-      type: DeviceType.ACTUATOR,
-      page: 1,
-      page_size: LARGE_PAGE_SIZE
-    })
-    actuators.value = result.items
-  } catch {
-    actuators.value = []
-  } finally {
-    actuatorsLoading.value = false
-  }
-}
-
-// 分页
-const pagination = reactive({
-  page: 1,
-  pageSize: 20
-})
-
-// 弹窗
 const dialogVisible = ref(false)
 const isEdit = ref(false)
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
-const editingId = ref<number | null>(null)
-const payloadStr = ref('{"state": "ON"}')
-const payloadError = ref('')
+const editingPolicyId = ref<number | null>(null)
 
-const formData = reactive<ControlRuleFormData>({
+const formData = reactive({
+  policy_code: '',
   name: '',
+  policy_type: 'THRESHOLD' as string,
+  greenhouse_id: null as number | null,
+  growing_zone_id: undefined as number | undefined,
+  priority: 50,
+  retry_limit: 3,
+  timeout_sec: 30
+})
+
+const conditionForm = reactive({
   metric_code: 'TEMP',
   operator: '>',
-  threshold: 30,
-  target_device_id: null as unknown as number,
-  command_type: CommandType.SWITCH,
-  command_payload: {},
-  enabled: true
+  threshold_value: 30,
+  hysteresis: undefined as number | undefined,
+  window_sec: undefined as number | undefined,
+  required_duration_sec: undefined as number | undefined,
+  aggregation: undefined as string | undefined
 })
 
-const formRules: FormRules = {
-  name: [
-    { required: true, message: '请输入规则名称', trigger: 'blur' },
-    { min: 1, max: 64, message: '规则名称长度为 1-64 个字符', trigger: 'blur' }
-  ],
-  metric_code: [{ required: true, message: '请选择监控指标', trigger: 'change' }],
-  operator: [{ required: true, message: '请选择比较运算符', trigger: 'change' }],
-  threshold: [{ required: true, message: '请输入阈值', trigger: 'blur' }],
-  target_device_id: [{ required: true, message: '请选择目标设备', trigger: 'change' }],
-  command_type: [{ required: true, message: '请选择命令类型', trigger: 'change' }]
-}
+const targetChannelId = ref<number | undefined>()
+const targetCommandType = ref('SWITCH')
+const targetPayloadRaw = ref('{"state":"ON"}')
+const targetExecutionOrder = ref(0)
 
-// 监听命令类型变化
-watch(() => formData.command_type, (type) => {
-  if (type === CommandType.SWITCH) {
-    payloadStr.value = '{"state": "ON"}'
-  } else if (type === CommandType.SET_VALUE) {
-    payloadStr.value = '{"value": 50}'
-  }
-})
+const metricOptions = [
+  { value: 'TEMP', label: '温度' },
+  { value: 'HUMIDITY', label: '湿度' },
+  { value: 'PH', label: 'pH值' },
+  { value: 'EC', label: '电导率' },
+  { value: 'CO2', label: 'CO2' },
+  { value: 'LIGHT', label: '光照' }
+]
 
-// 获取数据
 async function fetchData() {
   loading.value = true
   try {
-    const data = await controlApi.getRules({
+    const data = await policyApi.getPolicies({
+      policy_type: 'THRESHOLD',
       page: pagination.page,
       page_size: pagination.pageSize
     })
-    rules.value = data.items
+    policies.value = data.items
     total.value = data.total
-  } catch {
-    // 错误已处理
   } finally {
     loading.value = false
   }
 }
 
-// 切换规则状态
-async function toggleRuleStatus(rule: ControlRule, enabled: boolean) {
+async function loadActuatorChannels() {
   try {
-    await controlApi.toggleRule(rule.id, enabled)
-    ElMessage.success(enabled ? '规则已启用' : '规则已禁用')
-    fetchData()
+    const data = await deviceApi.getActuatorChannels({ page_size: LARGE_PAGE_SIZE })
+    actuatorChannels.value = data.items
+  } catch { /* ignore */ }
+}
+
+async function loadGreenhouses() {
+  try {
+    const data = await greenhouseApi.getGreenhouses({ page_size: LARGE_PAGE_SIZE })
+    greenhouses.value = data.items
+  } catch { /* ignore */ }
+}
+
+async function loadGrowingZones(greenhouseId?: number) {
+  if (!greenhouseId) return
+  try {
+    const data = await greenhouseApi.getGrowingZones({ greenhouse_id: greenhouseId, page_size: LARGE_PAGE_SIZE })
+    growingZones.value = data.items
   } catch {
-    // 错误已处理
+    growingZones.value = []
   }
 }
 
-// 打开新增弹窗
-async function openCreateDialog() {
-  if (!actuatorsLoading.value && actuators.value.length === 0) {
-    await loadActuators()
-  }
+function openCreateDialog() {
   isEdit.value = false
-  editingId.value = null
-  Object.assign(formData, {
-    name: '',
-    metric_code: 'TEMP',
-    operator: '>',
-    threshold: 30,
-    target_device_id: null,
-    command_type: CommandType.SWITCH,
-    command_payload: {},
-    enabled: true
-  })
-  payloadStr.value = '{"state": "ON"}'
-  payloadError.value = ''
+  editingPolicyId.value = null
+  formData.policy_code = `POL-TH-${Date.now().toString().slice(-6)}`
+  formData.name = ''
+  formData.policy_type = 'THRESHOLD'
+  formData.greenhouse_id = null
+  formData.growing_zone_id = undefined
+  formData.priority = 50
+  formData.retry_limit = 3
+  formData.timeout_sec = 30
+  conditionForm.metric_code = 'TEMP'
+  conditionForm.operator = '>'
+  conditionForm.threshold_value = 30
+  conditionForm.hysteresis = undefined
+  conditionForm.window_sec = undefined
+  conditionForm.required_duration_sec = undefined
+  conditionForm.aggregation = undefined
+  targetChannelId.value = undefined
+  targetCommandType.value = 'SWITCH'
+  targetPayloadRaw.value = '{"state":"ON"}'
+  targetExecutionOrder.value = 0
+  growingZones.value = []
   dialogVisible.value = true
 }
 
-// 打开编辑弹窗
-async function openEditDialog(rule: ControlRule) {
-  if (!actuatorsLoading.value && actuators.value.length === 0) {
-    await loadActuators()
-  }
+async function openEditDialog(policy: ControlPolicy) {
   isEdit.value = true
-  editingId.value = rule.id
-  Object.assign(formData, {
-    name: rule.name,
-    metric_code: rule.metric_code,
-    operator: rule.operator,
-    threshold: rule.threshold,
-    target_device_id: rule.target_device_id,
-    command_type: rule.command_type,
-    command_payload: rule.command_payload,
-    enabled: rule.enabled
-  })
-  payloadStr.value = JSON.stringify(rule.command_payload)
-  payloadError.value = ''
+  editingPolicyId.value = policy.id
+  formData.policy_code = policy.policy_code
+  formData.name = policy.name
+  formData.policy_type = policy.policy_type
+  formData.greenhouse_id = policy.greenhouse_id
+  formData.growing_zone_id = policy.growing_zone_id
+  formData.priority = policy.priority || 50
+  formData.retry_limit = policy.retry_limit || 3
+  formData.timeout_sec = policy.timeout_sec || 30
+
+  // Load conditions
+  try {
+    const condResult = await policyApi.getPolicyConditions(policy.id)
+    if (condResult.items && condResult.items.length > 0) {
+      const c = condResult.items[0]
+      conditionForm.metric_code = c.metric_code
+      conditionForm.operator = c.operator
+      conditionForm.threshold_value = c.threshold_value
+      conditionForm.hysteresis = c.hysteresis
+      conditionForm.window_sec = c.window_sec
+      conditionForm.required_duration_sec = c.required_duration_sec
+      conditionForm.aggregation = c.aggregation
+    }
+  } catch { /* ignore */ }
+
+  // Load targets
+  try {
+    const tgtResult = await policyApi.getPolicyTargets(policy.id)
+    if (tgtResult.items && tgtResult.items.length > 0) {
+      const t = tgtResult.items[0]
+      targetChannelId.value = t.actuator_channel_id
+      targetCommandType.value = t.command_type
+      targetPayloadRaw.value = JSON.stringify(t.command_payload)
+      targetExecutionOrder.value = t.execution_order
+    }
+  } catch { /* ignore */ }
+
+  if (policy.greenhouse_id) {
+    loadGrowingZones(policy.greenhouse_id)
+  }
   dialogVisible.value = true
 }
 
-// 提交表单
 async function handleSubmit() {
-  if (!formRef.value) return
-  try {
-    await formRef.value.validate()
-  } catch {
-    return
-  }
-
-  // 验证 JSON 格式
-  try {
-    formData.command_payload = JSON.parse(payloadStr.value)
-    payloadError.value = ''
-  } catch {
-    payloadError.value = 'JSON 格式错误'
-    return
-  }
-
   submitLoading.value = true
   try {
-    if (isEdit.value && editingId.value) {
-      await controlApi.updateRule(editingId.value, formData)
-      ElMessage.success('规则更新成功')
+    if (isEdit.value && editingPolicyId.value) {
+      const payload: Partial<typeof formData> = {
+        name: formData.name,
+        priority: formData.priority,
+        retry_limit: formData.retry_limit,
+        timeout_sec: formData.timeout_sec
+      }
+      await policyApi.updatePolicy(editingPolicyId.value, payload as any)
+      ElMessage.success('策略更新成功')
     } else {
-      await controlApi.createRule(formData)
-      ElMessage.success('规则创建成功')
+      // Create new policy
+      const createPayload = {
+        policy_code: formData.policy_code,
+        name: formData.name,
+        policy_type: formData.policy_type,
+        greenhouse_id: formData.greenhouse_id!,
+        growing_zone_id: formData.growing_zone_id,
+        priority: formData.priority,
+        retry_limit: formData.retry_limit,
+        timeout_sec: formData.timeout_sec,
+        conditions: [{
+          metric_code: conditionForm.metric_code,
+          operator: conditionForm.operator,
+          threshold_value: conditionForm.threshold_value,
+          hysteresis: conditionForm.hysteresis,
+          window_sec: conditionForm.window_sec,
+          required_duration_sec: conditionForm.required_duration_sec,
+          aggregation: conditionForm.aggregation
+        }],
+        targets: targetChannelId.value ? [{
+          actuator_channel_id: targetChannelId.value,
+          command_type: targetCommandType.value,
+          command_payload: (() => {
+            try { return JSON.parse(targetPayloadRaw.value || '{}') }
+            catch { return {} }
+          })(),
+          execution_order: targetExecutionOrder.value
+        }] : []
+      }
+      await policyApi.createPolicy(createPayload as any)
+      ElMessage.success('策略创建成功')
     }
     dialogVisible.value = false
     fetchData()
-  } catch {
-    // 错误已处理
   } finally {
     submitLoading.value = false
   }
 }
 
-// 删除规则
-async function handleDelete(rule: ControlRule) {
+async function handlePublish(policy: ControlPolicy) {
   try {
-    await ElMessageBox.confirm(`确定要删除规则"${rule.name}"吗？`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    await controlApi.deleteRule(rule.id)
-    ElMessage.success('规则删除成功')
+    await policyApi.publishPolicy(policy.id)
+    ElMessage.success('策略已发布')
     fetchData()
   } catch {
-    // 用户取消或错误已处理
+    // error handled
   }
+}
+
+async function handleDelete(policy: ControlPolicy) {
+  await ElMessageBox.confirm(`确认删除策略「${policy.name}」？`, '提示', { type: 'warning' })
+  await policyApi.deletePolicy(policy.id)
+  ElMessage.success('策略已删除')
+  fetchData()
 }
 
 onMounted(() => {
   fetchData()
-  loadActuators()
+  loadActuatorChannels()
+  loadGreenhouses()
 })
 </script>
 
@@ -367,9 +426,7 @@ onMounted(() => {
   .page-title {
     font-size: 22px;
     font-weight: 700;
-    color: var(--color-text-primary);
     margin: 0;
-    text-wrap: balance;
   }
 
   .table-container {
@@ -385,20 +442,6 @@ onMounted(() => {
     margin-top: var(--spacing-md);
     padding-top: var(--spacing-md);
     border-top: 1px solid var(--border-color);
-  }
-
-  .payload-code {
-    background: var(--color-primary-bg-light);
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-    font-size: 12px;
-    border: 1px solid var(--border-color-light);
-  }
-
-  .payload-error {
-    color: var(--color-danger);
-    font-size: 12px;
-    margin-top: 4px;
   }
 }
 </style>

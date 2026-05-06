@@ -6,7 +6,6 @@ import (
 	"time"
 
 	alertpkg "hydroponic-backend/internal/alert"
-	"hydroponic-backend/internal/device"
 	platformErrors "hydroponic-backend/internal/platform/errors"
 	"hydroponic-backend/internal/platform/response"
 
@@ -24,28 +23,26 @@ func NewHandler(db *gorm.DB) *Handler {
 
 func (h *Handler) Dashboard(c *gin.Context) {
 	var (
-		errCh          = make(chan error, 8)
-		devicesOnline  int64
-		totalDevices   int64
-		alertsOpen     int64
-		alertsCritical int64
-		alertsToday    int64
-		typeDist       []deviceTypeCount
-		ghSummaries    []greenhouseSummary
-		recentCmds     []recentCommand
+		errCh           = make(chan error, 8)
+		sensorsOnline   int64
+		actuatorsOnline int64
+		totalSensors    int64
+		totalActuators  int64
+		alertsOpen      int64
+		alertsCritical  int64
+		alertsToday     int64
+		ghSummaries     []greenhouseSummary
+		recentCmds      []recentCommand
 	)
 
-	// Run all queries in parallel
 	var wg sync.WaitGroup
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		e := h.db.Model(&device.Device{}).
-			Where("status = ?", device.DeviceStatusEnabled).
-			Where("last_seen_at IS NOT NULL").
-			Where("TIMESTAMPDIFF(SECOND, last_seen_at, UTC_TIMESTAMP()) <= sampling_interval_sec * 3").
-			Count(&devicesOnline).Error
+		e := h.db.Model(&sensorDevice{}).
+			Where("status = ?", "ONLINE").
+			Count(&sensorsOnline).Error
 		if e != nil {
 			errCh <- e
 		}
@@ -54,7 +51,27 @@ func (h *Handler) Dashboard(c *gin.Context) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		e := h.db.Model(&device.Device{}).Count(&totalDevices).Error
+		e := h.db.Model(&sensorDevice{}).Count(&totalSensors).Error
+		if e != nil {
+			errCh <- e
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		e := h.db.Model(&actuatorDevice{}).
+			Where("status = ?", "ONLINE").
+			Count(&actuatorsOnline).Error
+		if e != nil {
+			errCh <- e
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		e := h.db.Model(&actuatorDevice{}).Count(&totalActuators).Error
 		if e != nil {
 			errCh <- e
 		}
@@ -73,7 +90,7 @@ func (h *Handler) Dashboard(c *gin.Context) {
 	go func() {
 		defer wg.Done()
 		e := h.db.Model(&alertpkg.Alert{}).
-			Where("status = ? AND level = ?", alertpkg.StatusOpen, "CRITICAL").
+			Where("status = ? AND level = ?", alertpkg.StatusOpen, alertpkg.LevelCritical).
 			Count(&alertsCritical).Error
 		if e != nil {
 			errCh <- e
@@ -94,15 +111,6 @@ func (h *Handler) Dashboard(c *gin.Context) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		e := h.db.Raw("SELECT type, COUNT(*) AS count FROM devices GROUP BY type").Scan(&typeDist).Error
-		if e != nil {
-			errCh <- e
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
 		e := queryGreenhouseSummary(h.db, &ghSummaries)
 		if e != nil {
 			errCh <- e
@@ -113,9 +121,10 @@ func (h *Handler) Dashboard(c *gin.Context) {
 	go func() {
 		defer wg.Done()
 		e := h.db.Raw(`
-			SELECT cc.id, cc.command_type, d.name AS device_name, cc.status, cc.created_at
+			SELECT cc.id, cc.command_type, ad.name AS device_name, cc.status, cc.created_at
 			FROM control_commands cc
-			JOIN devices d ON d.id = cc.device_id
+			JOIN actuator_channels ac ON ac.id = cc.actuator_channel_id
+			JOIN actuator_devices ad ON ad.id = ac.actuator_device_id
 			ORDER BY cc.created_at DESC
 			LIMIT 5
 		`).Scan(&recentCmds).Error
@@ -134,35 +143,52 @@ func (h *Handler) Dashboard(c *gin.Context) {
 		}
 	}
 
-	devicesOffline := totalDevices - devicesOnline
-	if devicesOffline < 0 {
-		devicesOffline = 0
+	sensorsOffline := totalSensors - sensorsOnline
+	if sensorsOffline < 0 {
+		sensorsOffline = 0
+	}
+	actuatorsOffline := totalActuators - actuatorsOnline
+	if actuatorsOffline < 0 {
+		actuatorsOffline = 0
 	}
 
 	response.Success(c, gin.H{
-		"devices_online":           devicesOnline,
-		"devices_offline":          devicesOffline,
-		"devices_total":            totalDevices,
-		"alerts_open":              alertsOpen,
-		"alerts_critical":          alertsCritical,
-		"alerts_today":             alertsToday,
-		"device_type_distribution": typeDist,
-		"greenhouse_summary":       ghSummaries,
-		"recent_commands":          recentCmds,
+		"sensors_online":     sensorsOnline,
+		"sensors_offline":    sensorsOffline,
+		"sensors_total":      totalSensors,
+		"actuators_online":   actuatorsOnline,
+		"actuators_offline":  actuatorsOffline,
+		"actuators_total":    totalActuators,
+		"alerts_open":        alertsOpen,
+		"alerts_critical":    alertsCritical,
+		"alerts_today":       alertsToday,
+		"greenhouse_summary": ghSummaries,
+		"recent_commands":    recentCmds,
 	})
 }
 
-type deviceTypeCount struct {
-	Type  string `json:"type"`
-	Count int64  `json:"count"`
+type sensorDevice struct {
+	ID     uint64 `gorm:"primaryKey"`
+	Status string `gorm:"size:16"`
 }
 
+func (sensorDevice) TableName() string { return "sensor_devices" }
+
+type actuatorDevice struct {
+	ID     uint64 `gorm:"primaryKey"`
+	Status string `gorm:"size:16"`
+}
+
+func (actuatorDevice) TableName() string { return "actuator_devices" }
+
 type greenhouseSummary struct {
-	GreenhouseID uint64   `json:"greenhouse_id"`
-	Name         string   `json:"name"`
-	DeviceCount  int64    `json:"device_count"`
-	AvgTemp      *float64 `json:"avg_temp"`
-	AvgHumidity  *float64 `json:"avg_humidity"`
+	GreenhouseID  uint64   `json:"greenhouse_id"`
+	Name          string   `json:"name"`
+	SensorCount   int64    `json:"sensor_count"`
+	ActuatorCount int64    `json:"actuator_count"`
+	ZoneCount     int64    `json:"zone_count"`
+	AvgTemp       *float64 `json:"avg_temp"`
+	AvgHumidity   *float64 `json:"avg_humidity"`
 }
 
 type recentCommand struct {
@@ -175,34 +201,42 @@ type recentCommand struct {
 
 func queryGreenhouseSummary(db *gorm.DB, out *[]greenhouseSummary) error {
 	var rows []struct {
-		ID          uint64  `gorm:"column:id"`
-		Name        string  `gorm:"column:name"`
-		DeviceCount int64   `gorm:"column:device_count"`
-		AvgTemp     float64 `gorm:"column:avg_temp"`
-		AvgHumidity float64 `gorm:"column:avg_humidity"`
+		ID            uint64  `gorm:"column:id"`
+		Name          string  `gorm:"column:name"`
+		SensorCount   int64   `gorm:"column:sensor_count"`
+		ActuatorCount int64   `gorm:"column:actuator_count"`
+		ZoneCount     int64   `gorm:"column:zone_count"`
+		AvgTemp       float64 `gorm:"column:avg_temp"`
+		AvgHumidity   float64 `gorm:"column:avg_humidity"`
 	}
 
 	err := db.Raw(`
 		SELECT
 			g.id,
 			g.name,
-			COUNT(d.id) AS device_count,
-			AVG(t_temp.value) AS avg_temp,
-			AVG(t_hum.value) AS avg_humidity
+			COUNT(DISTINCT sd.id) AS sensor_count,
+			COUNT(DISTINCT ad.id) AS actuator_count,
+			COUNT(DISTINCT gz.id) AS zone_count,
+			COALESCE(AVG(t_temp.value), 0) AS avg_temp,
+			COALESCE(AVG(t_hum.value), 0) AS avg_humidity
 		FROM greenhouses g
-		LEFT JOIN devices d ON d.greenhouse_id = g.id
+		LEFT JOIN sensor_devices sd ON sd.greenhouse_id = g.id
+		LEFT JOIN actuator_devices ad ON ad.greenhouse_id = g.id
+		LEFT JOIN growing_zones gz ON gz.greenhouse_id = g.id
 		LEFT JOIN LATERAL (
-			SELECT value FROM telemetry_data
-			WHERE device_id = d.id
-			  AND metric_id = (SELECT id FROM metrics WHERE code = 'TEMP' LIMIT 1)
-			ORDER BY collected_at DESC
+			SELECT tr.value FROM telemetry_records tr
+			JOIN sensor_channels sc ON sc.id = tr.sensor_channel_id
+			JOIN sensor_devices sd2 ON sd2.id = sc.sensor_device_id
+			WHERE sd2.greenhouse_id = g.id AND tr.metric_code = 'TEMP'
+			ORDER BY tr.collected_at DESC
 			LIMIT 1
 		) t_temp ON true
 		LEFT JOIN LATERAL (
-			SELECT value FROM telemetry_data
-			WHERE device_id = d.id
-			  AND metric_id = (SELECT id FROM metrics WHERE code = 'HUMIDITY' LIMIT 1)
-			ORDER BY collected_at DESC
+			SELECT tr.value FROM telemetry_records tr
+			JOIN sensor_channels sc ON sc.id = tr.sensor_channel_id
+			JOIN sensor_devices sd2 ON sd2.id = sc.sensor_device_id
+			WHERE sd2.greenhouse_id = g.id AND tr.metric_code = 'HUMIDITY'
+			ORDER BY tr.collected_at DESC
 			LIMIT 1
 		) t_hum ON true
 		GROUP BY g.id, g.name
@@ -215,9 +249,11 @@ func queryGreenhouseSummary(db *gorm.DB, out *[]greenhouseSummary) error {
 	*out = make([]greenhouseSummary, 0, len(rows))
 	for _, r := range rows {
 		gh := greenhouseSummary{
-			GreenhouseID: r.ID,
-			Name:         r.Name,
-			DeviceCount:  r.DeviceCount,
+			GreenhouseID:  r.ID,
+			Name:          r.Name,
+			SensorCount:   r.SensorCount,
+			ActuatorCount: r.ActuatorCount,
+			ZoneCount:     r.ZoneCount,
 		}
 		if r.AvgTemp != 0 {
 			v := r.AvgTemp

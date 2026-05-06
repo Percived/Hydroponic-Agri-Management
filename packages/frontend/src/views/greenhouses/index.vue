@@ -35,10 +35,11 @@
               {{ formatDateTime(row.created_at) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="150" fixed="right">
+          <el-table-column label="操作" width="230" fixed="right">
             <template #default="{ row }">
               <el-button type="primary" link @click="openEditDialog(row)">编辑</el-button>
               <el-button type="primary" link @click="goGroups(row)">分组管理</el-button>
+              <el-button type="success" link @click="goZones(row)">种植区</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -92,7 +93,14 @@ import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { greenhouseApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
-import type { Greenhouse, GreenhouseFormData } from '@/types'
+import type { Greenhouse } from '@/types'
+
+// 表单数据类型（GreenhouseFormData 不存在于 @/types，此处本地定义）
+interface GreenhouseFormData {
+  name: string
+  location: string
+  description: string
+}
 
 const router = useRouter()
 
@@ -200,7 +208,12 @@ async function handleSubmit() {
       })
       ElMessage.success('温室更新成功')
     } else {
-      await greenhouseApi.createGreenhouse(formData)
+      await greenhouseApi.createGreenhouse({
+        code: `GH-${Date.now().toString().slice(-6)}`,
+        name: formData.name,
+        location: formData.location || undefined,
+        description: formData.description || undefined
+      })
       ElMessage.success('温室创建成功')
     }
     dialogVisible.value = false
@@ -215,6 +228,11 @@ async function handleSubmit() {
 // 跳转分组管理
 function goGroups(greenhouse: Greenhouse) {
   router.push({ path: '/device-groups', query: { greenhouse_id: greenhouse.id } })
+}
+
+// 跳转种植区管理
+function goZones(greenhouse: Greenhouse) {
+  router.push({ path: '/assets/growing-zones', query: { greenhouse_id: greenhouse.id } })
 }
 
 onMounted(() => {

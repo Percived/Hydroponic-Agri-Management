@@ -1,8 +1,8 @@
 # 项目状态
 
-最后更新: 2026-05-04
+最后更新: 2026-05-06
 负责人: 后端团队
-版本: v0.2.1（Phase 2 修复 + 种子数据）
+版本: v2.0.0（架构重构完成，18 个领域模块全部到位）
 
 ## 1. 项目概述
 
@@ -11,49 +11,52 @@
 
 ## 2. 当前交付状态
 
-总体评估：MVP 模块覆盖已基本完成，可进行手动集成测试。
-前端演示：交互式单页 UI 现已覆盖登录、管理、控制、遥测查询、告警和数据采集，使用真实 API 调用。
-指标种子数据：已为 TEMP/HUMIDITY/PH/EC/CO2/LIGHT 添加基线指标字典迁移。
+总体评估：v2.0.0 重构已完成。全量整合 18 个领域模块，对外暴露 193 个 API 端点，分布至 21 个模块路由组。API 路径采用扁平命名规范：`/api/sensor-devices`、`/api/actuator-devices`、`/api/commands`、`/api/policies` 等。
 
-已实现模块：
+已实现的 18 个领域模块：
 
-- 认证 + JWT + RBAC（`ADMIN/OPERATOR/VIEWER`）
-- 温室、设备及设备分组管理
-- 温室/设备分组删除 API，支持事务级联解绑行为
-- 遥测数据采集/查询（`latest/history/stats`）
-- 基于规则的自动触发（遥测 -> 命令 + 告警）
-- 控制命令/规则/模板 API
-- 告警列表/状态/统计 API
-- 审计日志查询 API
-- 概览仪表盘聚合
-- 设备遥测概览（每小时聚合 + 在线率 + 告警事件）
-- 批量设备操作（更新 / 删除）
-- 批量控制命令下发（按温室 / 分组 / 指定设备）
-- 通知渠道 CRUD（EMAIL / SMS / WEBHOOK）+ Webhook 测试发送（HMAC-SHA256 签名）
-- 系统配置管理（GET / PUT，敏感值自动脱敏）
-- 控制规则种子数据（22 条，覆盖 6 大指标 × 2 温室，含回差区间）
-- API 响应字段补齐：控制规则列表/告警列表返回 target_device_name / device_name
-- CORS 中间件（宽松模式），用于基于浏览器的 API 演示请求
-- 浏览器 API 文档：Swagger UI（`/docs/index.html`）+ OpenAPI 规范（`/openapi.yaml`）
+- **auth** (`internal/auth/`) — JWT 认证 + RBAC 角色体系（ADMIN/OPERATOR/VIEWER），含密码散列与中间件守卫。
+- **overview** (`internal/overview/`) — 仪表盘聚合：设备在线率、告警统计、遥测摘要、温室概览。
+- **greenhouse** (`internal/greenhouse/`) — 温室与园区管理，包含种植分区（growing zones）。
+- **device** (`internal/device/`) — 传感器/执行器设备管理，含设备通道（channels）与拓扑查询。
+- **metric** (`internal/metric/`) — 测点定义字典，支持通道级别的测点绑定。
+- **telemetry** (`internal/telemetry/`) — 遥测数据采集、实时/历史查询、通道级别历史数据拉取。
+- **command** (`internal/command/`) — 控制命令下发与回执（receipts）追踪，命令状态机统一为 `queued/sent/acked/failed/timeout/cancelled`。
+- **policy** (`internal/policy/`) — 控制策略引擎：支持阈值（threshold）、定时（schedule）、持续时长（duration）三类策略，含条件（conditions）、目标（targets）与执行记录（executions）。
+- **alert** (`internal/alert/`) — 告警管理与处置闭环：告警列表/统计、指派/接管/关闭动作、时间线事件追溯。
+- **notification** (`internal/notification/`) — 通知渠道 CRUD（EMAIL/SMS/WEBHOOK）+ Webhook 测试发送（HMAC-SHA256 签名）。
+- **audit** (`internal/audit/`) — 审计日志查询，支持 request_id / trace_id 追踪。
+- **crop** (`internal/crop/`) — 作物品种、生长阶段、种植批次、阶段计划、收获记录。
+- **recipe** (`internal/recipe/`) — 营养液配方管理，含配方目标值（targets）与批次配方绑定。
+- **climate** (`internal/climate/`) — 气候环境配置（climate profiles）含阶段定义、控制动作与执行日志。
+- **nutrient** (`internal/nutrient/`) — 营养液管理：液箱（tanks）、换液记录（solution changes）、离子检测、浓缩液库存与消耗。
+- **energy** (`internal/energy/`) — 能耗记录与汇总统计。
+- **pest** (`internal/pest/`) — 病虫害观察与治理记录。
+- **review** (`internal/review/`) — 批次复盘快照：汇总环境趋势、告警与控制动作，写入 `batch_review_snapshots`。
+
+数据库迁移：
+- 主迁移文件：`migrations/merged/all.up.sql`（整合全部 schema 初始化、种子数据与 PRD v1 结构，可一次性离线执行）。
+- 迁移包含：三层设备模型、策略引擎结构、告警处置闭环、作物批次体系、配方与测点字典、采集辅助表、审计增强及 Phase 0–5 演示种子数据。
 
 ## 3. 已知缺口 / 风险（按优先级）
 
 P0：
 
-- 自动化测试仍然很少（目前仅包含初始设备模块测试覆盖）。回归风险仍然很高。
+- 自动化测试覆盖仍然偏少（设备、遥测、控制、告警、批次模块已补核心路径覆盖，其余模块覆盖不足）。回归风险仍然较高。
 - 多个更新/删除 handler 未检查 `RowsAffected`，可能对不存在的记录返回成功。
 
 P1：
 
-- 部分 API 处于占位行为级别：
-  - `POST /api/controls/templates/{templateId}/apply` 目前仅做验证和日志记录，不执行实际的模板应用逻辑。
-  - `GET /api/alerts/subscribe` 目前仅返回 URL 元数据。
+- v2.0.0 重构后新增模块（climate、command、crop、energy、nutrient、pest、policy、recipe、review）的测试覆盖几乎为零。
+- 策略引擎缺少异步调度器与真实设备 ACK 消费器，`acked/timeout/cancelled` 仍需事件驱动链路补齐。
+- 告警处置闭环缺少独立的 outbox 投递 worker 与重试调度器。
+- 复盘聚合目前按批次时间窗做在线查询，大数据量场景下缺少离线预聚合与分页优化。
 - 遥测功能依赖预填充的 `metrics` 数据。
 
 P2：
 
 - 启动时对依赖较为严格（Influx/MQTT 初始化失败会退出进程）。
-- 默认本地 MQTT 凭据似乎与 compose 默认值不一致；部署前需验证运行时配置。
+- 默认本地 MQTT 凭据需与 compose 默认值保持对齐；部署前需验证运行时配置。
 
 ## 4. 后续步骤（按顺序）
 
@@ -66,12 +69,14 @@ P2：
 - 认证登录 / RBAC
 - 设备 CRUD + 健康检查
 - 遥测数据采集 + latest/history/stats
-- 规则触发路径（数据采集 -> 命令/告警）
+- 策略触发路径（数据采集 -> 命令/告警）
+- 新增模块核心路径（crop、recipe、climate、nutrient、energy、pest、review）
 
-3. 明确占位 API：
+3. 补齐异步基础设施：
 
-- 要么实现真正的模板应用/订阅流式传输，
-- 要么在 API 文档中明确标记为未实现，并暂时隐藏路由。
+- 实现策略调度器与设备 ACK 消费器
+- 实现 outbox 投递 worker 与重试调度器
+- 引入离线预聚合任务用于复盘与能耗汇总
 
 4. 按环境改进弹性：
 
@@ -89,12 +94,7 @@ docker compose up -d
 初始化数据库：
 
 ```bash
-docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0001_init.up.sql
-docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0002_seed_auth.up.sql
-docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0003_seed_metrics.up.sql
-docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0004_notification_channels.up.sql
-docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0005_seed_devices.up.sql
-docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/0006_seed_control_rules.up.sql
+docker compose exec -T mysql mysql -uroot -proot hydroponic < migrations/merged/all.up.sql
 ```
 
 运行后端：
@@ -111,18 +111,32 @@ scripts/dev-login-smoke.sh
 
 ## 6. 模块索引（快速导航）
 
-- 入口：`cmd/api/main.go`
-- 路由：`internal/platform/http/router.go`
-- 认证：`internal/auth/`
-- 设备：`internal/device/`
-- 遥测：`internal/telemetry/`
-- 控制：`internal/control/`
-- 告警：`internal/alert/`
-- 审计：`internal/audit/`
-- 概览：`internal/overview/`
-- 通知：`internal/notification/`
-- 迁移：`migrations/`
-- API 文档：`docs/specs/API_SPEC.md`、`docs/specs/openapi.yaml`
+| 模块 | 路径 | 说明 |
+|------|------|------|
+| 入口 | `cmd/api/main.go` | 应用启动入口，依赖注入组装 |
+| 路由 | `internal/platform/http/router.go` | 全局路由注册中心 |
+| 平台基础 | `internal/platform/` | 配置、数据库、DI、错误码、HTTP、InfluxDB、日志、MQTT、响应封装 |
+| alert | `internal/alert/` | 告警管理与处置闭环 |
+| audit | `internal/audit/` | 审计日志 |
+| auth | `internal/auth/` | JWT 认证 + RBAC |
+| climate | `internal/climate/` | 气候环境配置与执行日志 |
+| command | `internal/command/` | 控制命令下发与回执 |
+| crop | `internal/crop/` | 作物品种、生长阶段、种植批次、收获 |
+| device | `internal/device/` | 传感器/执行器设备与通道 |
+| energy | `internal/energy/` | 能耗记录与汇总 |
+| greenhouse | `internal/greenhouse/` | 温室、园区、种植分区 |
+| metric | `internal/metric/` | 测点定义与通道绑定 |
+| notification | `internal/notification/` | 通知渠道 |
+| nutrient | `internal/nutrient/` | 营养液管理 |
+| overview | `internal/overview/` | 仪表盘聚合 |
+| pest | `internal/pest/` | 病虫害观察与治理 |
+| policy | `internal/policy/` | 控制策略引擎 |
+| recipe | `internal/recipe/` | 营养液配方 |
+| review | `internal/review/` | 批次复盘快照 |
+| telemetry | `internal/telemetry/` | 遥测采集与查询 |
+| 迁移 | `migrations/` | 数据库迁移脚本（主文件：`merged/all.up.sql`） |
+| API 文档 | `shared/docs/API_SPEC.md` | 共享 API 规范 |
+| OpenAPI | `shared/docs/openapi.yaml` | OpenAPI 3.0.3 规范 |
 
 ## 7. 新会话上下文包
 

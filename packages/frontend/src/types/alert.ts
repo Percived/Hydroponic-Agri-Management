@@ -1,58 +1,73 @@
-// 告警类型
-export enum AlertType {
-  THRESHOLD = 'THRESHOLD',
-  OFFLINE = 'OFFLINE',
-  DEVICE_ERROR = 'DEVICE_ERROR'
-}
+import type { PaginatedResponse } from './api'
 
-// 告警级别
-export enum AlertLevel {
-  INFO = 'INFO',
-  WARN = 'WARN',
-  CRITICAL = 'CRITICAL'
-}
+export type AlertType = 'THRESHOLD' | 'DEVICE_OFFLINE' | 'SYSTEM'
+export type AlertLevel = 'INFO' | 'WARN' | 'CRITICAL'
+export type AlertStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED' | 'IGNORED'
 
-// 告警状态
-export enum AlertStatus {
-  OPEN = 'OPEN',
-  ACK = 'ACK',
-  CLOSED = 'CLOSED'
-}
-
-// 告警
 export interface Alert {
   id: number
   type: AlertType
   level: AlertLevel
+  metric_code?: string
+  sensor_channel_id?: number
+  actuator_channel_id?: number
+  trigger_value?: number
   message: string
-  device_id: number
-  device_name: string
   status: AlertStatus
-  remark: string | null
   triggered_at: string
-  resolved_at: string | null
+  resolved_at?: string
+  resolved_by?: number
   created_at: string
   updated_at: string
+  timeline_count?: number
 }
 
-// 告警统计
+export interface AlertTimelineEvent {
+  id: number
+  alert_id: number
+  event_type: string
+  event_source: 'SYSTEM' | 'MANUAL'
+  operator_id?: number
+  comment?: string
+  event_payload?: Record<string, unknown>
+  event_time: string
+  created_at: string
+}
+
+export interface CreateAlertRequest {
+  type: AlertType
+  level: AlertLevel
+  metric_code?: string
+  sensor_channel_id?: number
+  actuator_channel_id?: number
+  trigger_value?: number
+  message: string
+  triggered_at: string
+}
+
+export interface UpdateAlertStatusRequest {
+  status: AlertStatus
+  resolved_at?: string
+  comment?: string
+}
+
+export interface CreateTimelineEventRequest {
+  event_type: string
+  event_source: 'SYSTEM' | 'MANUAL'
+  operator_id?: number
+  comment?: string
+  event_payload?: Record<string, unknown>
+  event_time: string
+}
+
+export interface AlertListResponse extends PaginatedResponse<Alert> {}
+
 export interface AlertStats {
   open_count: number
-  ack_count: number
-  closed_count: number
-}
-
-// 告警查询参数
-export interface AlertQueryParams {
-  page?: number
-  page_size?: number
-  type?: AlertType
-  level?: AlertLevel
-  status?: AlertStatus
-}
-
-// 更新告警状态参数
-export interface UpdateAlertStatusParams {
-  status: AlertStatus
-  comment?: string
+  acknowledged_count: number
+  resolved_count: number
+  ignored_count: number
+  critical_count: number
+  warn_count: number
+  info_count: number
 }

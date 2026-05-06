@@ -90,8 +90,8 @@ export function formatDateTime(dateStr: string | undefined | null): string {
 export function getAlertTypeName(type: string): string {
   const map: Record<string, string> = {
     THRESHOLD: '阈值',
-    OFFLINE: '离线',
-    DEVICE_ERROR: '故障'
+    DEVICE_OFFLINE: '设备离线',
+    SYSTEM: '系统'
   }
   return map[type] || type
 }
@@ -120,8 +120,9 @@ export function getAlertLevelName(level: string): string {
 export function getAlertStatusType(status: string): string {
   const map: Record<string, string> = {
     OPEN: 'danger',
-    ACK: 'warning',
-    CLOSED: 'success'
+    ACKNOWLEDGED: 'warning',
+    RESOLVED: 'success',
+    IGNORED: 'info'
   }
   return map[status] || 'info'
 }
@@ -130,8 +131,9 @@ export function getAlertStatusType(status: string): string {
 export function getAlertStatusName(status: string): string {
   const map: Record<string, string> = {
     OPEN: '开放',
-    ACK: '已确认',
-    CLOSED: '已关闭'
+    ACKNOWLEDGED: '已确认',
+    RESOLVED: '已解决',
+    IGNORED: '已忽略'
   }
   return map[status] || status
 }
@@ -148,24 +150,34 @@ export function getCommandTypeName(type: string): string {
 
 // 命令状态样式类型
 export function getCommandStatusType(status: string): string {
+  const normalized = status.toUpperCase()
   const map: Record<string, string> = {
     PENDING: 'info',
     SENT: 'warning',
     EXECUTED: 'success',
-    FAILED: 'danger'
+    FAILED: 'danger',
+    QUEUED: 'info',
+    ACKED: 'success',
+    TIMEOUT: 'danger',
+    CANCELLED: 'info'
   }
-  return map[status] || 'info'
+  return map[normalized] || 'info'
 }
 
 // 命令状态名称
 export function getCommandStatusName(status: string): string {
+  const normalized = status.toUpperCase()
   const map: Record<string, string> = {
     PENDING: '待发送',
     SENT: '已发送',
     EXECUTED: '已执行',
-    FAILED: '失败'
+    FAILED: '失败',
+    QUEUED: '排队中',
+    ACKED: '已确认',
+    TIMEOUT: '超时',
+    CANCELLED: '已取消'
   }
-  return map[status] || status
+  return map[normalized] || status
 }
 
 // 角色名称

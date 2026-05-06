@@ -1,18 +1,49 @@
-import { get, post, put } from './request'
-import type { Greenhouse, GreenhouseQueryParams, GreenhouseFormData, PaginatedData } from '@/types'
+import { get, post, put, del } from './request'
+import type {
+  Greenhouse,
+  GreenhouseListResponse,
+  CreateGreenhouseRequest,
+  UpdateGreenhouseRequest,
+  GrowingZone,
+  GrowingZoneListResponse,
+  CreateGrowingZoneRequest,
+  UpdateGrowingZoneRequest
+} from '@/types'
 
-// 获取温室列表
-export const getGreenhouses = (params?: GreenhouseQueryParams) =>
-  get<PaginatedData<Greenhouse>>('/devices/greenhouses', params)
+// ===== Greenhouses =====
 
-// 获取温室详情
-export const getGreenhouseDetail = (id: number) =>
-  get<Greenhouse>(`/devices/greenhouses/${id}`)
+export const getGreenhouses = (params?: Record<string, unknown>) =>
+  get<GreenhouseListResponse>('/greenhouses', params)
 
-// 创建温室
-export const createGreenhouse = (data: GreenhouseFormData) =>
-  post<{ id: number }>('/devices/greenhouses', data)
+export const getGreenhouse = (id: number) =>
+  get<Greenhouse>(`/greenhouses/${id}`)
 
-// 更新温室
-export const updateGreenhouse = (id: number, data: Partial<GreenhouseFormData>) =>
-  put<void>(`/devices/greenhouses/${id}`, data)
+export const createGreenhouse = (data: CreateGreenhouseRequest) =>
+  post<{ id: number }>('/greenhouses', data)
+
+export const updateGreenhouse = (id: number, data: UpdateGreenhouseRequest) =>
+  put<Greenhouse>(`/greenhouses/${id}`, data)
+
+export const deleteGreenhouse = (id: number) =>
+  del<void>(`/greenhouses/${id}`)
+
+// 获取温室下的种植区
+export const getGreenhouseZones = (id: number) =>
+  get<{ items: GrowingZone[] }>(`/greenhouses/${id}/zones`)
+
+// ===== Growing Zones =====
+
+export const getGrowingZones = (params?: Record<string, unknown>) =>
+  get<GrowingZoneListResponse>('/growing-zones', params)
+
+export const getGrowingZone = (id: number) =>
+  get<GrowingZone>(`/growing-zones/${id}`)
+
+export const createGrowingZone = (data: CreateGrowingZoneRequest) =>
+  post<{ id: number }>('/growing-zones', data)
+
+export const updateGrowingZone = (id: number, data: UpdateGrowingZoneRequest) =>
+  put<GrowingZone>(`/growing-zones/${id}`, data)
+
+export const deleteGrowingZone = (id: number) =>
+  del<void>(`/growing-zones/${id}`)

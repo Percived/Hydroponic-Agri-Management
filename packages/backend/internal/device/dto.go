@@ -1,47 +1,152 @@
 package device
 
-type CreateDeviceRequest struct {
-	DeviceCode          string  `json:"device_code" binding:"required,min=1,max=64"`
-	Name                string  `json:"name" binding:"required,min=1,max=64"`
-	Type                string  `json:"type" binding:"required,oneof=SENSOR ACTUATOR"`
-	Category            string  `json:"category" binding:"required,min=1,max=32"`
-	Protocol            string  `json:"protocol" binding:"required,oneof=MQTT HTTP"`
-	GreenhouseID        *uint64 `json:"greenhouse_id"`
-	GroupID             *uint64 `json:"group_id"`
-	SamplingIntervalSec *uint   `json:"sampling_interval_sec" binding:"omitempty,min=5,max=3600"`
+// ---- SensorDevice ----
+
+type CreateSensorDeviceRequest struct {
+	DeviceCode      string  `json:"device_code" binding:"required,max=64"`
+	Name            string  `json:"name" binding:"required,max=64"`
+	Model           string  `json:"model" binding:"max=64"`
+	FirmwareVersion string  `json:"firmware_version" binding:"max=64"`
+	GreenhouseID    uint64  `json:"greenhouse_id" binding:"required"`
+	GrowingZoneID   *uint64 `json:"growing_zone_id"`
+	Protocol        string  `json:"protocol" binding:"max=16"`
+	Metadata        string  `json:"metadata"`
 }
 
-type UpdateDeviceRequest struct {
-	Name                *string `json:"name" binding:"omitempty,min=1,max=64"`
-	Category            *string `json:"category" binding:"omitempty,min=1,max=32"`
-	GreenhouseID        *uint64 `json:"greenhouse_id"`
-	GroupID             *uint64 `json:"group_id"`
-	SamplingIntervalSec *uint   `json:"sampling_interval_sec" binding:"omitempty,min=5,max=3600"`
+type UpdateSensorDeviceRequest struct {
+	Name            *string `json:"name" binding:"omitempty,max=64"`
+	Model           *string `json:"model" binding:"omitempty,max=64"`
+	FirmwareVersion *string `json:"firmware_version" binding:"omitempty,max=64"`
+	GrowingZoneID   *uint64 `json:"growing_zone_id"`
+	Status          *string `json:"status"`
+	Metadata        *string `json:"metadata"`
 }
 
-type UpdateDeviceStatusRequest struct {
-	Status string `json:"status" binding:"required,oneof=ENABLED DISABLED"`
+type SensorDeviceResponse struct {
+	ID              uint64  `json:"id"`
+	GreenhouseID    uint64  `json:"greenhouse_id"`
+	GrowingZoneID   *uint64 `json:"growing_zone_id"`
+	DeviceCode      string  `json:"device_code"`
+	Name            string  `json:"name"`
+	Model           string  `json:"model"`
+	FirmwareVersion string  `json:"firmware_version"`
+	Status          string  `json:"status"`
+	LastSeenAt      *string `json:"last_seen_at"`
+	Protocol        string  `json:"protocol"`
+	Metadata        string  `json:"metadata"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
 }
 
-type CreateDeviceGroupRequest struct {
-	GreenhouseID uint64 `json:"greenhouse_id" binding:"required"`
-	Name         string `json:"name" binding:"required,min=1,max=64"`
-	Description  string `json:"description" binding:"max=255"`
+// ---- SensorChannel ----
+
+type CreateSensorChannelRequest struct {
+	SensorDeviceID      uint64   `json:"sensor_device_id" binding:"required"`
+	ChannelCode         string   `json:"channel_code" binding:"required,max=64"`
+	MetricCode          string   `json:"metric_code" binding:"required,max=32"`
+	Unit                string   `json:"unit" binding:"required,max=16"`
+	PrecisionDigits     uint8    `json:"precision_digits"`
+	RangeMin            *float64 `json:"range_min"`
+	RangeMax            *float64 `json:"range_max"`
+	SamplingIntervalSec uint     `json:"sampling_interval_sec"`
+	Metadata            string   `json:"metadata"`
 }
 
-type UpdateDeviceGroupRequest struct {
-	Name        *string `json:"name" binding:"omitempty,min=1,max=64"`
-	Description *string `json:"description" binding:"omitempty,max=255"`
+type UpdateSensorChannelRequest struct {
+	ChannelCode         *string  `json:"channel_code" binding:"omitempty,max=64"`
+	MetricCode          *string  `json:"metric_code" binding:"omitempty,max=32"`
+	Unit                *string  `json:"unit" binding:"omitempty,max=16"`
+	PrecisionDigits     *uint8   `json:"precision_digits"`
+	RangeMin            *float64 `json:"range_min"`
+	RangeMax            *float64 `json:"range_max"`
+	SamplingIntervalSec *uint    `json:"sampling_interval_sec"`
+	Enabled             *uint8   `json:"enabled"`
+	Metadata            *string  `json:"metadata"`
 }
 
-type CreateGreenhouseRequest struct {
-	Name        string  `json:"name" binding:"required,min=1,max=64"`
-	Location    *string `json:"location" binding:"omitempty,max=128"`
-	Description *string `json:"description" binding:"omitempty,max=255"`
+type SensorChannelResponse struct {
+	ID                  uint64   `json:"id"`
+	SensorDeviceID      uint64   `json:"sensor_device_id"`
+	ChannelCode         string   `json:"channel_code"`
+	MetricCode          string   `json:"metric_code"`
+	Unit                string   `json:"unit"`
+	PrecisionDigits     uint8    `json:"precision_digits"`
+	RangeMin            *float64 `json:"range_min"`
+	RangeMax            *float64 `json:"range_max"`
+	SamplingIntervalSec uint     `json:"sampling_interval_sec"`
+	Enabled             uint8    `json:"enabled"`
+	LastReportedAt      *string  `json:"last_reported_at"`
+	Metadata            string   `json:"metadata"`
+	CreatedAt           string   `json:"created_at"`
+	UpdatedAt           string   `json:"updated_at"`
 }
 
-type UpdateGreenhouseRequest struct {
-	Name        *string `json:"name" binding:"omitempty,min=1,max=64"`
-	Location    *string `json:"location" binding:"omitempty,max=128"`
-	Description *string `json:"description" binding:"omitempty,max=255"`
+// ---- ActuatorDevice ----
+
+type CreateActuatorDeviceRequest struct {
+	DeviceCode      string  `json:"device_code" binding:"required,max=64"`
+	Name            string  `json:"name" binding:"required,max=64"`
+	Model           string  `json:"model" binding:"max=64"`
+	FirmwareVersion string  `json:"firmware_version" binding:"max=64"`
+	GreenhouseID    uint64  `json:"greenhouse_id" binding:"required"`
+	GrowingZoneID   *uint64 `json:"growing_zone_id"`
+	Protocol        string  `json:"protocol" binding:"max=16"`
+	Metadata        string  `json:"metadata"`
+}
+
+type UpdateActuatorDeviceRequest struct {
+	Name            *string `json:"name" binding:"omitempty,max=64"`
+	Model           *string `json:"model" binding:"omitempty,max=64"`
+	FirmwareVersion *string `json:"firmware_version" binding:"omitempty,max=64"`
+	GrowingZoneID   *uint64 `json:"growing_zone_id"`
+	Status          *string `json:"status"`
+	Metadata        *string `json:"metadata"`
+}
+
+type ActuatorDeviceResponse struct {
+	ID              uint64  `json:"id"`
+	GreenhouseID    uint64  `json:"greenhouse_id"`
+	GrowingZoneID   *uint64 `json:"growing_zone_id"`
+	DeviceCode      string  `json:"device_code"`
+	Name            string  `json:"name"`
+	Model           string  `json:"model"`
+	FirmwareVersion string  `json:"firmware_version"`
+	Status          string  `json:"status"`
+	LastSeenAt      *string `json:"last_seen_at"`
+	Protocol        string  `json:"protocol"`
+	Metadata        string  `json:"metadata"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
+}
+
+// ---- ActuatorChannel ----
+
+type CreateActuatorChannelRequest struct {
+	ActuatorDeviceID uint64   `json:"actuator_device_id" binding:"required"`
+	ChannelCode      string   `json:"channel_code" binding:"required,max=64"`
+	ActuatorType     string   `json:"actuator_type" binding:"required,max=16"`
+	RatedPowerWatt   *float64 `json:"rated_power_watt"`
+	Metadata         string   `json:"metadata"`
+}
+
+type UpdateActuatorChannelRequest struct {
+	ChannelCode    *string  `json:"channel_code" binding:"omitempty,max=64"`
+	ActuatorType   *string  `json:"actuator_type" binding:"omitempty,max=16"`
+	CurrentState   *string  `json:"current_state" binding:"omitempty,max=16"`
+	RatedPowerWatt *float64 `json:"rated_power_watt"`
+	Enabled        *uint8   `json:"enabled"`
+	Metadata       *string  `json:"metadata"`
+}
+
+type ActuatorChannelResponse struct {
+	ID               uint64   `json:"id"`
+	ActuatorDeviceID uint64   `json:"actuator_device_id"`
+	ChannelCode      string   `json:"channel_code"`
+	ActuatorType     string   `json:"actuator_type"`
+	CurrentState     string   `json:"current_state"`
+	RatedPowerWatt   *float64 `json:"rated_power_watt"`
+	Enabled          uint8    `json:"enabled"`
+	Metadata         string   `json:"metadata"`
+	CreatedAt        string   `json:"created_at"`
+	UpdatedAt        string   `json:"updated_at"`
 }

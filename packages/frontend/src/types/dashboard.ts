@@ -1,14 +1,10 @@
-// 设备类型分布
-export interface DeviceTypeDistribution {
-  type: string
-  count: number
-}
-
 // 温室概览
 export interface GreenhouseSummary {
   greenhouse_id: number
   name: string
-  device_count: number
+  sensor_count: number
+  actuator_count: number
+  zone_count: number
   avg_temp: number | null
   avg_humidity: number | null
 }
@@ -22,15 +18,17 @@ export interface RecentCommand {
   created_at: string
 }
 
-// 仪表盘概览数据（后端返回扁平结构）
+// 仪表盘概览数据
 export interface DashboardOverview {
-  devices_online: number
-  devices_offline: number
-  devices_total: number
+  sensors_online: number
+  sensors_offline: number
+  sensors_total: number
+  actuators_online: number
+  actuators_offline: number
+  actuators_total: number
   alerts_open: number
   alerts_critical: number
   alerts_today: number
-  device_type_distribution: DeviceTypeDistribution[]
   greenhouse_summary: GreenhouseSummary[]
   recent_commands: RecentCommand[]
 }
