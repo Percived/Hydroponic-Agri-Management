@@ -50,7 +50,7 @@ export interface SensorChannel {
   range_min?: number
   range_max?: number
   sampling_interval_sec: number
-  enabled: number
+  enabled: boolean
   last_reported_at?: string
   metadata?: Record<string, unknown>
   created_at: string
@@ -132,7 +132,7 @@ export interface ActuatorChannel {
   actuator_type: ActuatorType
   current_state: string
   rated_power_watt?: number
-  enabled: number
+  enabled: boolean
   metadata?: Record<string, unknown>
   created_at: string
   updated_at: string
@@ -156,3 +156,41 @@ export interface UpdateActuatorChannelRequest {
 }
 
 export interface ActuatorChannelListResponse extends PaginatedResponse<ActuatorChannel> {}
+
+// ── Batch Registration ──
+
+export interface RegisterDeviceChannelItem {
+  channel_code: string
+  metric_code?: string
+  unit?: string
+  range_min?: number
+  range_max?: number
+  sampling_interval_sec?: number
+  actuator_type?: string
+  rated_power_watt?: number
+}
+
+export interface RegisterDeviceRequest {
+  device_code: string
+  name: string
+  model?: string
+  firmware_version?: string
+  greenhouse_id: number
+  growing_zone_id?: number
+  protocol?: string
+  device_type: 'sensor' | 'actuator'
+  channels?: RegisterDeviceChannelItem[]
+}
+
+export interface RegisterDeviceResponse {
+  device_id: number
+  channel_ids: number[]
+}
+
+// ── Device Self-Discovery ──
+
+export interface DeviceSelfResponse {
+  device_type: 'sensor' | 'actuator'
+  device: SensorDevice | ActuatorDevice
+  channels: SensorChannel[] | ActuatorChannel[]
+}

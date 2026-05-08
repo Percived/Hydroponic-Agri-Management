@@ -6,6 +6,9 @@
         <el-tag v-if="device" :type="deviceType === 'sensor' ? 'primary' : 'warning'" size="large">
           {{ deviceType === 'sensor' ? '传感器设备' : '执行器设备' }}
         </el-tag>
+        <el-button v-if="device" type="primary" @click="openEditDialog">
+          <el-icon><Edit /></el-icon>编辑
+        </el-button>
       </div>
 
       <!-- 加载状态 -->
@@ -51,11 +54,17 @@
             </el-card>
 
             <!-- 通道列表 -->
-            <el-card v-if="channels.length > 0" class="channels-card">
+            <el-card class="channels-card">
               <template #header>
-                <span>{{ deviceType === 'sensor' ? '传感器通道' : '执行器通道' }}</span>
+                <div class="channels-card-header">
+                  <span>{{ deviceType === 'sensor' ? '传感器通道' : '执行器通道' }}</span>
+                  <el-button size="small" type="primary" @click="openChannelCreateDialog">
+                    <el-icon><Plus /></el-icon>添加通道
+                  </el-button>
+                </div>
               </template>
-              <el-table :data="channels" stripe size="small">
+              <div v-if="channels.length === 0" class="channels-empty">暂无通道，点击上方按钮添加</div>
+              <el-table v-else :data="channels" stripe size="small">
                 <el-table-column prop="id" label="ID" width="60" />
                 <el-table-column prop="channel_code" label="通道编码" width="130" />
                 <template v-if="deviceType === 'sensor'">
@@ -78,13 +87,19 @@
                 </template>
                 <el-table-column prop="enabled" label="启用" width="70">
                   <template #default="{ row }">
-                    <el-tag :type="row.enabled === 1 ? 'success' : 'info'" size="small">
-                      {{ row.enabled === 1 ? '是' : '否' }}
+                    <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
+                      {{ row.enabled ? '是' : '否' }}
                     </el-tag>
                   </template>
                 </el-table-column>
                 <el-table-column prop="last_reported_at" label="最后上报" width="160">
                   <template #default="{ row }">{{ formatDate(row.last_reported_at) }}</template>
+                </el-table-column>
+                <el-table-column label="操作" width="120" fixed="right">
+                  <template #default="{ row }">
+                    <el-button type="primary" link @click="openChannelEditDialog(row)">编辑</el-button>
+                    <el-button type="danger" link @click="handleChannelDelete(row)">删除</el-button>
+                  </template>
                 </el-table-column>
               </el-table>
             </el-card>
@@ -116,17 +131,95 @@
           </el-tab-pane>
         </el-tabs>
       </template>
+
+      <!-- 编辑弹窗 -->
+      <el-dialog v-model="editDialogVisible" title="编辑设备" width="550px">
+        <el-form ref="editFormRef" :model="editForm" :rules="editFormRules" label-width="100px">
+          <el-form-item label="设备编码">
+            <el-input :model-value="device?.device_code" disabled />
+          </el-form-item>
+          <el-form-item label="设备名称" prop="name">
+            <el-input v-model="editForm.name" placeholder="请输入设备名称" maxlength="64" autocomplete="off" name="edit_name" />
+          </el-form-item>
+          <el-form-item label="设备型号" prop="model">
+            <el-input v-model="editForm.model" placeholder="请输入型号（选填）" maxlength="64" autocomplete="off" name="edit_model" />
+          </el-form-item>
+          <el-form-item label="固件版本" prop="firmware_version">
+            <el-input v-model="editForm.firmware_version" placeholder="请输入固件版本（选填）" maxlength="32" autocomplete="off" name="edit_firmware" />
+          </el-form-item>
+          <el-form-item label="所属温室" prop="greenhouse_id">
+            <el-select v-model="editForm.greenhouse_id" placeholder="请选择温室" clearable style="width: 100%">
+              <el-option v-for="gh in greenhouses" :key="gh.id" :label="gh.name" :value="gh.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="种植区" prop="growing_zone_id">
+            <el-select v-model="editForm.growing_zone_id" placeholder="请选择种植区" clearable style="width: 100%">
+              <el-option v-for="zone in filteredEditZones" :key="zone.id" :label="zone.name" :value="zone.id" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="editDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="editSubmitLoading" @click="handleEditSubmit">确定</el-button>
+        </template>
+      </el-dialog>
+
+      <!-- 通道编辑弹窗 -->
+      <el-dialog v-model="channelDialogVisible" :title="isChannelEdit ? '编辑通道' : '添加通道'" width="500px">
+        <el-form ref="channelFormRef" :model="channelForm" :rules="channelFormRules" label-width="110px">
+          <el-form-item label="通道编码" prop="channel_code">
+            <el-input v-model="channelForm.channel_code" placeholder="请输入通道编码" maxlength="64" autocomplete="off" name="ch_code" />
+          </el-form-item>
+          <template v-if="deviceType === 'sensor'">
+            <el-form-item label="指标" prop="metric_code">
+              <el-select v-model="channelForm.metric_code" placeholder="请选择指标" style="width: 100%" @change="onChannelMetricChange">
+                <el-option v-for="m in metricDefs" :key="m.code" :label="`${m.name} (${m.unit})`" :value="m.code" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="单位">
+              <el-input v-model="channelForm.unit" placeholder="选择指标后自动填充" disabled />
+            </el-form-item>
+            <el-form-item label="精度位数">
+              <el-input-number v-model="channelForm.precision_digits" :min="0" :max="6" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="量程下限">
+              <el-input-number v-model="channelForm.range_min" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="量程上限">
+              <el-input-number v-model="channelForm.range_max" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="采样间隔(秒)">
+              <el-input-number v-model="channelForm.sampling_interval_sec" :min="1" :max="86400" style="width: 100%" />
+            </el-form-item>
+          </template>
+          <template v-else>
+            <el-form-item label="类型" prop="actuator_type">
+              <el-select v-model="channelForm.actuator_type" placeholder="请选择类型" style="width: 100%">
+                <el-option v-for="opt in actuatorTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="额定功率(W)">
+              <el-input-number v-model="channelForm.rated_power_watt" :min="0" style="width: 100%" />
+            </el-form-item>
+          </template>
+        </el-form>
+        <template #footer>
+          <el-button @click="channelDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="channelSubmitLoading" @click="handleChannelSubmit">确定</el-button>
+        </template>
+      </el-dialog>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft } from '@element-plus/icons-vue'
-import { deviceApi, telemetryApi, greenhouseApi } from '@/api'
+import { ArrowLeft, Edit, Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
+import { deviceApi, telemetryApi, greenhouseApi, metricApi } from '@/api'
 import { formatDate, formatNumber, getMetricName } from '@/utils/format'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
-import type { SensorDevice, ActuatorDevice, SensorChannel, ActuatorChannel, TelemetryRecord, Greenhouse, GrowingZone } from '@/types'
+import type { SensorDevice, ActuatorDevice, SensorChannel, ActuatorChannel, TelemetryRecord, Greenhouse, GrowingZone, MetricDefinition } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -147,6 +240,72 @@ const channels = ref<SensorChannel[] | ActuatorChannel[]>([])
 const telemetryByChannel = ref<Array<TelemetryRecord & { channel_id: number }>>([])
 const greenhouses = ref<Greenhouse[]>([])
 const growingZones = ref<GrowingZone[]>([])
+const allZones = ref<GrowingZone[]>([])
+
+// Edit dialog state
+const editDialogVisible = ref(false)
+const editFormRef = ref<FormInstance>()
+const editSubmitLoading = ref(false)
+const editForm = reactive({
+  name: '',
+  model: '',
+  firmware_version: '',
+  greenhouse_id: null as number | null,
+  growing_zone_id: undefined as number | undefined
+})
+const editFormRules: FormRules = {
+  name: [
+    { required: true, message: '请输入设备名称', trigger: 'blur' },
+    { min: 1, max: 64, message: '设备名称长度为 1-64 个字符', trigger: 'blur' }
+  ],
+  greenhouse_id: [{ required: true, message: '请选择温室', trigger: 'change' }]
+}
+
+const filteredEditZones = computed(() => {
+  if (!editForm.greenhouse_id) return allZones.value
+  return allZones.value.filter(z => z.greenhouse_id === editForm.greenhouse_id)
+})
+
+// Channel dialog state
+const channelDialogVisible = ref(false)
+const isChannelEdit = ref(false)
+const channelFormRef = ref<FormInstance>()
+const channelSubmitLoading = ref(false)
+const editingChannelId = ref<number | null>(null)
+const metricDefs = ref<MetricDefinition[]>([])
+
+const channelForm = reactive({
+  channel_code: '',
+  // sensor fields
+  metric_code: '',
+  unit: '',
+  precision_digits: undefined as number | undefined,
+  range_min: undefined as number | undefined,
+  range_max: undefined as number | undefined,
+  sampling_interval_sec: undefined as number | undefined,
+  // actuator fields
+  actuator_type: '',
+  rated_power_watt: undefined as number | undefined
+})
+
+const channelFormRules: FormRules = {
+  channel_code: [
+    { required: true, message: '请输入通道编码', trigger: 'blur' },
+    { min: 1, max: 64, message: '通道编码长度为 1-64 个字符', trigger: 'blur' }
+  ]
+}
+
+const actuatorTypeOptions = [
+  { label: '水泵', value: 'PUMP' },
+  { label: '增氧机', value: 'AERATOR' },
+  { label: '风机', value: 'FAN' },
+  { label: '阀门', value: 'VALVE' },
+  { label: '遮阳网', value: 'SHADE' },
+  { label: '补光灯', value: 'LED' },
+  { label: '加热器', value: 'HEATER' },
+  { label: 'CO2发生器', value: 'CO2_GEN' },
+  { label: '雾化器', value: 'FOGGER' },
+]
 
 // Channel unit lookup map
 const channelUnitMap = computed(() => {
@@ -174,7 +333,192 @@ function getZoneName(id: number | undefined | null): string {
   return zone?.name || '-'
 }
 
-function goBack() { router.push('/devices') }
+function goBack() {
+  router.push(deviceType.value === 'actuator' ? '/assets/actuator-devices' : '/assets/sensor-devices')
+}
+
+function openEditDialog() {
+  if (!device.value) return
+  editForm.name = device.value.name
+  editForm.model = device.value.model || ''
+  editForm.firmware_version = device.value.firmware_version || ''
+  editForm.greenhouse_id = device.value.greenhouse_id
+  editForm.growing_zone_id = device.value.growing_zone_id
+  editDialogVisible.value = true
+  editFormRef.value?.resetFields()
+}
+
+async function handleEditSubmit() {
+  if (!editFormRef.value || !device.value) return
+  try { await editFormRef.value.validate() } catch { return }
+
+  editSubmitLoading.value = true
+  try {
+    const payload = {
+      name: editForm.name,
+      model: editForm.model || undefined,
+      firmware_version: editForm.firmware_version || undefined,
+      greenhouse_id: editForm.greenhouse_id ?? undefined,
+      growing_zone_id: editForm.growing_zone_id
+    }
+    if (deviceType.value === 'sensor') {
+      await deviceApi.updateSensorDevice(deviceId.value, payload)
+    } else {
+      await deviceApi.updateActuatorDevice(deviceId.value, payload)
+    }
+    ElMessage.success('设备更新成功')
+    editDialogVisible.value = false
+    await loadData()
+  } catch { /* error handled */ }
+  finally { editSubmitLoading.value = false }
+}
+
+async function loadMetrics() {
+  try {
+    const data = await metricApi.getMetrics({ page_size: LARGE_PAGE_SIZE })
+    metricDefs.value = data.items
+  } catch { /* ignore */ }
+}
+
+function onChannelMetricChange() {
+  const def = metricDefs.value.find(m => m.code === channelForm.metric_code)
+  if (def) channelForm.unit = def.unit
+}
+
+function openChannelCreateDialog() {
+  isChannelEdit.value = false
+  editingChannelId.value = null
+  channelForm.channel_code = ''
+  channelForm.metric_code = ''
+  channelForm.unit = ''
+  channelForm.precision_digits = undefined
+  channelForm.range_min = undefined
+  channelForm.range_max = undefined
+  channelForm.sampling_interval_sec = undefined
+  channelForm.actuator_type = ''
+  channelForm.rated_power_watt = undefined
+  channelDialogVisible.value = true
+  channelFormRef.value?.resetFields()
+}
+
+function openChannelEditDialog(ch: SensorChannel | ActuatorChannel) {
+  isChannelEdit.value = true
+  editingChannelId.value = ch.id
+  channelForm.channel_code = ch.channel_code
+  if ('metric_code' in ch) {
+    const sch = ch as SensorChannel
+    channelForm.metric_code = sch.metric_code
+    channelForm.unit = sch.unit
+    channelForm.precision_digits = sch.precision_digits
+    channelForm.range_min = sch.range_min
+    channelForm.range_max = sch.range_max
+    channelForm.sampling_interval_sec = sch.sampling_interval_sec
+    channelForm.actuator_type = ''
+    channelForm.rated_power_watt = undefined
+  } else {
+    const ach = ch as ActuatorChannel
+    channelForm.metric_code = ''
+    channelForm.unit = ''
+    channelForm.precision_digits = undefined
+    channelForm.range_min = undefined
+    channelForm.range_max = undefined
+    channelForm.sampling_interval_sec = undefined
+    channelForm.actuator_type = ach.actuator_type
+    channelForm.rated_power_watt = ach.rated_power_watt
+  }
+  channelDialogVisible.value = true
+  channelFormRef.value?.resetFields()
+}
+
+async function handleChannelSubmit() {
+  if (!channelFormRef.value) return
+  try { await channelFormRef.value.validate() } catch { return }
+
+  channelSubmitLoading.value = true
+  try {
+    if (deviceType.value === 'sensor') {
+      const payload = {
+        sensor_device_id: deviceId.value,
+        channel_code: channelForm.channel_code,
+        metric_code: channelForm.metric_code,
+        unit: channelForm.unit,
+        precision_digits: channelForm.precision_digits,
+        range_min: channelForm.range_min,
+        range_max: channelForm.range_max,
+        sampling_interval_sec: channelForm.sampling_interval_sec
+      }
+      if (isChannelEdit.value && editingChannelId.value) {
+        await deviceApi.updateSensorChannel(editingChannelId.value, payload)
+        ElMessage.success('通道更新成功')
+      } else {
+        await deviceApi.createSensorChannel(payload)
+        ElMessage.success('通道创建成功')
+      }
+    } else {
+      const payload = {
+        actuator_device_id: deviceId.value,
+        channel_code: channelForm.channel_code,
+        actuator_type: channelForm.actuator_type as any,
+        rated_power_watt: channelForm.rated_power_watt
+      }
+      if (isChannelEdit.value && editingChannelId.value) {
+        await deviceApi.updateActuatorChannel(editingChannelId.value, payload)
+        ElMessage.success('通道更新成功')
+      } else {
+        await deviceApi.createActuatorChannel(payload)
+        ElMessage.success('通道创建成功')
+      }
+    }
+    channelDialogVisible.value = false
+    // Reload channels
+    await loadChannels()
+    // Reload telemetry for sensor
+    if (deviceType.value === 'sensor') {
+      fetchTelemetry()
+    }
+  } catch { /* error handled */ }
+  finally { channelSubmitLoading.value = false }
+}
+
+async function handleChannelDelete(ch: SensorChannel | ActuatorChannel) {
+  try {
+    await ElMessageBox.confirm(`确认删除通道「${ch.channel_code}」？此操作不可撤销。`, '警告', {
+      type: 'warning',
+      confirmButtonText: '确定',
+      cancelButtonText: '取消'
+    })
+    if (deviceType.value === 'sensor') {
+      await deviceApi.deleteSensorChannel(ch.id)
+    } else {
+      await deviceApi.deleteActuatorChannel(ch.id)
+    }
+    ElMessage.success('通道已删除')
+    await loadChannels()
+    if (deviceType.value === 'sensor') {
+      fetchTelemetry()
+    }
+  } catch (e: any) {
+    if (e !== 'cancel') { /* error handled */ }
+  }
+}
+
+async function loadChannels() {
+  try {
+    if (deviceType.value === 'sensor') {
+      const chData = await deviceApi.getSensorChannels({
+        sensor_device_id: deviceId.value,
+        page_size: LARGE_PAGE_SIZE
+      })
+      channels.value = chData.items
+    } else {
+      const chData = await deviceApi.getActuatorChannels({
+        actuator_device_id: deviceId.value,
+        page_size: LARGE_PAGE_SIZE
+      })
+      channels.value = chData.items
+    }
+  } catch { /* ignore */ }
+}
 
 async function loadData() {
   if (!deviceId.value) { errorMsg.value = '无效的设备 ID'; return }
@@ -221,6 +565,8 @@ async function loadData() {
 
   // Load greenhouses and zones for display
   loadGreenhouses()
+  loadAllZones()
+  loadMetrics()
   if (device.value?.greenhouse_id) {
     loadGrowingZones(device.value.greenhouse_id)
   }
@@ -242,6 +588,13 @@ async function loadGrowingZones(greenhouseId: number) {
   try {
     const data = await greenhouseApi.getGrowingZones({ greenhouse_id: greenhouseId, page_size: LARGE_PAGE_SIZE })
     growingZones.value = data.items
+  } catch { /* ignore */ }
+}
+
+async function loadAllZones() {
+  try {
+    const data = await greenhouseApi.getGrowingZones({ page_size: LARGE_PAGE_SIZE })
+    allZones.value = data.items
   } catch { /* ignore */ }
 }
 
@@ -282,6 +635,12 @@ onMounted(() => { loadData() })
   }
   .info-card, .channels-card {
     margin-bottom: 16px;
+  }
+  .channels-card-header {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .channels-empty {
+    text-align: center; color: var(--color-text-secondary); padding: 24px 0; font-size: 14px;
   }
   .loading-placeholder, .empty-placeholder {
     padding: 20px; text-align: center; color: var(--color-text-secondary);

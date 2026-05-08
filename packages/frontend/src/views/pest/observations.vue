@@ -9,8 +9,12 @@
     </div>
 
     <div class="filter-section">
-      <el-input-number v-model="filters.greenhouse_id" :min="1" placeholder="温室ID" style="width: 140px" />
-      <el-input-number v-model="filters.batch_id" :min="1" placeholder="批次ID" style="width: 140px" />
+      <el-select v-model="filters.greenhouse_id" placeholder="选择温室" clearable filterable style="width: 180px">
+        <el-option v-for="g in greenhouses" :key="g.id" :label="`${g.name} (ID:${g.id})`" :value="g.id" />
+      </el-select>
+      <el-select v-model="filters.batch_id" placeholder="选择批次" clearable filterable style="width: 180px">
+        <el-option v-for="b in batches" :key="b.id" :label="`${b.batch_no} (ID:${b.id})`" :value="b.id" />
+      </el-select>
       <el-select v-model="filters.severity" placeholder="严重程度" clearable style="width: 140px">
         <el-option label="轻度" value="LIGHT" />
         <el-option label="中度" value="MODERATE" />
@@ -71,18 +75,24 @@
       <el-form ref="obsFormRef" :model="obsForm" :rules="obsFormRules" label-width="120px">
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="温室ID" prop="greenhouse_id">
-              <el-input-number v-model="obsForm.greenhouse_id" :min="1" style="width: 100%" />
+            <el-form-item label="温室" prop="greenhouse_id">
+              <el-select v-model="obsForm.greenhouse_id" placeholder="选择温室" filterable style="width: 100%">
+                <el-option v-for="g in greenhouses" :key="g.id" :label="`${g.name} (ID:${g.id})`" :value="g.id" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="种植区ID">
-              <el-input-number v-model="obsForm.growing_zone_id" :min="1" style="width: 100%" />
+            <el-form-item label="种植区">
+              <el-select v-model="obsForm.growing_zone_id" placeholder="选择种植区" clearable filterable style="width: 100%">
+                <el-option v-for="z in growingZones" :key="z.id" :label="`${z.name} (ID:${z.id})`" :value="z.id" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="批次ID">
-              <el-input-number v-model="obsForm.batch_id" :min="1" style="width: 100%" />
+            <el-form-item label="批次">
+              <el-select v-model="obsForm.batch_id" placeholder="选择批次" clearable filterable style="width: 100%">
+                <el-option v-for="b in batches" :key="b.id" :label="`${b.batch_no} (ID:${b.id})`" :value="b.id" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -169,8 +179,10 @@
       <el-form ref="treatFormRef" :model="treatForm" :rules="treatFormRules" label-width="120px">
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="温室ID" prop="greenhouse_id">
-              <el-input-number v-model="treatForm.greenhouse_id" :min="1" style="width: 100%" />
+            <el-form-item label="温室" prop="greenhouse_id">
+              <el-select v-model="treatForm.greenhouse_id" placeholder="选择温室" filterable style="width: 100%">
+                <el-option v-for="g in greenhouses" :key="g.id" :label="`${g.name} (ID:${g.id})`" :value="g.id" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -246,14 +258,18 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { pestApi } from '@/api'
+import { pestApi, greenhouseApi, cropApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
-import type { PestDiseaseObservation, TreatmentRecord } from '@/types'
+import { LARGE_PAGE_SIZE } from '@/utils/constants'
+import type { PestDiseaseObservation, TreatmentRecord, Greenhouse, CropBatch, GrowingZone } from '@/types'
 
 // ── Observations ──
 const loading = ref(false)
 const observations = ref<PestDiseaseObservation[]>([])
 const total = ref(0)
+const greenhouses = ref<Greenhouse[]>([])
+const batches = ref<CropBatch[]>([])
+const growingZones = ref<GrowingZone[]>([])
 
 const filters = reactive({
   greenhouse_id: undefined as number | undefined,
@@ -524,8 +540,32 @@ async function removeTreatment(id: number) {
   }
 }
 
+async function loadGreenhouses() {
+  try {
+    const data = await greenhouseApi.getGreenhouses({ page_size: LARGE_PAGE_SIZE })
+    greenhouses.value = data.items
+  } catch { /* ignore */ }
+}
+
+async function loadBatches() {
+  try {
+    const data = await cropApi.getBatches({ page_size: LARGE_PAGE_SIZE })
+    batches.value = data.items
+  } catch { /* ignore */ }
+}
+
+async function loadGrowingZones() {
+  try {
+    const data = await greenhouseApi.getGrowingZones({ page_size: LARGE_PAGE_SIZE })
+    growingZones.value = data.items
+  } catch { /* ignore */ }
+}
+
 onMounted(() => {
   fetchData()
+  loadGreenhouses()
+  loadBatches()
+  loadGrowingZones()
 })
 </script>
 

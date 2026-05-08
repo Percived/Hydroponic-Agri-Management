@@ -7,11 +7,11 @@ export interface ClimateProfile {
   name: string
   description?: string
   trigger_metric_code: string
-  enabled: number
+  enabled: boolean
   created_at: string
   updated_at: string
   stages?: ClimateStage[]
-  stage_count?: number
+  stages_count?: number
 }
 
 export interface ClimateStage {
@@ -33,9 +33,9 @@ export interface ClimateStageAction {
   stage_id: number
   actuator_channel_id: number
   command_type: string
-  command_payload: Record<string, unknown>
+  command_payload: string
   execution_order: number
-  enabled: number
+  enabled: boolean
   created_at: string
   updated_at: string
 }
@@ -58,6 +58,7 @@ export interface CreateClimateProfileRequest {
   name: string
   description?: string
   trigger_metric_code: string
+  enabled?: boolean
 }
 
 export interface CreateClimateStageRequest {
@@ -66,7 +67,31 @@ export interface CreateClimateStageRequest {
   trigger_operator: string
   trigger_threshold: number
   hysteresis?: number
-  actions?: CreateClimateStageActionRequest[]
+}
+
+export interface StageWithActions {
+  stage_level: number
+  name: string
+  trigger_operator: string
+  trigger_threshold: number
+  hysteresis?: number
+  actions: CreateClimateStageActionRequest[]
+}
+
+export interface CreateClimateProfileWithStagesRequest {
+  greenhouse_id: number
+  code: string
+  name: string
+  description?: string
+  trigger_metric_code: string
+  enabled?: boolean
+  stages: StageWithActions[]
+}
+
+export interface ExecuteClimateProfileRequest {
+  trigger_value: number
+  from_stage_level?: number
+  to_stage_level: number
 }
 
 export interface CreateClimateStageActionRequest {
@@ -74,6 +99,7 @@ export interface CreateClimateStageActionRequest {
   command_type: string
   command_payload: Record<string, unknown>
   execution_order?: number
+  enabled?: boolean
 }
 
 export interface ClimateProfileListResponse extends PaginatedResponse<ClimateProfile> {}

@@ -2,6 +2,7 @@ package command
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,20 +10,31 @@ import (
 
 	"hydroponic-backend/internal/auth"
 	platformErrors "hydroponic-backend/internal/platform/errors"
+	"hydroponic-backend/internal/platform/event"
+	mqttpkg "hydroponic-backend/internal/platform/mqtt"
 	"hydroponic-backend/internal/platform/response"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 // Handler holds dependencies for command HTTP handlers.
 type Handler struct {
-	db *gorm.DB
+	db         *gorm.DB
+	mqttClient mqtt.Client
+	eventHub   *event.Hub
+	waiter     *CommandWaiter
 }
 
 // NewHandler creates a new command Handler.
-func NewHandler(db *gorm.DB) *Handler {
-	return &Handler{db: db}
+func NewHandler(db *gorm.DB, mqttClient mqtt.Client, hub *event.Hub) *Handler {
+	return &Handler{
+		db:         db,
+		mqttClient: mqttClient,
+		eventHub:   hub,
+		waiter:     NewCommandWaiter(hub),
+	}
 }
 
 // --- ControlCommand handlers ---
@@ -62,7 +74,7 @@ func (h *Handler) CreateCommand(c *gin.Context) {
 	})
 }
 
-// SendCommand marks a command as SENT with timestamp.
+// SendCommand marks a command as SENT with timestamp and dispatches via MQTT.
 func (h *Handler) SendCommand(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
@@ -76,7 +88,26 @@ func (h *Handler) SendCommand(c *gin.Context) {
 		return
 	}
 
+	// Load command
+	var cmd ControlCommand
+	if err := h.db.First(&cmd, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
+		return
+	}
+
 	now := time.Now().UTC()
+
+	// Dispatch via MQTT
+	if err := h.dispatchMQTT(cmd); err != nil {
+		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeDeviceOffline, "mqtt_dispatch_failed", nil)
+		return
+	}
+
+	// Update DB status
 	updates := map[string]interface{}{
 		"status":  "SENT",
 		"sent_at": now,
@@ -90,16 +121,174 @@ func (h *Handler) SendCommand(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "send_failed", nil)
 		return
 	}
-	if result.RowsAffected == 0 {
-		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
-		return
-	}
 
 	response.Success(c, gin.H{
 		"id":      id,
 		"status":  "SENT",
 		"sent_at": now.Format(time.RFC3339),
 	})
+}
+
+// DispatchAndWait creates a command, dispatches via MQTT, and waits for ack (sync mode).
+func (h *Handler) DispatchAndWait(c *gin.Context) {
+	var req CreateCommandRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err)
+		return
+	}
+
+	payloadBytes, err := json.Marshal(req.Payload)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_payload", nil)
+		return
+	}
+
+	userID := currentUserID(c)
+	cmd := ControlCommand{
+		ActuatorChannelID: req.ActuatorChannelID,
+		CommandType:       req.CommandType,
+		Payload:           string(payloadBytes),
+		Status:            "PENDING",
+		RequestID:         req.RequestID,
+		CreatedBy:         userID,
+	}
+
+	if err := h.db.Create(&cmd).Error; err != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "create_failed", nil)
+		return
+	}
+
+	// Register waiter before dispatching
+	h.waiter.Register(cmd.ID)
+
+	// Dispatch via MQTT
+	if err := h.dispatchMQTT(cmd); err != nil {
+		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeDeviceOffline, "mqtt_dispatch_failed", nil)
+		return
+	}
+
+	// Mark as SENT
+	now := time.Now().UTC()
+	h.db.Model(&ControlCommand{}).Where("id = ?", cmd.ID).Updates(map[string]interface{}{
+		"status":  "SENT",
+		"sent_at": now,
+	})
+
+	// Wait for ack with 10s timeout
+	receipt, waitErr := h.waiter.Wait(cmd.ID, 10*time.Second)
+	if waitErr != nil {
+		// Mark as TIMEOUT
+		h.db.Model(&ControlCommand{}).Where("id = ?", cmd.ID).Update("status", "TIMEOUT")
+		response.Success(c, gin.H{
+			"id":      cmd.ID,
+			"status":  "TIMEOUT",
+			"message": waitErr.Error(),
+		})
+		return
+	}
+
+	response.Success(c, gin.H{
+		"id":          cmd.ID,
+		"status":      "ACKED",
+		"ack_code":    receipt.AckCode,
+		"ack_message": receipt.AckMessage,
+	})
+}
+
+// DispatchAsync creates a command and dispatches via MQTT without waiting (async mode).
+func (h *Handler) DispatchAsync(c *gin.Context) {
+	var req CreateCommandRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err)
+		return
+	}
+
+	payloadBytes, err := json.Marshal(req.Payload)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_payload", nil)
+		return
+	}
+
+	userID := currentUserID(c)
+	cmd := ControlCommand{
+		ActuatorChannelID: req.ActuatorChannelID,
+		CommandType:       req.CommandType,
+		Payload:           string(payloadBytes),
+		Status:            "PENDING",
+		RequestID:         req.RequestID,
+		CreatedBy:         userID,
+	}
+
+	if err := h.db.Create(&cmd).Error; err != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "create_failed", nil)
+		return
+	}
+
+	// Dispatch via MQTT
+	if err := h.dispatchMQTT(cmd); err != nil {
+		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeDeviceOffline, "mqtt_dispatch_failed", nil)
+		return
+	}
+
+	// Mark as SENT
+	now := time.Now().UTC()
+	h.db.Model(&ControlCommand{}).Where("id = ?", cmd.ID).Updates(map[string]interface{}{
+		"status":  "SENT",
+		"sent_at": now,
+	})
+
+	// Publish event for async status tracking
+	h.eventHub.Publish(event.SSEEvent{
+		Type: "command:dispatched",
+		Data: map[string]interface{}{
+			"command_id": cmd.ID,
+			"status":     "SENT",
+		},
+	})
+
+	response.Success(c, gin.H{
+		"id":      cmd.ID,
+		"status":  "SENT",
+		"sent_at": now.Format(time.RFC3339),
+	})
+}
+
+// dispatchMQTT publishes a command to the device's MQTT command topic.
+func (h *Handler) dispatchMQTT(cmd ControlCommand) error {
+	if h.mqttClient == nil || !h.mqttClient.IsConnected() {
+		return fmt.Errorf("mqtt not connected")
+	}
+
+	deviceCode, err := h.lookupDeviceCode(cmd.ActuatorChannelID)
+	if err != nil {
+		return fmt.Errorf("device lookup: %w", err)
+	}
+
+	topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, deviceCode, mqttpkg.TopicCmdPrefix, cmd.CommandType)
+	token := h.mqttClient.Publish(topic, 1, false, cmd.Payload)
+	if token.Wait() && token.Error() != nil {
+		return fmt.Errorf("publish: %w", token.Error())
+	}
+	return nil
+}
+
+// lookupDeviceCode finds the device code for an actuator channel.
+func (h *Handler) lookupDeviceCode(actuatorChannelID uint64) (string, error) {
+	var result struct {
+		DeviceCode string
+	}
+	err := h.db.Table("actuator_channels").
+		Select("actuator_devices.device_code").
+		Joins("JOIN actuator_devices ON actuator_devices.id = actuator_channels.actuator_device_id").
+		Where("actuator_channels.id = ?", actuatorChannelID).
+		Scan(&result).Error
+	if err != nil {
+		return "", err
+	}
+	if result.DeviceCode == "" {
+		return "", fmt.Errorf("device not found for channel %d", actuatorChannelID)
+	}
+	return result.DeviceCode, nil
 }
 
 // AckCommand marks a command as ACKED with receipt information.

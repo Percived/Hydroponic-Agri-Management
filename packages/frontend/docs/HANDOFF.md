@@ -1,10 +1,57 @@
 # 交接文档
 
-最后更新: 2026-05-06
-当前分支: main
-当前重点: v0.7.0 架构落地 — 业务域闭环重构（资产/采集/策略/营养/告警/批次/植保/能耗/管理）
+最后更新: 2026-05-08
+当前分支: version2
+当前重点: v0.8.1 — 气候模块前端修复
 
-## 0. 近期变更（v0.7.0 架构重构）
+## 最新变更 (2026-05-08)
+
+### 采集中心模块改进：2页替代3页 + SSE 实时总览 + 多通道趋势分析
+
+- **路由变更**: 3条采集中心路由合并为2条:
+  - `/collection/overview` → `views/telemetry/overview.vue` (实时总览，新)
+  - `/collection/trends` → `views/telemetry/trends.vue` (趋势分析，新)
+  - 旧路径 `/collection/realtime`, `/collection/history`, `/collection/batch-trends` 及其他 legacy 路径重定向到新路由
+- **`src/views/telemetry/overview.vue`** (新建):
+  - 温室→种植区→设备(多选)级联过滤 + 指标多选
+  - 传感器卡片网格：设备名/通道码/指标名/数值+单位/质量标识/在线状态/SSE更新高亮
+  - 可折叠趋势图区域 (MetricTrendChart 复用)
+  - 加载/空状态覆盖：骨架卡片、el-empty 多态提示
+- **`src/views/telemetry/trends.vue`** (新建):
+  - 温室→种植区→通道(多选搜索)级联 + 指标/时间范围/批次/质量标识过滤
+  - 统计摘要(avg/max/min)、多指标对比图表 + 批次事件时间线、数据明细表格(分页)
+  - 指标名称动态缓存 populating (metricApi + populateMetricNames)
+- **`src/types/telemetry.ts`** — 新增 `TelemetryLatestItem`, `TelemetryLatestBatchResponse`, `ChannelSnapshot`, `TelemetrySSEEvent` 类型
+- **`src/api/telemetry.ts`** — 新增 `getChannelsLatest(channelIds: number[])` 批量查询函数
+- **`src/composables/useTelemetrySSE.ts`** — 新增 `channelValues: Map<number, TelemetrySSEEvent>` 按 sensor_channel_id 索引 SSE 事件；兼容后端实际数据格式 `{sensor_channel_id, metric_code, value, collected_at, device_code}`
+- **`src/components/layout/AppSidebar.vue`** — 采集中心子菜单从3项改为2项：实时总览、趋势分析
+- **删除文件**: `src/views/telemetry/realtime.vue`, `history.vue`, `batch-trends.vue`
+
+### 气候模块前端修复
+
+- `src/views/climate/index.vue`:
+  - 表格: `stage_count` → `stages_count`（对齐后端 `stages_count` 字段）
+  - 阶段操作符选择: 移除 `==` 选项（后端验证不支持）
+  - Profile 表单: 新增 `enabled` 开关
+  - Action 表单: 新增 `enabled` 开关
+  - Profile 编辑提交: 不再发送 `greenhouse_id`、`code`（`UpdateClimateProfileRequest` 无此字段）
+  - `execution_order` 默认值 `0` → `1`（后端 `min=1`）
+  - Action 编辑: `command_payload_str` 直接使用后端返回的字符串
+- `src/types/climate.ts`:
+  - `ClimateProfile.enabled`: `number` → `boolean`
+  - `ClimateStageAction.enabled`: `number` → `boolean`
+  - `ClimateStageAction.command_payload`: `Record<string, unknown>` → `string`
+  - `CreateClimateProfileRequest.enabled` 新增 `?: boolean`
+  - `CreateClimateStageActionRequest.enabled` 新增 `?: boolean`
+
+## 0. 近期变更（v0.8.0）
+
+### 后端 Phase 3+4 同步
+
+- **SSE 实时推送就绪**：后端新增 `GET /api/alerts/subscribe`、`GET /api/telemetry/subscribe`，前端 composables 已在 AppHeader 挂载，实时告警计数正常。
+- **仪表盘类型对齐**：`DashboardOverview` 新增 `devices_online/offline/total`、`device_type_distribution` 字段，温室设备数修正为 `sensor_count + actuator_count`。
+- **后端 handler 拆分**：climate、policy、nutrient、crop 单文件拆为 3-5 个子文件，前端无需变更。
+- **后端 enabled 类型统一**：`uint8` → `bool`，前端 DTO 类型自动兼容。
 
 ### 全局架构变化
 
@@ -194,19 +241,21 @@ v0.7.0 完成了从 MVP 到业务域闭环的全量架构重构：
 ## 3. 待办事项
 
 1. **自动化测试**：引入 vitest + vue-test-utils，覆盖登录、设备列表、路由守卫、告警列表等关键路径。
-2. **SSE 实时集成**：当前 composables 层有 SSE 实现，但未在视图中实际挂载消费，需接入仪表盘/设备详情/实时曲线页面。
+2. **SSE 深度集成**：telemetry 实时曲线从 polling 迁移至 SSE（当前 polling 作为降级方案），Dashboard 页面接入 telemetry SSE 实时更新图表。
 3. **批量操作 UI 增强**：进度条反馈、分批状态展示、失败重试入口。
 4. **移动端适配**：侧边栏切换为底部导航栏、表格切换为卡片列表。
 5. **通用组件抽取**：提取 DeviceCard、TelemetryCard、StatusBadge、ConfirmDialog 等为共享组件。
+6. **类型修复**：recipes/index.vue（RecipeTarget/RecipeTargetsResponse 接口不匹配）、alerts/index.vue（AlertStats.ignored_count 缺失）。
 
 ---
 
 ## 4. 风险 / 阻碍
 
 - **零自动化测试覆盖**：所有功能验证依赖手动操作，回归风险高。
-- **SSE 未集成**：composables 中 `useAlertSSE`、`useTelemetrySSE` 已编写但未在任何视图中实际挂载消费。
+- **SSE 可用性**：后端 SSE 端点已就绪，前端 AppHeader 已挂载告警 SSE；telemetry 实时曲线仍用 polling，待迁移。
 - **无 CI/CD 流程**：前端未接入任何持续集成/持续部署管线。
 - **移动端未适配**：仅依赖 Element Plus 默认响应式，未做专门适配。
+- **类型瑕疵**：recipes 与 alerts 页面存在预存类型错误（vue-tsc 报 8 个 error）。
 
 ---
 
@@ -234,9 +283,9 @@ npm run dev          # 开发服务器启动（默认 localhost:5173，代理后
 
 ## 7. 快速填写模板
 
-- **日期**：2026-05-06
+- **日期**：2026-05-07
 - **分支**：main
-- **已完成范围**：v0.7.0 全量架构重构 — 26 路由 / 17 view 目录 / 20 API 模块 / 20 类型模块 / 业务域闭环菜单 / 6 大新业务域（climate, energy, pest, nutrient, recipe, crop）/ 策略引擎 / 告警闭环 / 批次全生命周期
-- **待完成范围**：自动化测试、SSE 实时集成、批量 UI 优化、移动端适配、通用组件抽取
-- **风险**：零自动化测试覆盖；SSE composables 未挂载消费；无 CI/CD
-- **下个首要命令**：`npm run type-check`、`npm run build`
+- **已完成范围**：v0.7.0 全量架构重构 + v0.8.0 SSE 实时推送就绪 + 仪表盘类型对齐后端 v2.3.0。AppHeader 挂载告警 SSE（实时计数、浏览器通知），DashboardOverview 新增 devices_* 聚合字段与 device_type_distribution。
+- **待完成范围**：自动化测试、SSE 深度集成（telemetry polling → SSE）、批量 UI 优化、移动端适配、通用组件抽取、类型修复（recipes/alerts）
+- **风险**：零自动化测试覆盖；telemetry SSE 未挂载消费（polling 为降级）；无 CI/CD
+- **下个首要命令**：`npm run type-check && npm run build`

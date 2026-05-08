@@ -42,22 +42,16 @@ const routes: RouteRecordRaw[] = [
   },
   // ── 采集中心 ──
   {
-    path: '/collection/realtime',
-    name: 'TelemetryRealtime',
-    component: () => import('@/views/telemetry/realtime.vue'),
-    meta: { requiresAuth: true, title: '实时曲线' }
+    path: '/collection/overview',
+    name: 'TelemetryOverview',
+    component: () => import('@/views/telemetry/overview.vue'),
+    meta: { requiresAuth: true, title: '实时总览' }
   },
   {
-    path: '/collection/history',
-    name: 'TelemetryHistory',
-    component: () => import('@/views/telemetry/history.vue'),
-    meta: { requiresAuth: true, title: '历史趋势' }
-  },
-  {
-    path: '/collection/batch-trends',
-    name: 'BatchTrends',
-    component: () => import('@/views/telemetry/batch-trends.vue'),
-    meta: { requiresAuth: true, title: '批次趋势' }
+    path: '/collection/trends',
+    name: 'TelemetryTrends',
+    component: () => import('@/views/telemetry/trends.vue'),
+    meta: { requiresAuth: true, title: '趋势分析' }
   },
   // ── 策略控制 ──
   {
@@ -170,11 +164,19 @@ const routes: RouteRecordRaw[] = [
   },
   // ── Legacy redirects ──
   { path: '/devices', redirect: '/assets/sensor-devices' },
-  { path: '/devices/:id', redirect: '/assets/sensor-devices' },
+  {
+    path: '/devices/:id',
+    name: 'DeviceDetail',
+    component: () => import('@/views/devices/detail.vue'),
+    meta: { requiresAuth: true, title: '设备详情' }
+  },
   { path: '/greenhouses', redirect: '/assets/greenhouses' },
   { path: '/device-groups', redirect: '/assets/greenhouses' },
-  { path: '/telemetry/realtime', redirect: '/collection/realtime' },
-  { path: '/telemetry/history', redirect: '/collection/history' },
+  { path: '/collection/realtime', redirect: '/collection/overview' },
+  { path: '/collection/history', redirect: '/collection/trends' },
+  { path: '/collection/batch-trends', redirect: '/collection/trends' },
+  { path: '/telemetry/realtime', redirect: '/collection/overview' },
+  { path: '/telemetry/history', redirect: '/collection/trends' },
   { path: '/controls/commands', redirect: '/strategy/commands' },
   { path: '/controls/rules', redirect: '/strategy/policies' },
   { path: '/alerts', redirect: '/alerts/list' },

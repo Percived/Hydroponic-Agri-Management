@@ -21,13 +21,14 @@ import (
 	"hydroponic-backend/internal/platform/config"
 	"hydroponic-backend/internal/platform/di"
 	"hydroponic-backend/internal/platform/event"
+	"hydroponic-backend/internal/platform/mqtt"
 	"hydroponic-backend/internal/platform/response"
 	"hydroponic-backend/internal/policy"
 	"hydroponic-backend/internal/recipe"
 	"hydroponic-backend/internal/review"
 	"hydroponic-backend/internal/telemetry"
 
-	mqtt "github.com/eclipse/paho.mqtt.golang"
+	mqttlib "github.com/eclipse/paho.mqtt.golang"
 	"github.com/gin-gonic/gin"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	swaggerFiles "github.com/swaggo/files"
@@ -35,7 +36,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func NewRouter(cfg config.Config, log *slog.Logger, mysql *gorm.DB, influx influxdb2.Client, mqttClient mqtt.Client) *gin.Engine {
+func NewRouter(cfg config.Config, log *slog.Logger, mysql *gorm.DB, influx influxdb2.Client, mqttClient mqttlib.Client) *gin.Engine {
 	if cfg.App.Env == "prod" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -46,13 +47,22 @@ func NewRouter(cfg config.Config, log *slog.Logger, mysql *gorm.DB, influx influ
 	r.Use(RequestLogger(log))
 	r.Use(CORS())
 
+	hub := event.NewHub()
+	cache := telemetry.NewSensorStatusCache()
+
 	deps := di.Deps{
 		Config:   cfg,
 		Log:      log,
 		MySQL:    mysql,
 		Influx:   influx,
 		MQTT:     mqttClient,
-		EventHub: event.NewHub(),
+		EventHub: hub,
+	}
+
+	// Start MQTT Ingress Service
+	ingress := mqtt.NewIngressService(mysql, influx, cfg.Influx, hub, cache, mqttClient, log)
+	if err := ingress.Start(); err != nil {
+		log.Warn("mqtt ingress start failed", "error", err)
 	}
 
 	r.GET("/healthz", func(c *gin.Context) {
@@ -80,8 +90,8 @@ func NewRouter(cfg config.Config, log *slog.Logger, mysql *gorm.DB, influx influ
 	// Metric definitions
 	metric.RegisterRoutes(api, deps)
 
-	// Telemetry
-	telemetry.RegisterRoutes(api, deps)
+	// Telemetry (pass cache separately to avoid import cycle)
+	telemetry.RegisterRoutesWithCache(api, deps, cache)
 
 	// Nutrient management (DWC core)
 	nutrient.RegisterRoutes(api, deps)
@@ -103,6 +113,10 @@ func NewRouter(cfg config.Config, log *slog.Logger, mysql *gorm.DB, influx influ
 
 	// Alerts
 	alert.RegisterRoutes(api, deps)
+
+	// SSE real-time subscriptions
+	api.GET("/alerts/subscribe", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), event.SSEHandler(deps.EventHub, "alert:created"))
+	api.GET("/telemetry/subscribe", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), event.SSEHandler(deps.EventHub, "telemetry:received"))
 
 	// Energy consumption
 	energy.RegisterRoutes(api, deps)

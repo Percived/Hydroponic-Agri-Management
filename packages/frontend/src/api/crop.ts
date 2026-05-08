@@ -96,7 +96,7 @@ export const createHarvest = (data: CreateHarvestRecordRequest) =>
 
 export const getHarvestSummary = (batchId: number) =>
   get<{
-    total_harvest_weight_kg?: number
-    grade_summary?: { grade: string; total_weight_kg: number }[]
-    harvest_count?: number
-  }>('/harvests/summary', { batch_id: batchId })
+    batch_id: number
+    total_weight_kg: number
+    grades: { grade: string; weight_kg: number; count: number }[]
+  }>(`/harvests/summary/${batchId}`)

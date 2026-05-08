@@ -59,10 +59,9 @@
           <el-table-column prop="last_seen_at" label="最后上报" width="160">
             <template #default="{ row }">{{ formatDate(row.last_seen_at) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="150" fixed="right">
+          <el-table-column label="操作" width="120" fixed="right">
             <template #default="{ row }">
               <el-button type="primary" link @click="goDetail(row.id)">详情</el-button>
-              <el-button type="primary" link @click="openEditDialog(row)">编辑</el-button>
               <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
             </template>
           </el-table-column>
@@ -112,6 +111,34 @@
               <el-option v-for="zone in filteredGrowingZones" :key="zone.id" :label="zone.name" :value="zone.id" />
             </el-select>
           </el-form-item>
+
+          <!-- 通道配置（仅新增时可用） -->
+          <div v-if="!isEdit" class="channel-config-section">
+            <div class="channel-header">
+              <span class="channel-title">{{ activeDeviceType === 'sensor' ? '传感器通道' : '执行器通道' }}</span>
+              <el-button size="small" type="primary" text @click="addChannelDraft">
+                <el-icon><Plus /></el-icon>添加通道
+              </el-button>
+            </div>
+            <div v-if="channelDrafts.length === 0" class="channel-empty">暂未配置通道，保存后可前往设备详情页添加</div>
+            <div v-for="(draft, idx) in channelDrafts" :key="draft.key" class="channel-row">
+              <el-input v-model="draft.channel_code" placeholder="通道编码" size="small" style="width: 120px" />
+              <template v-if="activeDeviceType === 'sensor'">
+                <el-select v-model="draft.metric_code" placeholder="指标" size="small" style="width: 140px" @change="onChannelMetricChange(draft)">
+                  <el-option v-for="m in metricDefs" :key="m.code" :label="`${m.name} (${m.unit})`" :value="m.code" />
+                </el-select>
+                <el-input v-model="draft.unit" placeholder="单位" size="small" style="width: 70px" disabled />
+              </template>
+              <template v-else>
+                <el-select v-model="draft.actuator_type" placeholder="类型" size="small" style="width: 120px">
+                  <el-option v-for="opt in actuatorTypeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+                </el-select>
+              </template>
+              <el-button size="small" type="danger" text @click="removeChannelDraft(idx)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
+          </div>
         </el-form>
         <template #footer>
           <el-button @click="dialogVisible = false">取消</el-button>
@@ -123,19 +150,22 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { deviceApi, greenhouseApi } from '@/api'
+import { Plus, Delete } from '@element-plus/icons-vue'
+import { deviceApi, greenhouseApi, metricApi } from '@/api'
 import { formatDate } from '@/utils/format'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
-import type { SensorDevice, ActuatorDevice, Greenhouse, GrowingZone } from '@/types'
+import type { SensorDevice, ActuatorDevice, Greenhouse, GrowingZone, MetricDefinition } from '@/types'
 
 const router = useRouter()
+const route = useRoute()
 
 type AnyDevice = SensorDevice | ActuatorDevice
 
-const activeDeviceType = ref<'sensor' | 'actuator'>('sensor')
+const activeDeviceType = ref<'sensor' | 'actuator'>(
+  (route.path.includes('actuator') ? 'actuator' : 'sensor')
+)
 const devices = ref<AnyDevice[]>([])
 const total = ref(0)
 const loading = ref(false)
@@ -185,6 +215,51 @@ const filteredGrowingZones = computed(() => {
   if (!formData.greenhouse_id) return growingZones.value
   return growingZones.value.filter(z => z.greenhouse_id === formData.greenhouse_id)
 })
+
+// ── 通道配置（创建设备时可用）──
+interface ChannelDraft {
+  key: number
+  channel_code: string
+  metric_code: string
+  unit: string
+  actuator_type: string
+}
+let channelKey = 0
+const channelDrafts = ref<ChannelDraft[]>([])
+const metricDefs = ref<MetricDefinition[]>([])
+
+const actuatorTypeOptions = [
+  { label: '水泵', value: 'PUMP' },
+  { label: '增氧机', value: 'AERATOR' },
+  { label: '风机', value: 'FAN' },
+  { label: '阀门', value: 'VALVE' },
+  { label: '遮阳网', value: 'SHADE' },
+  { label: '补光灯', value: 'LED' },
+  { label: '加热器', value: 'HEATER' },
+  { label: 'CO2发生器', value: 'CO2_GEN' },
+  { label: '雾化器', value: 'FOGGER' },
+]
+
+function addChannelDraft() {
+  channelDrafts.value.push({
+    key: ++channelKey,
+    channel_code: '',
+    metric_code: '',
+    unit: '',
+    actuator_type: '',
+  })
+}
+
+function removeChannelDraft(index: number) {
+  channelDrafts.value.splice(index, 1)
+}
+
+function onChannelMetricChange(draft: ChannelDraft) {
+  const def = metricDefs.value.find(m => m.code === draft.metric_code)
+  if (def) {
+    draft.unit = def.unit
+  }
+}
 
 function getGreenhouseName(id: number): string {
   const gh = greenhouses.value.find(g => g.id === id)
@@ -262,6 +337,13 @@ async function loadGrowingZones() {
   } catch { /* ignore */ }
 }
 
+async function loadMetrics() {
+  try {
+    const data = await metricApi.getMetrics({ page_size: LARGE_PAGE_SIZE })
+    metricDefs.value = data.items
+  } catch { /* ignore */ }
+}
+
 function onDeviceTypeChange() {
   pagination.page = 1
   fetchData()
@@ -286,21 +368,9 @@ function openCreateDialog() {
   formData.protocol = 'MQTT'
   formData.greenhouse_id = null
   formData.growing_zone_id = undefined
+  channelDrafts.value = []
   dialogVisible.value = true
   formRef.value?.resetFields()
-}
-
-function openEditDialog(device: AnyDevice) {
-  isEdit.value = true
-  editingId.value = device.id
-  formData.device_code = device.device_code
-  formData.name = device.name
-  formData.model = device.model || ''
-  formData.firmware_version = device.firmware_version || ''
-  formData.protocol = device.protocol
-  formData.greenhouse_id = device.greenhouse_id
-  formData.growing_zone_id = device.growing_zone_id
-  dialogVisible.value = true
 }
 
 async function handleSubmit() {
@@ -333,12 +403,48 @@ async function handleSubmit() {
         greenhouse_id: formData.greenhouse_id!,
         growing_zone_id: formData.growing_zone_id
       }
+      let newDeviceId: number
       if (activeDeviceType.value === 'sensor') {
-        await deviceApi.createSensorDevice(payload)
+        const res = await deviceApi.createSensorDevice(payload)
+        newDeviceId = res.id
       } else {
-        await deviceApi.createActuatorDevice(payload)
+        const res = await deviceApi.createActuatorDevice(payload)
+        newDeviceId = res.id
       }
-      ElMessage.success('设备创建成功')
+
+      // Batch create channels
+      if (channelDrafts.value.length > 0 && newDeviceId) {
+        const validDrafts = channelDrafts.value.filter(d => d.channel_code.trim())
+        if (validDrafts.length > 0) {
+          try {
+            if (activeDeviceType.value === 'sensor') {
+              await Promise.all(validDrafts.map(d =>
+                deviceApi.createSensorChannel({
+                  sensor_device_id: newDeviceId,
+                  channel_code: d.channel_code.trim(),
+                  metric_code: d.metric_code || 'TEMP',
+                  unit: d.unit || '',
+                })
+              ))
+            } else {
+              await Promise.all(validDrafts.map(d =>
+                deviceApi.createActuatorChannel({
+                  actuator_device_id: newDeviceId,
+                  channel_code: d.channel_code.trim(),
+                  actuator_type: (d.actuator_type || 'PUMP') as any,
+                })
+              ))
+            }
+            ElMessage.success(`设备创建成功，已配置 ${validDrafts.length} 个通道`)
+          } catch {
+            ElMessage.warning('设备已创建，但部分通道配置失败，请前往详情页检查')
+          }
+        } else {
+          ElMessage.success('设备创建成功')
+        }
+      } else {
+        ElMessage.success('设备创建成功')
+      }
     }
     dialogVisible.value = false
     fetchData()
@@ -369,6 +475,7 @@ onMounted(() => {
   fetchData()
   loadGreenhouses()
   loadGrowingZones()
+  loadMetrics()
 })
 </script>
 
@@ -423,6 +530,38 @@ onMounted(() => {
   .ml-sm {
     margin-left: 8px;
     color: var(--color-text-secondary);
+  }
+
+  .channel-config-section {
+    border-top: 1px solid var(--border-color);
+    padding-top: 16px;
+    margin-top: 8px;
+
+    .channel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .channel-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+    }
+
+    .channel-empty {
+      color: var(--color-text-secondary);
+      font-size: 13px;
+      padding: 8px 0;
+    }
+
+    .channel-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
   }
 }
 </style>

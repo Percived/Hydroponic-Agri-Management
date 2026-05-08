@@ -6,10 +6,16 @@
         <el-icon><Plus /></el-icon>
         新增配置
       </el-button>
+      <el-button type="success" @click="openCreateFull">
+        <el-icon><Plus /></el-icon>
+        高级创建
+      </el-button>
     </div>
 
     <div class="filter-section">
-      <el-input-number v-model="filters.greenhouse_id" :min="1" placeholder="温室ID" style="width: 180px" />
+      <el-select v-model="filters.greenhouse_id" placeholder="选择温室" clearable style="width: 200px">
+        <el-option v-for="gh in greenhouses" :key="gh.id" :label="gh.name" :value="gh.id" />
+      </el-select>
       <el-button type="primary" @click="fetchData">查询</el-button>
       <el-button @click="resetFilters">重置</el-button>
     </div>
@@ -22,7 +28,7 @@
         <el-table-column prop="name" label="名称" min-width="180" />
         <el-table-column prop="trigger_metric_code" label="触发指标" width="120" />
         <el-table-column label="阶段数" width="80">
-          <template #default="{ row }">{{ row.stage_count ?? row.stages?.length ?? '-' }}</template>
+          <template #default="{ row }">{{ row.stages_count ?? row.stages?.length ?? '-' }}</template>
         </el-table-column>
         <el-table-column label="启用" width="80">
           <template #default="{ row }">
@@ -34,6 +40,7 @@
             <el-button type="primary" link @click="openEditProfile(row)">编辑</el-button>
             <el-button type="success" link @click="openStagesDialog(row)">阶段</el-button>
             <el-button type="warning" link @click="openExecLogs(row)">日志</el-button>
+            <el-button type="success" link @click="openExecuteDialog(row)">执行</el-button>
             <el-button type="danger" link @click="removeProfile(row.id)">删除</el-button>
           </template>
         </el-table-column>
@@ -55,8 +62,10 @@
     <!-- ── Profile 新增/编辑弹窗 ── -->
     <el-dialog v-model="profileDialogVisible" :title="isEditProfile ? '编辑气候配置' : '新增气候配置'" width="500px">
       <el-form ref="profileFormRef" :model="profileForm" :rules="profileFormRules" label-width="120px">
-        <el-form-item label="温室ID" prop="greenhouse_id">
-          <el-input-number v-model="profileForm.greenhouse_id" :min="1" style="width: 100%" />
+        <el-form-item label="温室" prop="greenhouse_id">
+          <el-select v-model="profileForm.greenhouse_id" placeholder="选择温室" filterable style="width: 100%">
+            <el-option v-for="gh in greenhouses" :key="gh.id" :label="`${gh.name} (ID:${gh.id})`" :value="gh.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="编号" prop="code">
           <el-input v-model="profileForm.code" maxlength="64" />
@@ -68,7 +77,12 @@
           <el-input v-model="profileForm.description" type="textarea" :rows="2" />
         </el-form-item>
         <el-form-item label="触发指标" prop="trigger_metric_code">
-          <el-input v-model="profileForm.trigger_metric_code" placeholder="如 TEMP, HUMIDITY" />
+          <el-select v-model="profileForm.trigger_metric_code" placeholder="选择指标" filterable style="width: 100%">
+            <el-option v-for="m in metrics" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="启用">
+          <el-switch v-model="profileForm.enabled" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -123,7 +137,6 @@
             <el-option label="&gt;=" value="&gt;=" />
             <el-option label="&lt;" value="&lt;" />
             <el-option label="&lt;=" value="&lt;=" />
-            <el-option label="==" value="==" />
           </el-select>
         </el-form-item>
         <el-form-item label="触发阈值" prop="trigger_threshold">
@@ -172,8 +185,10 @@
     <!-- ── Action 新增/编辑弹窗 ── -->
     <el-dialog v-model="actionFormVisible" :title="isEditAction ? '编辑动作' : '新增动作'" width="500px">
       <el-form ref="actionFormRef" :model="actionForm" :rules="actionFormRules" label-width="120px">
-        <el-form-item label="通道ID" prop="actuator_channel_id">
-          <el-input-number v-model="actionForm.actuator_channel_id" :min="1" style="width: 100%" />
+        <el-form-item label="执行器通道" prop="actuator_channel_id">
+          <el-select v-model="actionForm.actuator_channel_id" placeholder="选择执行器通道" filterable style="width: 100%">
+            <el-option v-for="ch in actuatorChannels" :key="ch.id" :label="`${ch.channel_code} (${ch.actuator_type})`" :value="ch.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="命令类型" prop="command_type">
           <el-select v-model="actionForm.command_type" style="width: 100%">
@@ -184,6 +199,9 @@
         </el-form-item>
         <el-form-item label="执行顺序">
           <el-input-number v-model="actionForm.execution_order" :min="0" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="启用">
+          <el-switch v-model="actionForm.enabled" />
         </el-form-item>
         <el-form-item label="命令参数" prop="command_payload">
           <el-input
@@ -217,6 +235,64 @@
         <el-button @click="logsDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- ── 手动执行弹窗 ── -->
+    <el-dialog v-model="executeDialogVisible" title="手动执行气候配置" width="450px">
+      <el-form ref="executeFormRef" :model="executeForm" :rules="executeFormRules" label-width="120px">
+        <el-form-item label="触发值" prop="trigger_value">
+          <el-input-number v-model="executeForm.trigger_value" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="目标阶段级别" prop="to_stage_level">
+          <el-input-number v-model="executeForm.to_stage_level" :min="1" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="来源阶段级别">
+          <el-input-number v-model="executeForm.from_stage_level" :min="0" style="width: 100%" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="executeDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="executeLoading" @click="handleExecute">执行</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ── 高级创建弹窗 (JSON) ── -->
+    <el-dialog v-model="fullCreateVisible" title="高级创建 — 一键创建完整气候配置" width="700px">
+      <el-alert type="info" :closable="false" style="margin-bottom: 12px">
+        在一个请求中创建气候配置及其所有阶段和动作。请输入完整的 JSON：
+      </el-alert>
+      <el-input
+        v-model="fullCreateJson"
+        type="textarea"
+        :rows="16"
+        placeholder='{
+  "greenhouse_id": 1,
+  "code": "TEMP_CTRL",
+  "name": "温度控制",
+  "trigger_metric_code": "TEMP",
+  "stages": [
+    {
+      "stage_level": 1,
+      "name": "高温预警",
+      "trigger_operator": ">",
+      "trigger_threshold": 30,
+      "hysteresis": 1.0,
+      "actions": [
+        {
+          "actuator_channel_id": 1,
+          "command_type": "SWITCH",
+          "command_payload": {"value": 1},
+          "execution_order": 1
+        }
+      ]
+    }
+  ]
+}'
+      />
+      <template #footer>
+        <el-button @click="fullCreateVisible = false">取消</el-button>
+        <el-button type="primary" :loading="fullCreateLoading" @click="handleFullCreate">创建</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -224,9 +300,10 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { climateApi } from '@/api'
+import { climateApi, greenhouseApi, deviceApi, metricApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
-import type { ClimateProfile, ClimateStage, ClimateStageAction, ClimateExecutionLog } from '@/types'
+import { LARGE_PAGE_SIZE } from '@/utils/constants'
+import type { ClimateProfile, ClimateStage, ClimateStageAction, ClimateExecutionLog, Greenhouse, ActuatorChannel, MetricDefinition } from '@/types'
 
 // ── Profiles ──
 const loading = ref(false)
@@ -236,6 +313,37 @@ const total = ref(0)
 const filters = reactive({
   greenhouse_id: undefined as number | undefined
 })
+
+const greenhouses = ref<Greenhouse[]>([])
+const actuatorChannels = ref<ActuatorChannel[]>([])
+const metrics = ref<MetricDefinition[]>([])
+
+async function loadGreenhouses() {
+  try {
+    const data = await greenhouseApi.getGreenhouses({ page_size: LARGE_PAGE_SIZE })
+    greenhouses.value = data.items
+  } catch {
+    greenhouses.value = []
+  }
+}
+
+async function loadActuatorChannels() {
+  try {
+    const data = await deviceApi.getActuatorChannels({ page_size: LARGE_PAGE_SIZE })
+    actuatorChannels.value = data.items
+  } catch {
+    actuatorChannels.value = []
+  }
+}
+
+async function loadMetrics() {
+  try {
+    const data = await metricApi.getMetrics({ page_size: LARGE_PAGE_SIZE })
+    metrics.value = data.items
+  } catch {
+    metrics.value = []
+  }
+}
 
 const pagination = reactive({ page: 1, pageSize: 20 })
 
@@ -250,7 +358,8 @@ const emptyProfileForm = () => ({
   code: '',
   name: '',
   description: '' as string,
-  trigger_metric_code: ''
+  trigger_metric_code: '',
+  enabled: true
 })
 
 const profileForm = reactive(emptyProfileForm())
@@ -301,7 +410,8 @@ function openEditProfile(profile: ClimateProfile) {
     code: profile.code,
     name: profile.name,
     description: profile.description || '',
-    trigger_metric_code: profile.trigger_metric_code
+    trigger_metric_code: profile.trigger_metric_code,
+    enabled: profile.enabled
   })
   profileDialogVisible.value = true
 }
@@ -316,18 +426,23 @@ async function handleProfileSubmit() {
 
   profileSubmitLoading.value = true
   try {
-    const payload = {
-      greenhouse_id: profileForm.greenhouse_id!,
-      code: profileForm.code,
-      name: profileForm.name,
-      description: profileForm.description || undefined,
-      trigger_metric_code: profileForm.trigger_metric_code
-    }
     if (isEditProfile.value && editingProfileId.value) {
-      await climateApi.updateClimateProfile(editingProfileId.value, payload)
+      await climateApi.updateClimateProfile(editingProfileId.value, {
+        name: profileForm.name,
+        description: profileForm.description || undefined,
+        trigger_metric_code: profileForm.trigger_metric_code,
+        enabled: profileForm.enabled
+      })
       ElMessage.success('气候配置已更新')
     } else {
-      await climateApi.createClimateProfile(payload)
+      await climateApi.createClimateProfile({
+        greenhouse_id: profileForm.greenhouse_id!,
+        code: profileForm.code,
+        name: profileForm.name,
+        description: profileForm.description || undefined,
+        trigger_metric_code: profileForm.trigger_metric_code,
+        enabled: profileForm.enabled
+      })
       ElMessage.success('气候配置已创建')
     }
     profileDialogVisible.value = false
@@ -483,8 +598,9 @@ const editingActionId = ref<number | null>(null)
 const emptyActionForm = () => ({
   actuator_channel_id: undefined as number | undefined,
   command_type: 'SWITCH' as string,
-  execution_order: 0,
-  command_payload_str: '{}'
+  execution_order: 1,
+  command_payload_str: '{}',
+  enabled: true
 })
 
 const actionForm = reactive(emptyActionForm())
@@ -526,7 +642,8 @@ function openEditAction(action: ClimateStageAction) {
     actuator_channel_id: action.actuator_channel_id,
     command_type: action.command_type,
     execution_order: action.execution_order,
-    command_payload_str: JSON.stringify(action.command_payload, null, 2)
+    command_payload_str: action.command_payload,
+    enabled: action.enabled
   })
   actionFormVisible.value = true
 }
@@ -555,7 +672,8 @@ async function handleActionSubmit() {
       actuator_channel_id: actionForm.actuator_channel_id!,
       command_type: actionForm.command_type,
       command_payload,
-      execution_order: actionForm.execution_order || undefined
+      execution_order: actionForm.execution_order || undefined,
+      enabled: actionForm.enabled
     }
     if (isEditAction.value && editingActionId.value) {
       await climateApi.updateClimateStageAction(
@@ -620,7 +738,101 @@ async function openExecLogs(profile: ClimateProfile) {
   }
 }
 
+// ── Manual Execute ──
+const executeDialogVisible = ref(false)
+const executeLoading = ref(false)
+const executeFormRef = ref<FormInstance>()
+const executingProfileId = ref<number | null>(null)
+
+const emptyExecuteForm = () => ({
+  trigger_value: 0,
+  to_stage_level: 1,
+  from_stage_level: undefined as number | undefined
+})
+
+const executeForm = reactive(emptyExecuteForm())
+
+const executeFormRules: FormRules = {
+  trigger_value: [{ required: true, message: '请输入触发值', trigger: 'blur' }],
+  to_stage_level: [{ required: true, message: '请输入目标阶段级别', trigger: 'blur' }]
+}
+
+function openExecuteDialog(profile: ClimateProfile) {
+  executingProfileId.value = profile.id
+  Object.assign(executeForm, emptyExecuteForm())
+  executeDialogVisible.value = true
+}
+
+async function handleExecute() {
+  if (!executeFormRef.value) return
+  try {
+    await executeFormRef.value.validate()
+  } catch {
+    return
+  }
+  if (!executingProfileId.value) return
+
+  executeLoading.value = true
+  try {
+    const payload: { trigger_value: number; to_stage_level: number; from_stage_level?: number } = {
+      trigger_value: executeForm.trigger_value,
+      to_stage_level: executeForm.to_stage_level
+    }
+    if (executeForm.from_stage_level !== undefined && executeForm.from_stage_level > 0) {
+      payload.from_stage_level = executeForm.from_stage_level
+    }
+    const result = await climateApi.executeClimateProfile(executingProfileId.value, payload)
+    ElMessage.success(`执行完成，共执行 ${result.executed_actions_count} 个动作`)
+    executeDialogVisible.value = false
+    fetchData()
+  } catch {
+    // handled by interceptor
+  } finally {
+    executeLoading.value = false
+  }
+}
+
+// ── Full Create (JSON) ──
+const fullCreateVisible = ref(false)
+const fullCreateLoading = ref(false)
+const fullCreateJson = ref('')
+
+function openCreateFull() {
+  fullCreateJson.value = ''
+  fullCreateVisible.value = true
+}
+
+async function handleFullCreate() {
+  if (!fullCreateJson.value.trim()) {
+    ElMessage.error('请输入 JSON 配置')
+    return
+  }
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(fullCreateJson.value)
+  } catch {
+    ElMessage.error('JSON 格式无效')
+    return
+  }
+
+  fullCreateLoading.value = true
+  try {
+    const result = await climateApi.createClimateProfileFull(parsed as never)
+    ElMessage.success(`气候配置已创建 (ID: ${result.id})`)
+    fullCreateVisible.value = false
+    fetchData()
+  } catch {
+    // handled by interceptor
+  } finally {
+    fullCreateLoading.value = false
+  }
+}
+
 onMounted(() => {
+  loadGreenhouses()
+  loadActuatorChannels()
+  loadMetrics()
   fetchData()
 })
 </script>

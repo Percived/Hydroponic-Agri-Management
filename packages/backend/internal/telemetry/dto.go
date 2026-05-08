@@ -49,3 +49,17 @@ type TelemetryListResponse struct {
 	Page     int                       `json:"page"`
 	PageSize int                       `json:"page_size"`
 }
+
+// LatestRecordResponse is the per-channel item in a batch latest response.
+type LatestRecordResponse struct {
+	SensorChannelID uint64  `json:"sensor_channel_id"`
+	MetricCode      string  `json:"metric_code"`
+	Value           float64 `json:"value"`
+	QualityFlag     string  `json:"quality_flag"`
+	CollectedAt     string  `json:"collected_at"`
+}
+
+// LatestBatchResponse wraps a batch latest query response.
+type LatestBatchResponse struct {
+	Items []LatestRecordResponse `json:"items"`
+}

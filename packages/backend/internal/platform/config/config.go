@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -15,6 +16,7 @@ type Config struct {
 	Influx InfluxConfig `mapstructure:"influx"`
 	MQTT   MQTTConfig   `mapstructure:"mqtt"`
 	Log    LogConfig    `mapstructure:"log"`
+	Device DeviceConfig `mapstructure:"device"`
 }
 
 type AppConfig struct {
@@ -59,6 +61,10 @@ type LogConfig struct {
 	Level string `mapstructure:"level"`
 }
 
+type DeviceConfig struct {
+	HeartbeatTimeoutSec int `mapstructure:"heartbeat_timeout_sec"`
+}
+
 func Load() (Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -77,5 +83,34 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("unmarshal config: %w", err)
 	}
 
+	if err := validate(&cfg); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
+}
+
+func validate(cfg *Config) error {
+	if cfg.Auth.JWTSecret == "" || cfg.Auth.JWTSecret == "change-me" {
+		return fmt.Errorf("auth.jwt_secret: must not be empty or default value \"change-me\" — generate a strong secret (>= 32 chars)")
+	}
+	if len(cfg.Auth.JWTSecret) < 32 {
+		return fmt.Errorf("auth.jwt_secret: must be at least 32 characters (got %d)", len(cfg.Auth.JWTSecret))
+	}
+
+	var warnings []string
+	if cfg.MySQL.Password == "root" || cfg.MySQL.Password == "" {
+		warnings = append(warnings, "mysql.password: using default/empty password")
+	}
+	if cfg.Influx.Token == "your-token" || cfg.Influx.Token == "" {
+		warnings = append(warnings, "influx.token: using default/empty token")
+	}
+	if cfg.MQTT.Password == "public" || cfg.MQTT.Password == "" {
+		warnings = append(warnings, "mqtt.password: using default/empty password")
+	}
+	for _, w := range warnings {
+		fmt.Fprintf(os.Stderr, "[CONFIG WARNING] %s\n", w)
+	}
+
+	return nil
 }

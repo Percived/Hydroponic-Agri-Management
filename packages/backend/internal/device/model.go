@@ -1,6 +1,10 @@
 package device
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 const (
 	StatusOnline  = "ONLINE"
@@ -37,6 +41,13 @@ type SensorDevice struct {
 
 func (SensorDevice) TableName() string { return "sensor_devices" }
 
+func (s *SensorDevice) BeforeCreate(tx *gorm.DB) error {
+	if s.Metadata == "" {
+		s.Metadata = "{}"
+	}
+	return nil
+}
+
 type SensorChannel struct {
 	ID                  uint64     `gorm:"primaryKey;autoIncrement"`
 	SensorDeviceID      uint64     `gorm:"column:sensor_device_id;not null"`
@@ -47,7 +58,7 @@ type SensorChannel struct {
 	RangeMin            *float64   `gorm:"column:range_min;type:decimal(12,4)"`
 	RangeMax            *float64   `gorm:"column:range_max;type:decimal(12,4)"`
 	SamplingIntervalSec uint       `gorm:"column:sampling_interval_sec;default:60"`
-	Enabled             uint8      `gorm:"default:1"`
+	Enabled             bool       `gorm:"default:true"`
 	LastReportedAt      *time.Time `gorm:"column:last_reported_at"`
 	Metadata            string     `gorm:"type:json"`
 	CreatedAt           time.Time  `gorm:"autoCreateTime:milli"`
@@ -55,6 +66,13 @@ type SensorChannel struct {
 }
 
 func (SensorChannel) TableName() string { return "sensor_channels" }
+
+func (s *SensorChannel) BeforeCreate(tx *gorm.DB) error {
+	if s.Metadata == "" {
+		s.Metadata = "{}"
+	}
+	return nil
+}
 
 type ActuatorDevice struct {
 	ID              uint64     `gorm:"primaryKey;autoIncrement"`
@@ -74,6 +92,13 @@ type ActuatorDevice struct {
 
 func (ActuatorDevice) TableName() string { return "actuator_devices" }
 
+func (a *ActuatorDevice) BeforeCreate(tx *gorm.DB) error {
+	if a.Metadata == "" {
+		a.Metadata = "{}"
+	}
+	return nil
+}
+
 type ActuatorChannel struct {
 	ID               uint64    `gorm:"primaryKey;autoIncrement"`
 	ActuatorDeviceID uint64    `gorm:"column:actuator_device_id;not null"`
@@ -81,10 +106,17 @@ type ActuatorChannel struct {
 	ActuatorType     string    `gorm:"column:actuator_type;size:16;not null"`
 	CurrentState     string    `gorm:"column:current_state;size:16;default:OFF"`
 	RatedPowerWatt   *float64  `gorm:"column:rated_power_watt;type:decimal(10,2)"`
-	Enabled          uint8     `gorm:"default:1"`
+	Enabled          bool      `gorm:"default:true"`
 	Metadata         string    `gorm:"type:json"`
 	CreatedAt        time.Time `gorm:"autoCreateTime:milli"`
 	UpdatedAt        time.Time `gorm:"autoUpdateTime:milli"`
 }
 
 func (ActuatorChannel) TableName() string { return "actuator_channels" }
+
+func (a *ActuatorChannel) BeforeCreate(tx *gorm.DB) error {
+	if a.Metadata == "" {
+		a.Metadata = "{}"
+	}
+	return nil
+}

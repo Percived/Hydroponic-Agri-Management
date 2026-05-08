@@ -10,6 +10,8 @@ import (
 func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
 	h := NewHandler(deps.MySQL)
 
+	NewOfflineDetector(deps.MySQL, deps.EventHub, deps.Log, deps.Config.Device.HeartbeatTimeoutSec).Start()
+
 	sensors := r.Group("/sensor-devices")
 	sensors.POST("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.CreateSensorDevice)
 	sensors.PUT("/:id", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.UpdateSensorDevice)
@@ -37,4 +39,9 @@ func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
 	actuatorChannels.GET("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.ListActuatorChannels)
 	actuatorChannels.GET("/:id", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetActuatorChannel)
 	actuatorChannels.DELETE("/:id", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin), h.DeleteActuatorChannel)
+
+	// Batch registration & device self-discovery
+	devices := r.Group("/devices")
+	devices.POST("/register", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.RegisterDevice)
+	devices.GET("/self", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetDeviceSelf)
 }

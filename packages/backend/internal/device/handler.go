@@ -196,6 +196,20 @@ func (h *Handler) CreateSensorChannel(c *gin.Context) {
 		return
 	}
 
+	// Validate sensor device exists
+	var devCount int64
+	if err := h.db.Model(&SensorDevice{}).Where("id = ?", req.SensorDeviceID).Count(&devCount).Error; err != nil || devCount == 0 {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeNotFound, "sensor_device_not_found", nil)
+		return
+	}
+
+	// Validate metric_code exists in metric_definitions
+	var metricCount int64
+	if err := h.db.Table("metric_definitions").Where("code = ?", req.MetricCode).Count(&metricCount).Error; err != nil || metricCount == 0 {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_metric_code", gin.H{"metric_code": req.MetricCode})
+		return
+	}
+
 	ch := SensorChannel{
 		SensorDeviceID:      req.SensorDeviceID,
 		ChannelCode:         req.ChannelCode,
@@ -206,7 +220,7 @@ func (h *Handler) CreateSensorChannel(c *gin.Context) {
 		RangeMax:            req.RangeMax,
 		SamplingIntervalSec: req.SamplingIntervalSec,
 		Metadata:            req.Metadata,
-		Enabled:             1,
+		Enabled:             true,
 	}
 	if ch.PrecisionDigits == 0 {
 		ch.PrecisionDigits = 2
@@ -530,6 +544,13 @@ func (h *Handler) CreateActuatorChannel(c *gin.Context) {
 		return
 	}
 
+	// Validate actuator device exists
+	var devCount int64
+	if err := h.db.Model(&ActuatorDevice{}).Where("id = ?", req.ActuatorDeviceID).Count(&devCount).Error; err != nil || devCount == 0 {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeNotFound, "actuator_device_not_found", nil)
+		return
+	}
+
 	ch := ActuatorChannel{
 		ActuatorDeviceID: req.ActuatorDeviceID,
 		ChannelCode:      req.ChannelCode,
@@ -537,7 +558,7 @@ func (h *Handler) CreateActuatorChannel(c *gin.Context) {
 		RatedPowerWatt:   req.RatedPowerWatt,
 		Metadata:         req.Metadata,
 		CurrentState:     "OFF",
-		Enabled:          1,
+		Enabled:          true,
 	}
 
 	if err := h.db.Create(&ch).Error; err != nil {
@@ -599,26 +620,44 @@ func (h *Handler) UpdateActuatorChannel(c *gin.Context) {
 func (h *Handler) ListActuatorChannels(c *gin.Context) {
 	page, pageSize := parsePage(c)
 
-	query := h.db.Model(&ActuatorChannel{})
-	if v := c.Query("actuator_device_id"); v != "" {
-		query = query.Where("actuator_device_id = ?", v)
-	}
-	if v := c.Query("actuator_type"); v != "" {
-		query = query.Where("actuator_type = ?", v)
-	}
-	if v := c.Query("enabled"); v != "" {
-		query = query.Where("enabled = ?", v)
+	needJoin := c.Query("greenhouse_id") != "" || c.Query("growing_zone_id") != ""
+
+	buildQuery := func(db *gorm.DB) *gorm.DB {
+		q := db.Model(&ActuatorChannel{})
+		if needJoin {
+			q = q.Joins("JOIN actuator_devices ON actuator_devices.id = actuator_channels.actuator_device_id")
+		}
+		if v := c.Query("actuator_device_id"); v != "" {
+			q = q.Where("actuator_channels.actuator_device_id = ?", v)
+		}
+		if v := c.Query("actuator_type"); v != "" {
+			q = q.Where("actuator_channels.actuator_type = ?", v)
+		}
+		if v := c.Query("enabled"); v != "" {
+			q = q.Where("actuator_channels.enabled = ?", v)
+		}
+		if v := c.Query("greenhouse_id"); v != "" {
+			q = q.Where("actuator_devices.greenhouse_id = ?", v)
+		}
+		if v := c.Query("growing_zone_id"); v != "" {
+			q = q.Where("actuator_devices.growing_zone_id = ?", v)
+		}
+		return q
 	}
 
 	var total int64
-	if err := query.Count(&total).Error; err != nil {
+	if err := buildQuery(h.db).Count(&total).Error; err != nil {
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
 		return
 	}
 
 	var channels []ActuatorChannel
 	if total > 0 {
-		if err := query.Order("id desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&channels).Error; err != nil {
+		q := buildQuery(h.db)
+		if needJoin {
+			q = q.Select("actuator_channels.*")
+		}
+		if err := q.Order("actuator_channels.id desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&channels).Error; err != nil {
 			response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
 			return
 		}
@@ -671,6 +710,158 @@ func (h *Handler) DeleteActuatorChannel(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{})
+}
+
+// ---- Batch Registration ----
+
+// RegisterDevice handles POST /devices/register - create a device with its channels in one call.
+func (h *Handler) RegisterDevice(c *gin.Context) {
+	var req RegisterDeviceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationError(c, err)
+		return
+	}
+
+	// Check device_code uniqueness across both tables
+	var count int64
+	if err := h.db.Model(&SensorDevice{}).Where("device_code = ?", req.DeviceCode).Count(&count).Error; err == nil && count > 0 {
+		response.Error(c, http.StatusConflict, platformErrors.CodeDeviceCodeRepeat, "device_code_exists", nil)
+		return
+	}
+	count = 0
+	if err := h.db.Model(&ActuatorDevice{}).Where("device_code = ?", req.DeviceCode).Count(&count).Error; err == nil && count > 0 {
+		response.Error(c, http.StatusConflict, platformErrors.CodeDeviceCodeRepeat, "device_code_exists", nil)
+		return
+	}
+
+	protocol := req.Protocol
+	if protocol == "" {
+		protocol = ProtocolMQTT
+	}
+
+	var deviceID uint64
+	var channelIDs []uint64
+
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		if req.DeviceType == "sensor" {
+			dev := SensorDevice{
+				DeviceCode:      req.DeviceCode,
+				Name:            req.Name,
+				Model:           req.Model,
+				FirmwareVersion: req.FirmwareVersion,
+				GreenhouseID:    req.GreenhouseID,
+				GrowingZoneID:   req.GrowingZoneID,
+				Protocol:        protocol,
+				Status:          StatusOnline,
+			}
+			if err := tx.Create(&dev).Error; err != nil {
+				return err
+			}
+			deviceID = dev.ID
+
+			for _, ch := range req.Channels {
+				interval := ch.SamplingIntervalSec
+				if interval == 0 {
+					interval = 60
+				}
+				sc := SensorChannel{
+					SensorDeviceID:      deviceID,
+					ChannelCode:         ch.ChannelCode,
+					MetricCode:          ch.MetricCode,
+					Unit:                ch.Unit,
+					PrecisionDigits:     2,
+					RangeMin:            ch.RangeMin,
+					RangeMax:            ch.RangeMax,
+					SamplingIntervalSec: interval,
+					Enabled:             true,
+				}
+				if err := tx.Create(&sc).Error; err != nil {
+					return err
+				}
+				channelIDs = append(channelIDs, sc.ID)
+			}
+		} else {
+			dev := ActuatorDevice{
+				DeviceCode:      req.DeviceCode,
+				Name:            req.Name,
+				Model:           req.Model,
+				FirmwareVersion: req.FirmwareVersion,
+				GreenhouseID:    req.GreenhouseID,
+				GrowingZoneID:   req.GrowingZoneID,
+				Protocol:        protocol,
+				Status:          StatusOnline,
+			}
+			if err := tx.Create(&dev).Error; err != nil {
+				return err
+			}
+			deviceID = dev.ID
+
+			for _, ch := range req.Channels {
+				ac := ActuatorChannel{
+					ActuatorDeviceID: deviceID,
+					ChannelCode:      ch.ChannelCode,
+					ActuatorType:     ch.ActuatorType,
+					RatedPowerWatt:   ch.RatedPowerWatt,
+					CurrentState:     "OFF",
+					Enabled:          true,
+				}
+				if err := tx.Create(&ac).Error; err != nil {
+					return err
+				}
+				channelIDs = append(channelIDs, ac.ID)
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "register_failed", nil)
+		return
+	}
+
+	response.Success(c, RegisterDeviceResponse{
+		DeviceID:   deviceID,
+		ChannelIDs: channelIDs,
+	})
+}
+
+// ---- Device Self-Discovery ----
+
+// GetDeviceSelf handles GET /devices/self - look up a device's full config by device_code.
+func (h *Handler) GetDeviceSelf(c *gin.Context) {
+	deviceCode := c.Query("device_code")
+	if deviceCode == "" {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "device_code_required", nil)
+		return
+	}
+
+	// Try sensor device
+	var sensorDev SensorDevice
+	if err := h.db.Where("device_code = ?", deviceCode).First(&sensorDev).Error; err == nil {
+		var channels []SensorChannel
+		h.db.Where("sensor_device_id = ?", sensorDev.ID).Find(&channels)
+		response.Success(c, DeviceSelfResponse{
+			DeviceType: "sensor",
+			Device:     deviceToSensorResponse(sensorDev),
+			Channels:   sensorChannelsToResponse(channels),
+		})
+		return
+	}
+
+	// Try actuator device
+	var actuatorDev ActuatorDevice
+	if err := h.db.Where("device_code = ?", deviceCode).First(&actuatorDev).Error; err == nil {
+		var channels []ActuatorChannel
+		h.db.Where("actuator_device_id = ?", actuatorDev.ID).Find(&channels)
+		response.Success(c, DeviceSelfResponse{
+			DeviceType: "actuator",
+			Device:     deviceToActuatorResponse(actuatorDev),
+			Channels:   actuatorChannelsToResponse(channels),
+		})
+		return
+	}
+
+	response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "device_not_found", nil)
 }
 
 // ---- Helpers ----
@@ -788,4 +979,20 @@ func parseInt(v string, def int) int {
 
 func parseID(v string) (uint64, error) {
 	return strconv.ParseUint(v, 10, 64)
+}
+
+func sensorChannelsToResponse(channels []SensorChannel) []SensorChannelResponse {
+	items := make([]SensorChannelResponse, 0, len(channels))
+	for _, ch := range channels {
+		items = append(items, channelToSensorResponse(ch))
+	}
+	return items
+}
+
+func actuatorChannelsToResponse(channels []ActuatorChannel) []ActuatorChannelResponse {
+	items := make([]ActuatorChannelResponse, 0, len(channels))
+	for _, ch := range channels {
+		items = append(items, channelToActuatorResponse(ch))
+	}
+	return items
 }

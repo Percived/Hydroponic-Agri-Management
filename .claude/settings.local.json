@@ -32,7 +32,10 @@
       "Bash(__NEW_LINE_b87339e17f15d0e0__ echo:*)",
       "Bash(/d/NewSoftware/Python/python:*)",
       "Bash(__NEW_LINE_828fcf152c9bc7b7__ echo:*)",
-      "Bash(__NEW_LINE_3574e22c3420a1bf__ echo:*)"
+      "Bash(__NEW_LINE_3574e22c3420a1bf__ echo:*)",
+      "Bash(powershell:*)",
+      "Bash(go vet:*)",
+      "Bash(powershell.exe:*)"
     ]
   }
 }

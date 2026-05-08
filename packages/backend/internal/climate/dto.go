@@ -11,7 +11,7 @@ type CreateClimateProfileRequest struct {
 	Name              string `json:"name" binding:"required,min=1,max=128"`
 	Description       string `json:"description" binding:"max=255"`
 	TriggerMetricCode string `json:"trigger_metric_code" binding:"required,min=1,max=32"`
-	Enabled           *uint8 `json:"enabled" binding:"omitempty,oneof=0 1"`
+	Enabled           *bool  `json:"enabled"`
 }
 
 // UpdateClimateProfileRequest is the request body for updating a climate profile.
@@ -19,7 +19,7 @@ type UpdateClimateProfileRequest struct {
 	Name              *string `json:"name" binding:"omitempty,min=1,max=128"`
 	Description       *string `json:"description" binding:"omitempty,max=255"`
 	TriggerMetricCode *string `json:"trigger_metric_code" binding:"omitempty,min=1,max=32"`
-	Enabled           *uint8  `json:"enabled" binding:"omitempty,oneof=0 1"`
+	Enabled           *bool   `json:"enabled"`
 }
 
 // ClimateProfileResponse is the response body for a climate profile.
@@ -30,7 +30,7 @@ type ClimateProfileResponse struct {
 	Name              string                 `json:"name"`
 	Description       string                 `json:"description"`
 	TriggerMetricCode string                 `json:"trigger_metric_code"`
-	Enabled           uint8                  `json:"enabled"`
+	Enabled           bool                   `json:"enabled"`
 	StagesCount       int                    `json:"stages_count"`
 	CreatedAt         time.Time              `json:"created_at"`
 	UpdatedAt         time.Time              `json:"updated_at"`
@@ -87,7 +87,7 @@ type CreateClimateStageActionRequest struct {
 	CommandType       string                 `json:"command_type" binding:"required,min=1,max=32"`
 	CommandPayload    map[string]interface{} `json:"command_payload" binding:"required"`
 	ExecutionOrder    *uint16                `json:"execution_order" binding:"omitempty,min=1"`
-	Enabled           *uint8                 `json:"enabled" binding:"omitempty,oneof=0 1"`
+	Enabled           *bool                  `json:"enabled"`
 }
 
 // UpdateClimateStageActionRequest is the request body for updating a stage action.
@@ -96,7 +96,7 @@ type UpdateClimateStageActionRequest struct {
 	CommandType       *string                `json:"command_type" binding:"omitempty,min=1,max=32"`
 	CommandPayload    map[string]interface{} `json:"command_payload"`
 	ExecutionOrder    *uint16                `json:"execution_order" binding:"omitempty,min=1"`
-	Enabled           *uint8                 `json:"enabled" binding:"omitempty,oneof=0 1"`
+	Enabled           *bool                  `json:"enabled"`
 }
 
 // ClimateStageActionResponse is the response body for a stage action.
@@ -107,7 +107,7 @@ type ClimateStageActionResponse struct {
 	CommandType       string    `json:"command_type"`
 	CommandPayload    string    `json:"command_payload"`
 	ExecutionOrder    uint16    `json:"execution_order"`
-	Enabled           uint8     `json:"enabled"`
+	Enabled           bool      `json:"enabled"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
@@ -154,7 +154,7 @@ type CreateClimateProfileWithStagesRequest struct {
 	Name              string             `json:"name" binding:"required,min=1,max=128"`
 	Description       string             `json:"description" binding:"max=255"`
 	TriggerMetricCode string             `json:"trigger_metric_code" binding:"required,min=1,max=32"`
-	Enabled           *uint8             `json:"enabled" binding:"omitempty,oneof=0 1"`
+	Enabled           *bool              `json:"enabled"`
 	Stages            []StageWithActions `json:"stages"`
 }
 

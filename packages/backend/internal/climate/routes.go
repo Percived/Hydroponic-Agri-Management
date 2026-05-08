@@ -9,7 +9,10 @@ import (
 
 // RegisterRoutes registers all climate module routes.
 func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
-	h := NewHandler(deps.MySQL)
+	h := NewHandler(deps.MySQL, deps.MQTT, deps.EventHub, deps.Log)
+
+	// Start climate profile auto-scheduler (event-driven)
+	NewProfileScheduler(deps.MySQL, deps.EventHub, deps.MQTT, deps.Log).Start()
 
 	cp := r.Group("/climate-profiles")
 	// ClimateProfile CRUD - Admin/Operator for writes, all roles for reads

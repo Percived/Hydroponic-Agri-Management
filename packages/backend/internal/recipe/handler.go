@@ -61,7 +61,7 @@ func (h *Handler) CreateRecipe(c *gin.Context) {
 
 		// Create stage targets
 		for _, st := range req.StageTargets {
-			enabled := uint8(1)
+			enabled := true
 			if st.Enabled != nil {
 				enabled = *st.Enabled
 			}
@@ -82,7 +82,7 @@ func (h *Handler) CreateRecipe(c *gin.Context) {
 
 		// Create ion targets
 		for _, it := range req.IonTargets {
-			enabled := uint8(1)
+			enabled := true
 			if it.Enabled != nil {
 				enabled = *it.Enabled
 			}
@@ -169,8 +169,13 @@ func (h *Handler) UpdateRecipe(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Model(&NutrientRecipe{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+	result := h.db.Model(&NutrientRecipe{}).Where("id = ?", id).Updates(updates)
+	if result.Error != nil {
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "update_failed", nil)
+		return
+	}
+	if result.RowsAffected == 0 {
+		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
 		return
 	}
 
@@ -187,6 +192,14 @@ func (h *Handler) DeleteRecipe(c *gin.Context) {
 	}
 
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
+		// Delete the recipe itself first to check existence
+		result := tx.Delete(&NutrientRecipe{}, id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
 		// Delete associated targets
 		if err := tx.Where("recipe_id = ?", id).Delete(&RecipeStageTarget{}).Error; err != nil {
 			return err
@@ -198,12 +211,12 @@ func (h *Handler) DeleteRecipe(c *gin.Context) {
 		if err := tx.Where("recipe_id = ?", id).Delete(&BatchRecipeBinding{}).Error; err != nil {
 			return err
 		}
-		// Delete the recipe itself
-		if err := tx.Delete(&NutrientRecipe{}, id).Error; err != nil {
-			return err
-		}
 		return nil
 	}); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
+			return
+		}
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "delete_failed", nil)
 		return
 	}
@@ -281,8 +294,13 @@ func (h *Handler) PublishRecipe(c *gin.Context) {
 		"published_at": now,
 	}
 
-	if err := h.db.Model(&NutrientRecipe{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+	result := h.db.Model(&NutrientRecipe{}).Where("id = ?", id).Updates(updates)
+	if result.Error != nil {
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "publish_failed", nil)
+		return
+	}
+	if result.RowsAffected == 0 {
+		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
 		return
 	}
 
@@ -352,6 +370,17 @@ func (h *Handler) UpdateRecipeTargets(c *gin.Context) {
 		return
 	}
 
+	// Verify recipe exists
+	var recipe NutrientRecipe
+	if err := h.db.First(&recipe, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
+		return
+	}
+
 	if err := h.db.Transaction(func(tx *gorm.DB) error {
 		// Delete existing targets
 		if err := tx.Where("recipe_id = ?", id).Delete(&RecipeStageTarget{}).Error; err != nil {
@@ -363,7 +392,7 @@ func (h *Handler) UpdateRecipeTargets(c *gin.Context) {
 
 		// Recreate stage targets
 		for _, st := range req.StageTargets {
-			enabled := uint8(1)
+			enabled := true
 			if st.Enabled != nil {
 				enabled = *st.Enabled
 			}
@@ -384,7 +413,7 @@ func (h *Handler) UpdateRecipeTargets(c *gin.Context) {
 
 		// Recreate ion targets
 		for _, it := range req.IonTargets {
-			enabled := uint8(1)
+			enabled := true
 			if it.Enabled != nil {
 				enabled = *it.Enabled
 			}
@@ -535,8 +564,13 @@ func (h *Handler) UpdateBinding(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Model(&BatchRecipeBinding{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+	result := h.db.Model(&BatchRecipeBinding{}).Where("id = ?", id).Updates(updates)
+	if result.Error != nil {
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "update_failed", nil)
+		return
+	}
+	if result.RowsAffected == 0 {
+		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
 		return
 	}
 
@@ -552,8 +586,13 @@ func (h *Handler) DeleteBinding(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Delete(&BatchRecipeBinding{}, id).Error; err != nil {
+	result := h.db.Delete(&BatchRecipeBinding{}, id)
+	if result.Error != nil {
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "delete_failed", nil)
+		return
+	}
+	if result.RowsAffected == 0 {
+		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
 		return
 	}
 

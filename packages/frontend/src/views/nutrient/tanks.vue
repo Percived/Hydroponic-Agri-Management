@@ -9,7 +9,9 @@
     </div>
 
     <div class="filter-section">
-      <el-input-number v-model="filters.growing_zone_id" :min="1" placeholder="种植区ID" style="width: 160px" />
+      <el-select v-model="filters.growing_zone_id" placeholder="种植区" clearable filterable style="width: 180px">
+        <el-option v-for="z in zones" :key="z.id" :label="`${z.name} (ID:${z.id})`" :value="z.id" />
+      </el-select>
       <el-select v-model="filters.status" placeholder="状态" clearable style="width: 140px">
         <el-option label="使用中" value="IN_USE" />
         <el-option label="维护中" value="MAINTENANCE" />
@@ -65,8 +67,10 @@
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑液槽' : '新增液槽'" width="500px">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
-        <el-form-item label="种植区ID" prop="growing_zone_id">
-          <el-input-number v-model="formData.growing_zone_id" :min="1" style="width: 100%" />
+        <el-form-item label="种植区" prop="growing_zone_id">
+          <el-select v-model="formData.growing_zone_id" placeholder="选择种植区" filterable style="width: 100%">
+            <el-option v-for="z in zones" :key="z.id" :label="`${z.name} (ID:${z.id})`" :value="z.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="液槽编号" prop="code">
           <el-input v-model="formData.code" placeholder="请输入编号" maxlength="64" />
@@ -87,13 +91,15 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { nutrientApi } from '@/api'
+import { nutrientApi, greenhouseApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
-import type { NutrientTank } from '@/types'
+import { LARGE_PAGE_SIZE } from '@/utils/constants'
+import type { NutrientTank, GrowingZone } from '@/types'
 
 const loading = ref(false)
 const tanks = ref<NutrientTank[]>([])
 const total = ref(0)
+const zones = ref<GrowingZone[]>([])
 
 const filters = reactive({
   growing_zone_id: undefined as number | undefined,
@@ -222,8 +228,16 @@ async function removeTank(id: number) {
   fetchData()
 }
 
+async function loadZones() {
+  try {
+    const data = await greenhouseApi.getGrowingZones({ page_size: LARGE_PAGE_SIZE })
+    zones.value = data.items
+  } catch { /* ignore */ }
+}
+
 onMounted(() => {
   fetchData()
+  loadZones()
 })
 </script>
 

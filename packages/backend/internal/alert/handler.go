@@ -7,6 +7,7 @@ import (
 
 	"hydroponic-backend/internal/auth"
 	platformErrors "hydroponic-backend/internal/platform/errors"
+	"hydroponic-backend/internal/platform/event"
 	"hydroponic-backend/internal/platform/response"
 
 	"github.com/gin-gonic/gin"
@@ -14,11 +15,12 @@ import (
 )
 
 type Handler struct {
-	db *gorm.DB
+	db       *gorm.DB
+	eventHub *event.Hub
 }
 
-func NewHandler(db *gorm.DB) *Handler {
-	return &Handler{db: db}
+func NewHandler(db *gorm.DB, hub *event.Hub) *Handler {
+	return &Handler{db: db, eventHub: hub}
 }
 
 // CreateAlert creates a new alert.
@@ -54,6 +56,22 @@ func (h *Handler) CreateAlert(c *gin.Context) {
 		EventTime:   req.TriggeredAt,
 	}
 	h.db.Create(&timeline)
+
+	// Publish event for real-time notification
+	if h.eventHub != nil {
+		h.eventHub.Publish(event.SSEEvent{
+			Type: "alert:created",
+			Data: map[string]interface{}{
+				"alert_id":          alert.ID,
+				"type":              alert.Type,
+				"level":             alert.Level,
+				"metric_code":       alert.MetricCode,
+				"sensor_channel_id": alert.SensorChannelID,
+				"message":           alert.Message,
+				"triggered_at":      alert.TriggeredAt.Format(time.RFC3339),
+			},
+		})
+	}
 
 	response.Success(c, gin.H{"id": alert.ID})
 }

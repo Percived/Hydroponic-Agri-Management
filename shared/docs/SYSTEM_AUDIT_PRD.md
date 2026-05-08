@@ -7,26 +7,8 @@
 
 ## 一、架构层面
 
-### 1.1 数据完整性：全部使用逻辑外键，零物理外键约束
 
-**假设**：迁移文件中所有表只建索引，不建 `FOREIGN KEY`，靠应用层保证引用完整性是合理的。
-
-**不合理证据**：
-- `crop_batches.greenhouse_id`、`sensor_channels.sensor_device_id` 等字段在数据库层没有任何约束，脏数据无法追溯
-- 删除温室时，关联的设备、批次、策略不会级联处理，产生孤儿记录
-- 所有查询依赖 JOIN，但没有外键保证 JOIN 一定能匹配到有效行
-- 丢弃了 MySQL 的 `ON DELETE CASCADE / SET NULL` 能力，改为在 Go 代码里手写检查逻辑，既低效又容易遗漏
-
-**优化建议**：
-| 层级 | 策略 |
-|------|------|
-| 核心关联 | **添加物理外键**：`device ↔ channel`、`greenhouse ↔ zone`、`batch ↔ greenhouse`、`batch ↔ crop_variety` |
-| 跨域引用 | 保持逻辑外键 + 定期数据清理任务 |
-| 删除策略 | 统一使用软删除（`deleted_at`），保留审计追溯能力，避免级联删除丢失数据 |
-
----
-
-### 1.2 MQTT 控制链路虚设
+### 1.1 MQTT 控制链路虚设
 
 **假设**：`command` 模块的 `SendCommand` 和 `AckCommand` 更新数据库状态即可。
 
@@ -43,7 +25,7 @@
 
 ---
 
-### 1.3 策略引擎只有手动触发，缺乏自动化
+### 1.2 策略引擎只有手动触发，缺乏自动化
 
 **假设**：策略 CRUD + 手动执行就能满足自动化需求。
 
@@ -61,7 +43,7 @@
 
 ---
 
-### 1.4 InfluxDB 集成在 HTTP 层不可见
+### 1.3 InfluxDB 集成在 HTTP 层不可见
 
 **假设**：遥测数据存入 MySQL 即可，InfluxDB 留给 MQTT consumer 处理。
 

@@ -3,12 +3,14 @@ import type {
   ClimateProfile,
   ClimateProfileListResponse,
   CreateClimateProfileRequest,
+  CreateClimateProfileWithStagesRequest,
   ClimateStage,
   CreateClimateStageRequest,
   ClimateStageAction,
   CreateClimateStageActionRequest,
   ClimateExecutionLog,
-  ClimateExecutionLogListResponse
+  ClimateExecutionLogListResponse,
+  ExecuteClimateProfileRequest
 } from '@/types'
 
 // ===== Climate Profiles =====
@@ -22,6 +24,9 @@ export const getClimateProfile = (id: number) =>
 export const createClimateProfile = (data: CreateClimateProfileRequest) =>
   post<{ id: number }>('/climate-profiles', data)
 
+export const createClimateProfileFull = (data: CreateClimateProfileWithStagesRequest) =>
+  post<{ id: number }>('/climate-profiles/full', data)
+
 export const updateClimateProfile = (id: number, data: Partial<CreateClimateProfileRequest>) =>
   put<ClimateProfile>(`/climate-profiles/${id}`, data)
 
@@ -32,6 +37,9 @@ export const deleteClimateProfile = (id: number) =>
 
 export const getClimateProfileStages = (profileId: number) =>
   get<{ items: ClimateStage[] }>(`/climate-profiles/${profileId}/stages`)
+
+export const getClimateProfileStage = (profileId: number, stageId: number) =>
+  get<ClimateStage>(`/climate-profiles/${profileId}/stages/${stageId}`)
 
 export const createClimateProfileStage = (profileId: number, data: CreateClimateStageRequest) =>
   post<{ id: number }>(`/climate-profiles/${profileId}/stages`, data)
@@ -58,8 +66,11 @@ export const deleteClimateStageAction = (profileId: number, stageId: number, act
 
 // ===== Climate Executions =====
 
-export const executeClimateProfile = (profileId: number) =>
-  post<ClimateExecutionLog>(`/climate-profiles/${profileId}/execute`)
+export const executeClimateProfile = (profileId: number, data: ExecuteClimateProfileRequest) =>
+  post<ClimateExecutionLog>(`/climate-profiles/${profileId}/execute`, data)
+
+export const getClimateProfileExecutionLogs = (profileId: number, params?: Record<string, unknown>) =>
+  get<ClimateExecutionLogListResponse>(`/climate-profiles/${profileId}/execution-logs`, params)
 
 export const getClimateExecutionLogs = (params?: Record<string, unknown>) =>
   get<ClimateExecutionLogListResponse>('/climate-execution-logs', params)

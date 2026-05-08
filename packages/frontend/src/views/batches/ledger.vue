@@ -7,11 +7,15 @@
 
     <div class="filter-section">
       <el-form :inline="true">
-        <el-form-item label="温室ID">
-          <el-input-number v-model="filters.greenhouse_id" :min="1" style="width: 140px" />
+        <el-form-item label="温室">
+          <el-select v-model="filters.greenhouse_id" clearable filterable style="width: 180px" placeholder="全部">
+            <el-option v-for="g in greenhouses" :key="g.id" :label="g.name" :value="g.id" />
+          </el-select>
         </el-form-item>
-        <el-form-item label="作物ID">
-          <el-input-number v-model="filters.crop_variety_id" :min="1" style="width: 140px" />
+        <el-form-item label="作物品种">
+          <el-select v-model="filters.crop_variety_id" clearable filterable style="width: 180px" placeholder="全部">
+            <el-option v-for="v in varieties" :key="v.id" :label="v.name" :value="v.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="filters.status" clearable style="width: 150px">
@@ -45,27 +49,45 @@
         <el-table-column prop="batch_no" label="批次编号" width="160" />
         <el-table-column prop="greenhouse_id" label="温室ID" width="100" />
         <el-table-column prop="crop_variety_id" label="作物ID" width="100" />
-        <el-table-column label="作物名称" width="140">
-          <template #default="{ row }">{{ row.variety?.name || '-' }}</template>
+        <el-table-column label="作物名称" width="120">
+          <template #default="{ row }">{{ row.variety_name || '-' }}</template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="130">
           <template #default="{ row }">
-            <el-select v-model="row.status" size="small" style="width: 120px" @change="onStatusChange(row.id, $event)">
+            <el-select
+              v-if="canControlDevice()"
+              v-model="row.status"
+              size="small"
+              style="width: 120px"
+              @change="onStatusChange(row.id, $event)"
+            >
               <el-option label="PLANNED" value="PLANNED" />
               <el-option label="RUNNING" value="RUNNING" />
               <el-option label="HARVESTING" value="HARVESTING" />
               <el-option label="COMPLETED" value="COMPLETED" />
               <el-option label="ABORTED" value="ABORTED" />
             </el-select>
+            <el-tag v-else size="small">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="recipe_version" label="配方版本" width="120" />
-        <el-table-column prop="policy_version" label="策略版本" width="120" />
+        <el-table-column prop="growing_zone_id" label="种植区" width="80" />
+        <el-table-column prop="planting_density" label="定植密度(株/㎡)" width="120" />
+        <el-table-column prop="total_plants" label="总株数" width="90" />
+        <el-table-column label="预计采收" width="180">
+          <template #default="{ row }">{{ formatDateTime(row.expected_harvest_at) }}</template>
+        </el-table-column>
+        <el-table-column prop="recipe_version" label="配方版本" width="100" />
+        <el-table-column prop="policy_version" label="策略版本" width="100" />
         <el-table-column prop="started_at" label="开始时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.started_at) }}</template>
         </el-table-column>
         <el-table-column prop="ended_at" label="结束时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.ended_at) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="80" fixed="right">
+          <template #default="{ row }">
+            <el-button type="danger" size="small" link @click="removeBatch(row.id)">删除</el-button>
+          </template>
         </el-table-column>
       </el-table>
 
@@ -94,17 +116,22 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { cropApi } from '@/api'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { cropApi, greenhouseApi } from '@/api'
 import BatchForm from '@/components/batch/BatchForm.vue'
 import { formatDateTime } from '@/utils/format'
-import type { CropBatch, CreateCropBatchRequest } from '@/types'
+import { usePermission } from '@/composables'
+import type { CropBatch, CreateCropBatchRequest, CropVariety, Greenhouse } from '@/types'
+
+const { canControlDevice } = usePermission()
 
 const loading = ref(false)
 const submitLoading = ref(false)
 const batches = ref<CropBatch[]>([])
 const total = ref(0)
 const range = ref<[string, string] | null>(null)
+const greenhouses = ref<Greenhouse[]>([])
+const varieties = ref<CropVariety[]>([])
 const filters = reactive({
   greenhouse_id: undefined as number | undefined,
   crop_variety_id: undefined as number | undefined,
@@ -186,15 +213,41 @@ async function submitCreate() {
 }
 
 async function updateStatus(batchId: number, status: string) {
-  await cropApi.updateBatch(batchId, { status } as Record<string, unknown> & Partial<CreateCropBatchRequest>)
-  ElMessage.success('状态已更新')
+  try {
+    await cropApi.transitionBatch(batchId, { status })
+    ElMessage.success('状态已更新')
+  } catch {
+    // Revert on failure — refetch to restore original status
+    fetchData()
+  }
 }
 
 function onStatusChange(batchId: number, value: unknown) {
   updateStatus(batchId, value as string)
 }
 
-onMounted(fetchData)
+async function removeBatch(id: number) {
+  try {
+    await ElMessageBox.confirm('确认删除该批次？', '删除确认', { type: 'warning' })
+  } catch {
+    return // user cancelled
+  }
+  try {
+    await cropApi.deleteBatch(id)
+    ElMessage.success('批次已删除')
+    await fetchData()
+  } catch {
+    ElMessage.error('删除失败')
+  }
+}
+
+onMounted(() => {
+  Promise.all([
+    fetchData(),
+    greenhouseApi.getGreenhouses({ page_size: 200 }).then(res => greenhouses.value = res.items),
+    cropApi.getCropVarieties({ page_size: 200 }).then(res => varieties.value = res.items)
+  ])
+})
 </script>
 
 <style scoped lang="scss">

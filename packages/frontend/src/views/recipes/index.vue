@@ -137,7 +137,9 @@
           <el-input-number v-model="targetForm.growth_stage_id" :min="1" style="width: 100%" />
         </el-form-item>
         <el-form-item label="指标代码" prop="metric_code">
-          <el-input v-model="targetForm.metric_code" placeholder="如 TEMP, EC, PH" />
+          <el-select v-model="targetForm.metric_code" placeholder="选择指标" filterable style="width: 100%">
+            <el-option v-for="m in metrics" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
+          </el-select>
         </el-form-item>
         <el-form-item label="目标最小值">
           <el-input-number v-model="targetForm.target_min" :precision="2" style="width: 100%" />
@@ -167,9 +169,10 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { recipeApi } from '@/api'
-import { formatDateTime } from '@/utils/format'
-import type { NutrientRecipe, RecipeStatus, RecipeTarget } from '@/types'
+import { recipeApi, metricApi } from '@/api'
+import { formatDateTime, populateMetricNames } from '@/utils/format'
+import { LARGE_PAGE_SIZE } from '@/utils/constants'
+import type { NutrientRecipe, RecipeStatus, RecipeTarget, MetricDefinition } from '@/types'
 
 // ── Recipes ──
 const loading = ref(false)
@@ -305,6 +308,7 @@ async function removeRecipe(id: number) {
 const targetsDialogVisible = ref(false)
 const targetsLoading = ref(false)
 const targets = ref<RecipeTarget[]>([])
+const metrics = ref<MetricDefinition[]>([])
 const currentRecipeId = ref<number | null>(null)
 
 const targetFormVisible = ref(false)
@@ -326,7 +330,17 @@ const emptyTargetForm = () => ({
 const targetForm = reactive(emptyTargetForm())
 
 const targetFormRules: FormRules = {
-  metric_code: [{ required: true, message: '请输入指标代码', trigger: 'blur' }]
+  metric_code: [{ required: true, message: '请选择指标代码', trigger: 'change' }]
+}
+
+async function loadMetrics() {
+  try {
+    const data = await metricApi.getMetrics({ page_size: LARGE_PAGE_SIZE })
+    metrics.value = data.items
+    populateMetricNames(data.items)
+  } catch {
+    metrics.value = []
+  }
 }
 
 async function openTargetsDialog(recipe: NutrientRecipe) {
@@ -427,6 +441,7 @@ async function removeTarget(targetId: number) {
 }
 
 onMounted(() => {
+  loadMetrics()
   fetchData()
 })
 </script>

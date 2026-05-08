@@ -23,7 +23,9 @@
         <el-option label="水" value="WATER" />
         <el-option label="CO2" value="CO2_GAS" />
       </el-select>
-      <el-input-number v-model="filters.greenhouse_id" :min="1" placeholder="温室ID" style="width: 140px" />
+      <el-select v-model="filters.greenhouse_id" placeholder="选择温室" clearable filterable style="width: 180px">
+        <el-option v-for="g in greenhouses" :key="g.id" :label="`${g.name} (ID:${g.id})`" :value="g.id" />
+      </el-select>
       <el-date-picker
         v-model="filters.start_date"
         type="date"
@@ -86,8 +88,10 @@
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑能耗记录' : '新增能耗记录'" width="550px">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="110px">
-        <el-form-item label="温室ID" prop="greenhouse_id">
-          <el-input-number v-model="formData.greenhouse_id" :min="1" />
+        <el-form-item label="温室" prop="greenhouse_id">
+          <el-select v-model="formData.greenhouse_id" placeholder="选择温室" filterable style="width: 100%">
+            <el-option v-for="g in greenhouses" :key="g.id" :label="`${g.name} (ID:${g.id})`" :value="g.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="能耗类型" prop="record_type">
           <el-select v-model="formData.record_type" style="width: 100%">
@@ -123,8 +127,10 @@
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="批次ID">
-          <el-input-number v-model="formData.batch_id" :min="1" style="width: 100%" />
+        <el-form-item label="批次">
+          <el-select v-model="formData.batch_id" placeholder="选择批次" clearable filterable style="width: 100%">
+            <el-option v-for="b in batches" :key="b.id" :label="`${b.batch_no} (ID:${b.id})`" :value="b.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="抄表起始">
           <el-input-number v-model="formData.meter_reading_start" :min="0" :precision="2" style="width: 100%" />
@@ -145,14 +151,17 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { energyApi } from '@/api'
+import { energyApi, greenhouseApi, cropApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
-import type { EnergyConsumptionRecord, EnergySummary } from '@/types'
+import { LARGE_PAGE_SIZE } from '@/utils/constants'
+import type { EnergyConsumptionRecord, EnergySummary, Greenhouse, CropBatch } from '@/types'
 
 const loading = ref(false)
 const records = ref<EnergyConsumptionRecord[]>([])
 const total = ref(0)
 const summaryItems = ref<EnergySummary[]>([])
+const greenhouses = ref<Greenhouse[]>([])
+const batches = ref<CropBatch[]>([])
 
 const filters = reactive({
   record_type: '' as string,
@@ -314,9 +323,25 @@ async function removeRecord(id: number) {
   fetchSummary()
 }
 
+async function loadGreenhouses() {
+  try {
+    const data = await greenhouseApi.getGreenhouses({ page_size: LARGE_PAGE_SIZE })
+    greenhouses.value = data.items
+  } catch { /* ignore */ }
+}
+
+async function loadBatches() {
+  try {
+    const data = await cropApi.getBatches({ page_size: LARGE_PAGE_SIZE })
+    batches.value = data.items
+  } catch { /* ignore */ }
+}
+
 onMounted(() => {
   fetchData()
   fetchSummary()
+  loadGreenhouses()
+  loadBatches()
 })
 </script>
 

@@ -1,10 +1,10 @@
 import { get, post, put, patch } from './request'
-import type { User, UserQueryParams, PaginatedData, UserStatus } from '@/types'
+import type { User, UserQueryParams, PaginatedResponse, UserStatus } from '@/types'
 import type { CreateUserParams, UpdateUserParams } from '@/types'
 
 // 获取用户列表
 export const getUsers = (params?: UserQueryParams) =>
-  get<PaginatedData<User>>('/users', params)
+  get<PaginatedResponse<User>>('/users', params)
 
 // 获取用户详情
 export const getUserDetail = (id: number) =>

@@ -10,7 +10,7 @@ type ClimateProfile struct {
 	Name              string    `gorm:"size:128;not null"`
 	Description       string    `gorm:"size:255"`
 	TriggerMetricCode string    `gorm:"column:trigger_metric_code;size:32;not null"`
-	Enabled           uint8     `gorm:"default:1"`
+	Enabled           bool      `gorm:"default:true"`
 	CreatedAt         time.Time `gorm:"autoCreateTime:milli"`
 	UpdatedAt         time.Time `gorm:"autoUpdateTime:milli"`
 	// Associations
@@ -44,7 +44,7 @@ type ClimateStageAction struct {
 	CommandType       string    `gorm:"column:command_type;size:32;not null"` // SWITCH/SET_SPEED/SET_ANGLE
 	CommandPayload    string    `gorm:"column:command_payload;type:json;not null"`
 	ExecutionOrder    uint16    `gorm:"column:execution_order;default:1"`
-	Enabled           uint8     `gorm:"default:1"`
+	Enabled           bool      `gorm:"default:true"`
 	CreatedAt         time.Time `gorm:"autoCreateTime:milli"`
 	UpdatedAt         time.Time `gorm:"autoUpdateTime:milli"`
 }

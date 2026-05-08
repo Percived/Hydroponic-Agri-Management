@@ -55,7 +55,7 @@ type CreateStageTargetRequest struct {
 	TargetMax     *float64 `json:"target_max"`
 	Tolerance     *float64 `json:"tolerance"`
 	Unit          string   `json:"unit"`
-	Enabled       *uint8   `json:"enabled"`
+	Enabled       *bool    `json:"enabled"`
 }
 
 type RecipeStageTargetResponse struct {
@@ -67,7 +67,7 @@ type RecipeStageTargetResponse struct {
 	TargetMax     *float64 `json:"target_max"`
 	Tolerance     *float64 `json:"tolerance"`
 	Unit          string   `json:"unit"`
-	Enabled       uint8    `json:"enabled"`
+	Enabled       bool     `json:"enabled"`
 	CreatedAt     string   `json:"created_at"`
 	UpdatedAt     string   `json:"updated_at"`
 }
@@ -79,7 +79,7 @@ type CreateIonTargetRequest struct {
 	IonCode       string   `json:"ion_code" binding:"required,min=1,max=8"`
 	TargetMinMgL  *float64 `json:"target_min_mg_l"`
 	TargetMaxMgL  *float64 `json:"target_max_mg_l"`
-	Enabled       *uint8   `json:"enabled"`
+	Enabled       *bool    `json:"enabled"`
 }
 
 type RecipeIonTargetResponse struct {
@@ -89,7 +89,7 @@ type RecipeIonTargetResponse struct {
 	IonCode       string   `json:"ion_code"`
 	TargetMinMgL  *float64 `json:"target_min_mg_l"`
 	TargetMaxMgL  *float64 `json:"target_max_mg_l"`
-	Enabled       uint8    `json:"enabled"`
+	Enabled       bool     `json:"enabled"`
 	CreatedAt     string   `json:"created_at"`
 	UpdatedAt     string   `json:"updated_at"`
 }

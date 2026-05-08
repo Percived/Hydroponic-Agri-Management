@@ -221,15 +221,26 @@ export function getTargetTypeName(type: string): string {
   return map[type] || type
 }
 
-// 指标名称
+// 指标名称（动态缓存，视图加载指标后调用 populateMetricNames 填充）
+import { reactive } from 'vue'
+
+export const metricNameCache = reactive<Record<string, string>>({})
+
+const metricNameFallback: Record<string, string> = {
+  TEMP: '温度',
+  HUMIDITY: '湿度',
+  PH: 'pH值',
+  EC: '电导率',
+  CO2: 'CO2',
+  LIGHT: '光照'
+}
+
+export function populateMetricNames(defs: { code: string; name: string }[]) {
+  const map: Record<string, string> = {}
+  for (const d of defs) map[d.code] = d.name
+  Object.assign(metricNameCache, map)
+}
+
 export function getMetricName(metric: string): string {
-  const map: Record<string, string> = {
-    TEMP: '温度',
-    HUMIDITY: '湿度',
-    PH: 'pH值',
-    EC: '电导率',
-    CO2: 'CO2',
-    LIGHT: '光照'
-  }
-  return map[metric] || metric
+  return metricNameCache[metric] || metricNameFallback[metric] || metric
 }

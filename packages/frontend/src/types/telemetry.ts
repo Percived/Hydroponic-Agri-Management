@@ -37,3 +37,36 @@ export interface TelemetryQueryParams {
 }
 
 export interface TelemetryListResponse extends PaginatedResponse<TelemetryRecord> {}
+
+export interface TelemetryLatestItem {
+  sensor_channel_id: number
+  metric_code: string
+  value: number
+  quality_flag: string
+  collected_at: string
+}
+
+export interface TelemetryLatestBatchResponse {
+  items: TelemetryLatestItem[]
+}
+
+export interface ChannelSnapshot {
+  channel_id: number
+  device_name: string
+  device_code: string
+  channel_code: string
+  metric_code: string
+  unit: string
+  latest_value: number | null
+  quality_flag: string
+  collected_at: string
+  status: 'ONLINE' | 'OFFLINE' | 'FAULT'
+}
+
+export interface TelemetrySSEEvent {
+  sensor_channel_id: number
+  metric_code: string
+  value: number
+  collected_at: string
+  device_code: string
+}

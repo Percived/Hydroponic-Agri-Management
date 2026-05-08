@@ -29,47 +29,59 @@ instance.interceptors.request.use(
 // 响应拦截器
 instance.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => {
-    const { data } = response
+    const { data, config } = response
 
     // 业务错误处理
     if (data.code !== ErrorCode.SUCCESS) {
       console.error('[API Error]', data.message, data)
-      ElMessage.error(data.message || '请求失败')
+      if (!(config as any).silent) {
+        ElMessage.error(data.message || '请求失败')
+      }
       return Promise.reject(new Error(data.message))
     }
 
     return response
   },
   (error) => {
-    const { response } = error
+    const { response, config } = error
 
     if (response) {
       const { status, data } = response
 
       console.error('[HTTP Error]', status, data?.message || error.message)
 
-      switch (status) {
-        case 401:
-          ElMessage.error('登录已过期，请重新登录')
-          clearAuth()
-          // 动态导入路由避免循环依赖
-          import('@/router').then((r) => r.default.push('/login'))
-          break
-        case 403:
-          ElMessage.error('没有权限访问')
-          break
-        case 404:
-          ElMessage.error('资源不存在')
-          break
-        case 429:
-          ElMessage.error('请求过于频繁，请稍后再试')
-          break
-        default:
-          ElMessage.error(data?.message || '请求失败')
+      if (!(config as any)?.silent) {
+        switch (status) {
+          case 401:
+            if (data?.message === 'invalid_credentials') {
+              // 登录凭据错误（用户名/密码不对）
+              ElMessage.error('用户名或密码错误')
+            } else {
+              // Token 缺失/无效/过期
+              ElMessage.error('登录已过期，请重新登录')
+              clearAuth()
+              // 动态导入路由避免循环依赖
+              import('@/router').then((r) => r.default.push('/login'))
+            }
+            break
+          case 403:
+            ElMessage.error('没有权限访问')
+            break
+          case 404:
+            ElMessage.error('资源不存在')
+            break
+          case 429:
+            ElMessage.error('请求过于频繁，请稍后再试')
+            break
+          default:
+            ElMessage.error(data?.message || '请求失败')
+        }
       }
     } else {
       console.error('[Network Error]', error.message)
-      ElMessage.error('网络异常，请检查网络连接')
+      if (!(config as any)?.silent) {
+        ElMessage.error('网络异常，请检查网络连接')
+      }
     }
 
     return Promise.reject(error)

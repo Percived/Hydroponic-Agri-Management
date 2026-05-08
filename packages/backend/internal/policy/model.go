@@ -13,7 +13,7 @@ type ControlPolicy struct {
 	Priority      int        `gorm:"default:100"`
 	RetryLimit    uint8      `gorm:"column:retry_limit;default:3"`
 	TimeoutSec    uint       `gorm:"column:timeout_sec;default:30"`
-	Enabled       uint8      `gorm:"default:1"`
+	Enabled       bool       `gorm:"default:true"`
 	Version       string     `gorm:"size:32;default:v1"`
 	EffectiveFrom *time.Time `gorm:"column:effective_from"`
 	EffectiveTo   *time.Time `gorm:"column:effective_to"`
@@ -40,7 +40,7 @@ type PolicyCondition struct {
 	WindowSec           *uint     `gorm:"column:window_sec"`
 	RequiredDurationSec *uint     `gorm:"column:required_duration_sec"`
 	Aggregation         string    `gorm:"size:16"` // avg/max/min/last
-	Enabled             uint8     `gorm:"default:1"`
+	Enabled             bool      `gorm:"default:true"`
 	CreatedAt           time.Time `gorm:"autoCreateTime:milli"`
 	UpdatedAt           time.Time `gorm:"autoUpdateTime:milli"`
 }
@@ -55,7 +55,7 @@ type PolicyTarget struct {
 	CommandType       string    `gorm:"column:command_type;size:32;not null"`
 	CommandPayload    string    `gorm:"column:command_payload;type:json;not null"`
 	ExecutionOrder    uint16    `gorm:"column:execution_order;default:1"`
-	Enabled           uint8     `gorm:"default:1"`
+	Enabled           bool      `gorm:"default:true"`
 	CreatedAt         time.Time `gorm:"autoCreateTime:milli"`
 	UpdatedAt         time.Time `gorm:"autoUpdateTime:milli"`
 }

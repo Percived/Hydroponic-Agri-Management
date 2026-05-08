@@ -152,19 +152,13 @@ func (h *Handler) Dashboard(c *gin.Context) {
 		actuatorsOffline = 0
 	}
 
-	response.Success(c, gin.H{
-		"sensors_online":     sensorsOnline,
-		"sensors_offline":    sensorsOffline,
-		"sensors_total":      totalSensors,
-		"actuators_online":   actuatorsOnline,
-		"actuators_offline":  actuatorsOffline,
-		"actuators_total":    totalActuators,
-		"alerts_open":        alertsOpen,
-		"alerts_critical":    alertsCritical,
-		"alerts_today":       alertsToday,
-		"greenhouse_summary": ghSummaries,
-		"recent_commands":    recentCmds,
-	})
+	resp := toDashboardResponse(
+		sensorsOnline, sensorsOffline, totalSensors,
+		actuatorsOnline, actuatorsOffline, totalActuators,
+		alertsOpen, alertsCritical, alertsToday,
+		ghSummaries, recentCmds,
+	)
+	response.Success(c, resp)
 }
 
 type sensorDevice struct {

@@ -72,7 +72,7 @@
             <div class="gh-stats">
               <div class="gh-stat">
                 <span class="gh-stat-label">设备数</span>
-                <span class="gh-stat-value">{{ gh.device_count }}</span>
+                <span class="gh-stat-value">{{ gh.sensor_count + gh.actuator_count }}</span>
               </div>
               <div class="gh-stat">
                 <span class="gh-stat-label">平均温度</span>
@@ -134,6 +134,12 @@ const router = useRouter()
 // 数据
 const loading = ref(false)
 const overview = ref<DashboardOverview>({
+  sensors_online: 0,
+  sensors_offline: 0,
+  sensors_total: 0,
+  actuators_online: 0,
+  actuators_offline: 0,
+  actuators_total: 0,
   devices_online: 0,
   devices_offline: 0,
   devices_total: 0,
@@ -177,6 +183,12 @@ async function fetchData() {
   try {
     const data = await dashboardApi.getDashboardData()
     overview.value = {
+      sensors_online: data.sensors_online ?? 0,
+      sensors_offline: data.sensors_offline ?? 0,
+      sensors_total: data.sensors_total ?? 0,
+      actuators_online: data.actuators_online ?? 0,
+      actuators_offline: data.actuators_offline ?? 0,
+      actuators_total: data.actuators_total ?? 0,
       devices_online: data.devices_online ?? 0,
       devices_offline: data.devices_offline ?? 0,
       devices_total: data.devices_total ?? 0,

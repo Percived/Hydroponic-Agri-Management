@@ -9,20 +9,22 @@
     </div>
 
     <!-- 批次汇总卡片 -->
-    <div class="summary-cards" v-if="summary.total_harvest_weight_kg != null">
+    <div class="summary-cards" v-if="summary.total_weight_kg != null">
       <div class="summary-card">
         <div class="summary-label">总采收重量</div>
-        <div class="summary-value">{{ summary.total_harvest_weight_kg }} kg</div>
+        <div class="summary-value">{{ summary.total_weight_kg }} kg</div>
       </div>
       <div class="summary-card">
-        <div class="summary-label">采收批次数</div>
-        <div class="summary-value">{{ summary.harvest_count ?? 0 }}</div>
+        <div class="summary-label">采收记录数</div>
+        <div class="summary-value">{{ harvestCount }}</div>
       </div>
     </div>
 
     <!-- 筛选区 -->
     <div class="filter-section">
-      <el-input-number v-model="filters.batch_id" :min="1" placeholder="批次ID" style="width: 180px" />
+      <el-select v-model="filters.batch_id" clearable filterable style="width: 260px" placeholder="全部批次">
+        <el-option v-for="b in batches" :key="b.id" :label="`${b.batch_no} (#${b.id})`" :value="b.id" />
+      </el-select>
       <el-button type="primary" @click="fetchData">查询</el-button>
       <el-button @click="resetFilters">重置</el-button>
     </div>
@@ -66,8 +68,10 @@
     <!-- 新增弹窗 -->
     <el-dialog v-model="dialogVisible" title="新增采收记录" width="500px">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="130px">
-        <el-form-item label="批次ID" prop="batch_id">
-          <el-input-number v-model="formData.batch_id" :min="1" style="width: 100%" />
+        <el-form-item label="批次" prop="batch_id">
+          <el-select v-model="formData.batch_id" filterable style="width: 100%">
+            <el-option v-for="b in batches" :key="b.id" :label="`${b.batch_no} (#${b.id})`" :value="b.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="采收时间" prop="harvested_at">
           <el-date-picker
@@ -104,21 +108,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { cropApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
-import type { HarvestRecord } from '@/types'
+import type { CropBatch, HarvestRecord } from '@/types'
 
 const loading = ref(false)
 const harvests = ref<HarvestRecord[]>([])
+const batches = ref<CropBatch[]>([])
 const total = ref(0)
 const summary = ref<{
-  total_harvest_weight_kg?: number
-  grade_summary?: { grade: string; total_weight_kg: number }[]
-  harvest_count?: number
+  batch_id?: number
+  total_weight_kg?: number
+  grades?: { grade: string; weight_kg: number; count: number }[]
 }>({})
+
+const harvestCount = computed(() => {
+  if (!summary.value.grades) return 0
+  return summary.value.grades.reduce((sum, g) => sum + (g.count || 0), 0)
+})
 
 const filters = reactive({
   batch_id: undefined as number | undefined
@@ -233,8 +243,12 @@ async function handleSubmit() {
   }
 }
 
-onMounted(() => {
-  fetchData()
+onMounted(async () => {
+  const [bRes] = await Promise.all([
+    cropApi.getBatches({ page_size: 200 }),
+    fetchData()
+  ])
+  batches.value = bRes.items
 })
 </script>
 

@@ -7,13 +7,6 @@ export interface ApiResponse<T = unknown> {
 }
 
 // 分页响应
-export interface PaginatedData<T> {
-  page: number
-  page_size: number
-  total: number
-  items: T[]
-}
-
 export interface PaginatedResponse<T> {
   items: T[]
   total: number

@@ -10,6 +10,9 @@ import (
 func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
 	h := NewHandler(deps.MySQL)
 
+	// Start alert subscriber for real-time notification dispatch
+	NewAlertSubscriber(deps.MySQL, deps.EventHub, deps.Log)
+
 	channels := r.Group("/notification-channels")
 	channels.GET("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.ListChannels)
 	channels.POST("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.CreateChannel)

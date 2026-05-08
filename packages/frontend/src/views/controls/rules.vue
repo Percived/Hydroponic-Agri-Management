@@ -1,10 +1,10 @@
 <template>
   <div class="rules-page">
     <div class="page-header">
-      <h1 class="page-title">阈值策略</h1>
+      <h1 class="page-title">策略管理</h1>
       <el-button type="primary" @click="openCreateDialog">
         <el-icon><Plus /></el-icon>
-        新增阈值策略
+        新增策略
       </el-button>
     </div>
 
@@ -13,6 +13,11 @@
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="policy_code" label="策略编码" width="150" />
         <el-table-column prop="name" label="策略名称" min-width="160" />
+        <el-table-column prop="policy_type" label="类型" width="80">
+          <template #default="{ row }">
+            <el-tag size="small">{{ typeLabel(row.policy_type) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="priority" label="优先级" width="90" />
         <el-table-column prop="retry_limit" label="重试" width="80" />
         <el-table-column prop="timeout_sec" label="超时(s)" width="90" />
@@ -43,7 +48,7 @@
       </div>
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑阈值策略' : '新增阈值策略'" width="760px">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="760px">
       <el-form :model="formData" label-width="120px">
         <el-form-item label="策略编码">
           <el-input v-model="formData.policy_code" :disabled="isEdit" />
@@ -54,14 +59,14 @@
         <el-row :gutter="12">
           <el-col :span="12">
             <el-form-item label="所属温室">
-              <el-select v-model="formData.greenhouse_id" placeholder="请选择温室" filterable style="width: 100%">
+              <el-select v-model="formData.greenhouse_id" placeholder="请选择温室" filterable style="width: 100%" @change="onGreenhouseChange">
                 <el-option v-for="gh in greenhouses" :key="gh.id" :label="gh.name" :value="gh.id" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="种植区">
-              <el-select v-model="formData.growing_zone_id" placeholder="可选" clearable style="width: 100%">
+              <el-select v-model="formData.growing_zone_id" placeholder="可选" clearable style="width: 100%" @change="onGrowingZoneChange">
                 <el-option v-for="zone in growingZones" :key="zone.id" :label="zone.name" :value="zone.id" />
               </el-select>
             </el-form-item>
@@ -76,9 +81,9 @@
           <el-col :span="12">
             <el-form-item label="策略类型">
               <el-select v-model="formData.policy_type" style="width: 100%">
-                <el-option label="阈值" value="THRESHOLD" />
-                <el-option label="定时" value="SCHEDULE" />
-                <el-option label="时长" value="DURATION" />
+                <el-option label="阈值 THRESHOLD" value="THRESHOLD" />
+                <el-option label="定时 SCHEDULE" value="SCHEDULE" />
+                <el-option label="时长 DURATION" value="DURATION" :disabled="true" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -96,47 +101,112 @@
           </el-col>
         </el-row>
 
-        <el-divider>策略条件</el-divider>
-        <el-form-item label="指标代码">
-          <el-select v-model="conditionForm.metric_code" placeholder="选择指标" style="width: 100%">
-            <el-option v-for="m in metricOptions" :key="m.value" :label="m.label" :value="m.value" />
-          </el-select>
-        </el-form-item>
         <el-row :gutter="12">
           <el-col :span="12">
-            <el-form-item label="运算符">
-              <el-select v-model="conditionForm.operator" style="width: 100%">
-                <el-option label="大于 >" value=">" />
-                <el-option label="大于等于 >=" value=">=" />
-                <el-option label="小于 <" value="<" />
-                <el-option label="小于等于 <=" value="<=" />
-                <el-option label="等于 =" value="=" />
+            <el-form-item label="生效起始">
+              <el-date-picker
+                v-model="formData.effective_from"
+                type="datetime"
+                placeholder="可选"
+                clearable
+                style="width: 100%"
+                format="YYYY-MM-DD HH:mm"
+                :disabled-date="disabledPastDate"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="失效时间">
+              <el-date-picker
+                v-model="formData.effective_to"
+                type="datetime"
+                placeholder="可选"
+                clearable
+                style="width: 100%"
+                format="YYYY-MM-DD HH:mm"
+                :disabled-date="disabledInvalidToDate"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <!-- DURATION 未实现提示 -->
+        <el-alert
+          v-if="formData.policy_type === 'DURATION'"
+          title="时长策略后端尚未实现，请选择阈值或定时策略"
+          type="warning"
+          :closable="false"
+          style="margin-bottom: 16px"
+        />
+
+        <!-- THRESHOLD + SCHEDULE: 策略条件 -->
+        <template v-if="formData.policy_type !== 'DURATION'">
+          <el-divider>
+            策略条件
+            <el-switch
+              v-if="formData.policy_type === 'SCHEDULE'"
+              v-model="scheduleUseCondition"
+              size="small"
+              style="margin-left: 8px"
+            />
+            <span v-if="formData.policy_type === 'SCHEDULE'" style="font-size:12px;color:#909399;margin-left:4px">
+              {{ scheduleUseCondition ? '启用条件检查' : '无条件（仅定时执行）' }}
+            </span>
+          </el-divider>
+
+          <template v-if="formData.policy_type === 'THRESHOLD' || scheduleUseCondition">
+            <el-form-item label="指标代码">
+              <el-select v-model="conditionForm.metric_code" placeholder="选择指标" style="width: 100%">
+                <el-option v-for="m in metrics" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
               </el-select>
             </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="阈值">
-              <el-input-number v-model="conditionForm.threshold_value" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="12">
-          <el-col :span="8">
-            <el-form-item label="滞后值">
-              <el-input-number v-model="conditionForm.hysteresis" :min="0" :precision="2" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="窗口(秒)">
-              <el-input-number v-model="conditionForm.window_sec" :min="0" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="持续(秒)">
-              <el-input-number v-model="conditionForm.required_duration_sec" :min="0" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
+            <el-row :gutter="12">
+              <el-col :span="12">
+                <el-form-item label="运算符">
+                  <el-select v-model="conditionForm.operator" style="width: 100%">
+                    <el-option label="大于 >" value=">" />
+                    <el-option label="大于等于 >=" value=">=" />
+                    <el-option label="小于 <" value="<" />
+                    <el-option label="小于等于 <=" value="<=" />
+                    <el-option label="等于 =" value="=" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="阈值">
+                  <el-input-number v-model="conditionForm.threshold_value" style="width: 100%" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="12">
+              <el-col :span="6">
+                <el-form-item label="滞后值">
+                  <el-input-number v-model="conditionForm.hysteresis" :min="0" :precision="2" style="width: 100%" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="6">
+                <el-form-item label="窗口(秒)">
+                  <el-input-number v-model="conditionForm.window_sec" :min="0" style="width: 100%" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="6">
+                <el-form-item label="持续(秒)">
+                  <el-input-number v-model="conditionForm.required_duration_sec" :min="0" style="width: 100%" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="6">
+                <el-form-item label="聚合方式">
+                  <el-select v-model="conditionForm.aggregation" placeholder="默认 last" clearable style="width: 100%">
+                    <el-option label="最新 last" value="last" />
+                    <el-option label="平均 avg" value="avg" />
+                    <el-option label="最大 max" value="max" />
+                    <el-option label="最小 min" value="min" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </template>
+        </template>
 
         <el-divider>目标动作</el-divider>
         <el-form-item label="执行器通道">
@@ -173,12 +243,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { deviceApi, policyApi, greenhouseApi } from '@/api'
+import { deviceApi, policyApi, greenhouseApi, metricApi } from '@/api'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
-import type { ControlPolicy, ActuatorChannel, Greenhouse, GrowingZone } from '@/types'
+import type { ControlPolicy, ActuatorChannel, Greenhouse, GrowingZone, MetricDefinition } from '@/types'
+import { populateMetricNames } from '@/utils/format'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -188,6 +259,7 @@ const pagination = reactive({ page: 1, pageSize: 20 })
 const actuatorChannels = ref<ActuatorChannel[]>([])
 const greenhouses = ref<Greenhouse[]>([])
 const growingZones = ref<GrowingZone[]>([])
+const metrics = ref<MetricDefinition[]>([])
 
 const dialogVisible = ref(false)
 const isEdit = ref(false)
@@ -201,7 +273,9 @@ const formData = reactive({
   growing_zone_id: undefined as number | undefined,
   priority: 50,
   retry_limit: 3,
-  timeout_sec: 30
+  timeout_sec: 30,
+  effective_from: null as Date | null,
+  effective_to: null as Date | null
 })
 
 const conditionForm = reactive({
@@ -219,20 +293,25 @@ const targetCommandType = ref('SWITCH')
 const targetPayloadRaw = ref('{"state":"ON"}')
 const targetExecutionOrder = ref(0)
 
-const metricOptions = [
-  { value: 'TEMP', label: '温度' },
-  { value: 'HUMIDITY', label: '湿度' },
-  { value: 'PH', label: 'pH值' },
-  { value: 'EC', label: '电导率' },
-  { value: 'CO2', label: 'CO2' },
-  { value: 'LIGHT', label: '光照' }
-]
+// SCHEDULE 类型: 是否启用条件检查
+const scheduleUseCondition = ref(false)
+
+// 动态标题
+const dialogTitle = computed(() => {
+  const tLabel = typeLabel(formData.policy_type)
+  return isEdit.value ? `编辑策略 - ${tLabel}` : `新增策略 - ${tLabel}`
+})
+
+function typeLabel(t: string) {
+  const map: Record<string, string> = { THRESHOLD: '阈值', SCHEDULE: '定时', DURATION: '时长' }
+  return map[t] || t
+}
+
 
 async function fetchData() {
   loading.value = true
   try {
     const data = await policyApi.getPolicies({
-      policy_type: 'THRESHOLD',
       page: pagination.page,
       page_size: pagination.pageSize
     })
@@ -243,17 +322,30 @@ async function fetchData() {
   }
 }
 
-async function loadActuatorChannels() {
+async function loadActuatorChannels(greenhouseId?: number, growingZoneId?: number) {
   try {
-    const data = await deviceApi.getActuatorChannels({ page_size: LARGE_PAGE_SIZE })
+    const params: Record<string, unknown> = { page_size: LARGE_PAGE_SIZE }
+    if (greenhouseId) params.greenhouse_id = greenhouseId
+    if (growingZoneId) params.growing_zone_id = growingZoneId
+    const data = await deviceApi.getActuatorChannels(params)
     actuatorChannels.value = data.items
-  } catch { /* ignore */ }
+  } catch {
+    actuatorChannels.value = []
+  }
 }
 
 async function loadGreenhouses() {
   try {
     const data = await greenhouseApi.getGreenhouses({ page_size: LARGE_PAGE_SIZE })
     greenhouses.value = data.items
+  } catch { /* ignore */ }
+}
+
+async function loadMetrics() {
+  try {
+    const data = await metricApi.getMetrics({ page_size: LARGE_PAGE_SIZE })
+    metrics.value = data.items
+    populateMetricNames(data.items)
   } catch { /* ignore */ }
 }
 
@@ -267,10 +359,43 @@ async function loadGrowingZones(greenhouseId?: number) {
   }
 }
 
+function disabledPastDate(date: Date): boolean {
+  return date.getTime() < Date.now() - 60 * 1000
+}
+
+function disabledInvalidToDate(date: Date): boolean {
+  if (date.getTime() < Date.now() - 60 * 1000) return true
+  if (formData.effective_from) {
+    return date.getTime() <= formData.effective_from.getTime()
+  }
+  return false
+}
+
+function onGreenhouseChange(greenhouseId: number | null) {
+  formData.growing_zone_id = undefined
+  growingZones.value = []
+  if (greenhouseId) {
+    loadGrowingZones(greenhouseId)
+    loadActuatorChannels(greenhouseId)
+  } else {
+    actuatorChannels.value = []
+  }
+}
+
+function onGrowingZoneChange(growingZoneId: number | undefined) {
+  if (growingZoneId && formData.greenhouse_id) {
+    loadActuatorChannels(formData.greenhouse_id, growingZoneId)
+  } else if (formData.greenhouse_id) {
+    loadActuatorChannels(formData.greenhouse_id)
+  } else {
+    actuatorChannels.value = []
+  }
+}
+
 function openCreateDialog() {
   isEdit.value = false
   editingPolicyId.value = null
-  formData.policy_code = `POL-TH-${Date.now().toString().slice(-6)}`
+  formData.policy_code = `POL-${Date.now().toString().slice(-6)}`
   formData.name = ''
   formData.policy_type = 'THRESHOLD'
   formData.greenhouse_id = null
@@ -278,6 +403,8 @@ function openCreateDialog() {
   formData.priority = 50
   formData.retry_limit = 3
   formData.timeout_sec = 30
+  formData.effective_from = null
+  formData.effective_to = null
   conditionForm.metric_code = 'TEMP'
   conditionForm.operator = '>'
   conditionForm.threshold_value = 30
@@ -289,9 +416,17 @@ function openCreateDialog() {
   targetCommandType.value = 'SWITCH'
   targetPayloadRaw.value = '{"state":"ON"}'
   targetExecutionOrder.value = 0
+  scheduleUseCondition.value = false
   growingZones.value = []
+  actuatorChannels.value = []
   dialogVisible.value = true
 }
+
+// THRESHOLD 必须使用条件，SCHEDULE 切换时重置
+watch(() => formData.policy_type, (val) => {
+  if (val === 'THRESHOLD') scheduleUseCondition.value = false
+  // THRESHOLD 的 scheduleUseCondition 不生效，条件始终显示
+})
 
 async function openEditDialog(policy: ControlPolicy) {
   isEdit.value = true
@@ -304,8 +439,11 @@ async function openEditDialog(policy: ControlPolicy) {
   formData.priority = policy.priority || 50
   formData.retry_limit = policy.retry_limit || 3
   formData.timeout_sec = policy.timeout_sec || 30
+  formData.effective_from = policy.effective_from ? new Date(policy.effective_from) : null
+  formData.effective_to = policy.effective_to ? new Date(policy.effective_to) : null
 
   // Load conditions
+  scheduleUseCondition.value = false
   try {
     const condResult = await policyApi.getPolicyConditions(policy.id)
     if (condResult.items && condResult.items.length > 0) {
@@ -317,6 +455,7 @@ async function openEditDialog(policy: ControlPolicy) {
       conditionForm.window_sec = c.window_sec
       conditionForm.required_duration_sec = c.required_duration_sec
       conditionForm.aggregation = c.aggregation
+      if (policy.policy_type === 'SCHEDULE') scheduleUseCondition.value = true
     }
   } catch { /* ignore */ }
 
@@ -334,24 +473,50 @@ async function openEditDialog(policy: ControlPolicy) {
 
   if (policy.greenhouse_id) {
     loadGrowingZones(policy.greenhouse_id)
+    loadActuatorChannels(policy.greenhouse_id, policy.growing_zone_id)
   }
   dialogVisible.value = true
 }
 
 async function handleSubmit() {
+  const now = Date.now()
+
+  if (formData.effective_from && formData.effective_from.getTime() < now) {
+    ElMessage.warning('生效起始时间不能早于当前时间')
+    return
+  }
+  if (formData.effective_to) {
+    if (formData.effective_to.getTime() < now) {
+      ElMessage.warning('失效时间不能早于当前时间')
+      return
+    }
+    if (formData.effective_from && formData.effective_to.getTime() <= formData.effective_from.getTime()) {
+      ElMessage.warning('失效时间必须晚于生效起始时间')
+      return
+    }
+  }
+
   submitLoading.value = true
   try {
     if (isEdit.value && editingPolicyId.value) {
-      const payload: Partial<typeof formData> = {
+      const payload: any = {
         name: formData.name,
+        policy_type: formData.policy_type,
+        growing_zone_id: formData.growing_zone_id,
         priority: formData.priority,
         retry_limit: formData.retry_limit,
-        timeout_sec: formData.timeout_sec
+        timeout_sec: formData.timeout_sec,
+        effective_from: formData.effective_from?.toISOString() || null,
+        effective_to: formData.effective_to?.toISOString() || null
       }
+      // Remove null fields to avoid overwriting with null
+      if (payload.effective_from === null) delete payload.effective_from
+      if (payload.effective_to === null) delete payload.effective_to
       await policyApi.updatePolicy(editingPolicyId.value, payload as any)
       ElMessage.success('策略更新成功')
     } else {
       // Create new policy
+      const useCond = formData.policy_type === 'THRESHOLD' || scheduleUseCondition.value
       const createPayload = {
         policy_code: formData.policy_code,
         name: formData.name,
@@ -361,7 +526,9 @@ async function handleSubmit() {
         priority: formData.priority,
         retry_limit: formData.retry_limit,
         timeout_sec: formData.timeout_sec,
-        conditions: [{
+        effective_from: formData.effective_from?.toISOString() || undefined,
+        effective_to: formData.effective_to?.toISOString() || undefined,
+        conditions: useCond ? [{
           metric_code: conditionForm.metric_code,
           operator: conditionForm.operator,
           threshold_value: conditionForm.threshold_value,
@@ -369,7 +536,7 @@ async function handleSubmit() {
           window_sec: conditionForm.window_sec,
           required_duration_sec: conditionForm.required_duration_sec,
           aggregation: conditionForm.aggregation
-        }],
+        }] : [],
         targets: targetChannelId.value ? [{
           actuator_channel_id: targetChannelId.value,
           command_type: targetCommandType.value,
@@ -411,6 +578,7 @@ onMounted(() => {
   fetchData()
   loadActuatorChannels()
   loadGreenhouses()
+  loadMetrics()
 })
 </script>
 

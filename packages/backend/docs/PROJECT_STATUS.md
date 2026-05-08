@@ -1,8 +1,8 @@
 # 项目状态
 
-最后更新: 2026-05-06
+最后更新: 2026-05-07
 负责人: 后端团队
-版本: v2.0.0（架构重构完成，18 个领域模块全部到位）
+版本: v2.3.0（阶段三四完成：SSE 实时推送、序列化统一、策略调度器、Handler 拆分、enabled 类型统一）
 
 ## 1. 项目概述
 
@@ -11,7 +11,24 @@
 
 ## 2. 当前交付状态
 
-总体评估：v2.0.0 重构已完成。全量整合 18 个领域模块，对外暴露 193 个 API 端点，分布至 21 个模块路由组。API 路径采用扁平命名规范：`/api/sensor-devices`、`/api/actuator-devices`、`/api/commands`、`/api/policies` 等。
+总体评估：v2.3.0 阶段三四已完成。全量整合 18 个领域模块，对外暴露 193 个 API 端点 + 2 个 SSE 实时推送端点，分布至 21 个模块路由组。API 路径采用扁平命名规范：`/api/sensor-devices`、`/api/actuator-devices`、`/api/commands`、`/api/policies` 等。
+
+### v2.3.0 阶段三完成项（实时性与自动化）
+
+- **SSE 实时推送**：新增 `GET /api/alerts/subscribe`、`GET /api/telemetry/subscribe` 端点（query-string token 鉴权），基于 EventHub 的 SSE 流式推送，自动映射内部事件类型到前端兼容格式。
+- **序列化风格统一**：overview 模块改用强类型 `DashboardResponse` DTO 替代 `gin.H{}`，时间字段统一为 ISO 8601 字符串。新增 `devices_online/offline/total` 聚合字段与 `device_type_distribution`。
+- **策略自动调度器**：新增 `internal/policy/scheduler.go`，支持事件驱动（订阅 `telemetry:received`）与定时扫描（每 30s）双模式，含 60s 冷却期和冲突跳过机制。
+
+### v2.3.0 阶段四完成项（长期优化）
+
+- **配置推送基础设施**：新增 `internal/platform/mqtt/config_pusher.go`，支持通过 MQTT `cmd/config` topic 推送配置到设备，已接入 climate handler。
+- **Handler 文件拆分**：climate、policy、nutrient、crop 四个模块的 handler 从单文件（1000+ 行）拆分为 3-5 个子文件，单文件不超过 400 行。
+- **enabled 字段类型统一**：9 个模型的 `Enabled uint8` → `bool` + `gorm:"default:true"`，22 个 DTO 字段同步更新，MySQL TINYINT 向后兼容。
+
+### v2.2.0 阶段一二完成项（安全基线 + MQTT 贯通）
+
+- JWT Secret 强制校验（拒绝默认值 "change-me"）、RowsAffected 全量修复、辅助函数去重与分页常量提取、传感器状态内存缓存、前端死代码清理。
+- 统一 MQTT Topic 规范（7 类 topic）、MQTT Ingress Service（设备即插即用）、InfluxDB 接入遥测读写、命令下发 MQTT 化 + CommandWaiter、告警→通知 EventHub 串联。
 
 已实现的 18 个领域模块：
 
@@ -48,14 +65,13 @@ P0：
 P1：
 
 - v2.0.0 重构后新增模块（climate、command、crop、energy、nutrient、pest、policy、recipe、review）的测试覆盖几乎为零。
-- 策略引擎缺少异步调度器与真实设备 ACK 消费器，`acked/timeout/cancelled` 仍需事件驱动链路补齐。
 - 告警处置闭环缺少独立的 outbox 投递 worker 与重试调度器。
 - 复盘聚合目前按批次时间窗做在线查询，大数据量场景下缺少离线预聚合与分页优化。
-- 遥测功能依赖预填充的 `metrics` 数据。
 
 P2：
 
 - 启动时对依赖较为严格（Influx/MQTT 初始化失败会退出进程）。
+- 配置推送依赖固件定义协议格式（基础设施已就绪）。
 - 默认本地 MQTT 凭据需与 compose 默认值保持对齐；部署前需验证运行时配置。
 
 ## 4. 后续步骤（按顺序）
@@ -74,9 +90,9 @@ P2：
 
 3. 补齐异步基础设施：
 
-- 实现策略调度器与设备 ACK 消费器
 - 实现 outbox 投递 worker 与重试调度器
 - 引入离线预聚合任务用于复盘与能耗汇总
+- 与固件方对齐 MQTT 配置推送协议格式
 
 4. 按环境改进弹性：
 
@@ -114,27 +130,27 @@ scripts/dev-login-smoke.sh
 | 模块 | 路径 | 说明 |
 |------|------|------|
 | 入口 | `cmd/api/main.go` | 应用启动入口，依赖注入组装 |
-| 路由 | `internal/platform/http/router.go` | 全局路由注册中心 |
-| 平台基础 | `internal/platform/` | 配置、数据库、DI、错误码、HTTP、InfluxDB、日志、MQTT、响应封装 |
+| 路由 | `internal/platform/http/router.go` | 全局路由注册中心（含 SSE 端点） |
+| 平台基础 | `internal/platform/` | 配置、数据库、DI、错误码、HTTP、InfluxDB、日志、MQTT、响应封装、EventHub、SSE handler、ConfigPusher |
 | alert | `internal/alert/` | 告警管理与处置闭环 |
 | audit | `internal/audit/` | 审计日志 |
 | auth | `internal/auth/` | JWT 认证 + RBAC |
-| climate | `internal/climate/` | 气候环境配置与执行日志 |
+| climate | `internal/climate/` | 气候环境配置与执行日志（已拆分为 handler + 3 个子 handler） |
 | command | `internal/command/` | 控制命令下发与回执 |
-| crop | `internal/crop/` | 作物品种、生长阶段、种植批次、收获 |
+| crop | `internal/crop/` | 作物品种、生长阶段、种植批次、收获（已拆分为 handler + 4 个子 handler） |
 | device | `internal/device/` | 传感器/执行器设备与通道 |
 | energy | `internal/energy/` | 能耗记录与汇总 |
 | greenhouse | `internal/greenhouse/` | 温室、园区、种植分区 |
 | metric | `internal/metric/` | 测点定义与通道绑定 |
 | notification | `internal/notification/` | 通知渠道 |
-| nutrient | `internal/nutrient/` | 营养液管理 |
-| overview | `internal/overview/` | 仪表盘聚合 |
+| nutrient | `internal/nutrient/` | 营养液管理（已拆分为 handler + 4 个子 handler） |
+| overview | `internal/overview/` | 仪表盘聚合（已统一为强类型 DTO） |
 | pest | `internal/pest/` | 病虫害观察与治理 |
-| policy | `internal/policy/` | 控制策略引擎 |
+| policy | `internal/policy/` | 控制策略引擎 + 自动调度器（已拆分为 handler + 4 个子 handler + scheduler） |
 | recipe | `internal/recipe/` | 营养液配方 |
 | review | `internal/review/` | 批次复盘快照 |
 | telemetry | `internal/telemetry/` | 遥测采集与查询 |
-| 迁移 | `migrations/` | 数据库迁移脚本（主文件：`merged/all.up.sql`） |
+| 迁移 | `migrations/merged/` | 数据库迁移脚本（主文件：`all.up.sql`，唯一权威数据源） |
 | API 文档 | `shared/docs/API_SPEC.md` | 共享 API 规范 |
 | OpenAPI | `shared/docs/openapi.yaml` | OpenAPI 3.0.3 规范 |
 

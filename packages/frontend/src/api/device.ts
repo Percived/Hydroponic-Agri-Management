@@ -15,7 +15,10 @@ import type {
   ActuatorChannel,
   ActuatorChannelListResponse,
   CreateActuatorChannelRequest,
-  UpdateActuatorChannelRequest
+  UpdateActuatorChannelRequest,
+  RegisterDeviceRequest,
+  RegisterDeviceResponse,
+  DeviceSelfResponse
 } from '@/types'
 
 // ===== Sensor Devices =====
@@ -85,3 +88,13 @@ export const updateActuatorChannel = (id: number, data: UpdateActuatorChannelReq
 
 export const deleteActuatorChannel = (id: number) =>
   del<void>(`/actuator-channels/${id}`)
+
+// ===== Batch Registration =====
+
+export const registerDevice = (data: RegisterDeviceRequest) =>
+  post<RegisterDeviceResponse>('/devices/register', data)
+
+// ===== Device Self-Discovery =====
+
+export const getDeviceSelf = (deviceCode: string) =>
+  get<DeviceSelfResponse>('/devices/self', { device_code: deviceCode })

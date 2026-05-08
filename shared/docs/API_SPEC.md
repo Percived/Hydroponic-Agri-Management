@@ -1300,7 +1300,7 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| sensor_channel_id | number | 否 | 传感器通道 ID |
+| sensor_channel_id | string | 否 | 传感器通道 ID，支持逗号分隔多 ID（上限 50），如 "1,2,3" |
 | metric_code | string | 否 | 指标编码 |
 | start_time | string | 否 | 开始时间 |
 | end_time | string | 否 | 结束时间 |
@@ -1310,6 +1310,20 @@ ID 类型：`BIGINT`，响应中以数字返回
 | page_size | number | 否 | 每页条数，默认 20 |
 
 响应：分页列表，items 为 TelemetryRecordResponse[]
+
+**GET /api/telemetry/channels/latest**
+
+鉴权：ADMIN / OPERATOR / VIEWER
+
+查询参数：
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| ids | string | 是 | 逗号分隔的通道 ID，上限 100，如 "1,2,3" |
+
+说明：批量获取多个通道的最新遥测数据（内存缓存 + DB 回退）
+
+响应：`{ "items": [{ "sensor_channel_id": 1, "metric_code": "TEMP", "value": 25.5, "quality_flag": "normal", "collected_at": "..." }] }`
 
 **GET /api/telemetry/channels/:channelId/latest**
 
@@ -2775,7 +2789,7 @@ ID 类型：`BIGINT`，响应中以数字返回
 | 4 | SensorChannels | 5 | `/api/sensor-channels` |
 | 5 | ActuatorDevices | 5 | `/api/actuator-devices` |
 | 6 | ActuatorChannels | 5 | `/api/actuator-channels` |
-| 7 | Telemetry | 5 | `/api/telemetry` |
+| 7 | Telemetry | 6 | `/api/telemetry` |
 | 8 | Metrics | 2 | `/api/metrics` |
 | 9 | Commands | 8 | `/api/commands` |
 | 10 | Policies | 22 | `/api/policies`, `/api/policy-executions` |

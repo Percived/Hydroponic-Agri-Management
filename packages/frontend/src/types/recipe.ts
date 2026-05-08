@@ -1,4 +1,4 @@
-import type { PaginatedData } from './api'
+import type { PaginatedResponse } from './api'
 
 export type RecipeStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED'
 export type BatchRecipeBindingType = 'PRIMARY' | 'SECONDARY'
@@ -110,4 +110,4 @@ export type UpdateRecipeParams = Partial<
   Pick<CreateRecipeParams, 'name' | 'crop_variety_id' | 'description' | 'version' | 'status' | 'effective_from' | 'effective_to'>
 >
 
-export type RecipeListResponse = PaginatedData<NutrientRecipe>
+export type RecipeListResponse = PaginatedResponse<NutrientRecipe>

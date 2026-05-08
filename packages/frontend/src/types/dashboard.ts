@@ -9,6 +9,12 @@ export interface GreenhouseSummary {
   avg_humidity: number | null
 }
 
+// 设备类型分布
+export interface DeviceTypeDistItem {
+  type: string
+  count: number
+}
+
 // 最近控制命令
 export interface RecentCommand {
   id: number
@@ -26,9 +32,13 @@ export interface DashboardOverview {
   actuators_online: number
   actuators_offline: number
   actuators_total: number
+  devices_online: number
+  devices_offline: number
+  devices_total: number
   alerts_open: number
   alerts_critical: number
   alerts_today: number
+  device_type_distribution: DeviceTypeDistItem[]
   greenhouse_summary: GreenhouseSummary[]
   recent_commands: RecentCommand[]
 }

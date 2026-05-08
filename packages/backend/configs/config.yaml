@@ -7,7 +7,7 @@ server:
   port: 3000
 
 auth:
-  jwt_secret: "change-me"
+  jwt_secret: "Ae6IUdFJj61Eca4TYwvf+grZtb68jkbp0FekfgWL1eKZw/gL"
   token_expire_secs: 7200
 
 mysql:
@@ -32,3 +32,6 @@ mqtt:
 
 log:
   level: info
+
+device:
+  heartbeat_timeout_sec: 600

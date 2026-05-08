@@ -9,8 +9,12 @@
     </div>
 
     <div class="filter-section">
-      <el-input-number v-model="filters.tank_id" :min="1" placeholder="液槽ID" style="width: 140px" />
-      <el-input-number v-model="filters.batch_id" :min="1" placeholder="批次ID" style="width: 140px" />
+      <el-select v-model="filters.tank_id" placeholder="选择液槽" clearable filterable style="width: 180px">
+        <el-option v-for="t in tanks" :key="t.id" :label="`${t.code} (ID:${t.id})`" :value="t.id" />
+      </el-select>
+      <el-select v-model="filters.batch_id" placeholder="选择批次" clearable filterable style="width: 180px">
+        <el-option v-for="b in batches" :key="b.id" :label="`${b.batch_no} (ID:${b.id})`" :value="b.id" />
+      </el-select>
       <el-select v-model="filters.test_method" placeholder="检测方法" clearable style="width: 140px">
         <el-option label="实验室" value="LAB" />
         <el-option label="试纸" value="STRIP" />
@@ -81,13 +85,17 @@
         <el-row :gutter="16">
           <!-- 基础信息 -->
           <el-col :span="12">
-            <el-form-item label="液槽ID" prop="tank_id">
-              <el-input-number v-model="formData.tank_id" :min="1" style="width: 100%" />
+            <el-form-item label="液槽" prop="tank_id">
+              <el-select v-model="formData.tank_id" placeholder="选择液槽" filterable style="width: 100%">
+                <el-option v-for="t in tanks" :key="t.id" :label="`${t.code} (ID:${t.id})`" :value="t.id" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="批次ID">
-              <el-input-number v-model="formData.batch_id" :min="1" style="width: 100%" />
+            <el-form-item label="批次">
+              <el-select v-model="formData.batch_id" placeholder="选择批次" clearable filterable style="width: 100%">
+                <el-option v-for="b in batches" :key="b.id" :label="`${b.batch_no} (ID:${b.id})`" :value="b.id" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -243,13 +251,16 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { nutrientApi } from '@/api'
+import { nutrientApi, cropApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
-import type { IonTestRecord } from '@/types'
+import { LARGE_PAGE_SIZE } from '@/utils/constants'
+import type { IonTestRecord, NutrientTank, CropBatch } from '@/types'
 
 const loading = ref(false)
 const tests = ref<IonTestRecord[]>([])
 const total = ref(0)
+const tanks = ref<NutrientTank[]>([])
+const batches = ref<CropBatch[]>([])
 
 const filters = reactive({
   tank_id: undefined as number | undefined,
@@ -439,8 +450,24 @@ async function removeTest(id: number) {
   fetchData()
 }
 
+async function loadTanks() {
+  try {
+    const data = await nutrientApi.getNutrientTanks({ page_size: LARGE_PAGE_SIZE })
+    tanks.value = data.items
+  } catch { /* ignore */ }
+}
+
+async function loadBatches() {
+  try {
+    const data = await cropApi.getBatches({ page_size: LARGE_PAGE_SIZE })
+    batches.value = data.items
+  } catch { /* ignore */ }
+}
+
 onMounted(() => {
   fetchData()
+  loadTanks()
+  loadBatches()
 })
 </script>
 

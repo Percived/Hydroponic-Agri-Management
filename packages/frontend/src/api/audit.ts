@@ -1,6 +1,6 @@
 import { get } from './request'
-import type { AuditLog, AuditLogQueryParams, PaginatedData } from '@/types'
+import type { AuditLog, AuditLogQueryParams, PaginatedResponse } from '@/types'
 
 // 获取审计日志列表
 export const getAuditLogs = (params?: AuditLogQueryParams) =>
-  get<PaginatedData<AuditLog>>('/audit-logs', params)
+  get<PaginatedResponse<AuditLog>>('/audit-logs', params)

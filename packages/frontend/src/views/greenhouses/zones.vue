@@ -9,7 +9,9 @@
     </div>
 
     <div class="filter-section">
-      <el-input-number v-model="filters.greenhouse_id" :min="1" placeholder="温室ID" style="width: 180px" />
+      <el-select v-model="filters.greenhouse_id" placeholder="选择温室" clearable filterable style="width: 200px">
+        <el-option v-for="g in greenhouses" :key="g.id" :label="`${g.name} (ID:${g.id})`" :value="g.id" />
+      </el-select>
       <el-select v-model="filters.system_type" placeholder="系统类型" clearable style="width: 160px">
         <el-option label="DWC" value="DWC" />
         <el-option label="NFT" value="NFT" />
@@ -72,8 +74,10 @@
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑种植区' : '新增种植区'" width="500px">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="130px">
-        <el-form-item label="温室ID" prop="greenhouse_id">
-          <el-input-number v-model="formData.greenhouse_id" :min="1" style="width: 100%" />
+        <el-form-item label="温室" prop="greenhouse_id">
+          <el-select v-model="formData.greenhouse_id" placeholder="选择温室" filterable style="width: 100%">
+            <el-option v-for="g in greenhouses" :key="g.id" :label="`${g.name} (ID:${g.id})`" :value="g.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="编号" prop="code">
           <el-input v-model="formData.code" placeholder="请输入编号" maxlength="64" />
@@ -111,13 +115,15 @@ import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { greenhouseApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
-import type { GrowingZone } from '@/types'
+import { LARGE_PAGE_SIZE } from '@/utils/constants'
+import type { GrowingZone, Greenhouse } from '@/types'
 
 const route = useRoute()
 
 const loading = ref(false)
 const zones = ref<GrowingZone[]>([])
 const total = ref(0)
+const greenhouses = ref<Greenhouse[]>([])
 
 const filters = reactive({
   greenhouse_id: undefined as number | undefined,
@@ -256,7 +262,15 @@ async function removeZone(id: number) {
   fetchData()
 }
 
+async function loadGreenhouses() {
+  try {
+    const data = await greenhouseApi.getGreenhouses({ page_size: LARGE_PAGE_SIZE })
+    greenhouses.value = data.items
+  } catch { /* ignore */ }
+}
+
 onMounted(() => {
+  loadGreenhouses()
   // Support ?greenhouse_id= query param
   const qGreenhouseId = route.query.greenhouse_id
   if (qGreenhouseId) {

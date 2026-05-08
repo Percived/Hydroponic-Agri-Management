@@ -92,8 +92,8 @@ async function handleLogin() {
     ElMessage.success('登录成功')
     const redirect = route.query.redirect as string || '/'
     router.push(redirect)
-  } catch (error) {
-    // 错误已在请求拦截器中处理
+  } catch (error: any) {
+    // 错误已在请求拦截器中处理（显示后端返回的具体错误信息）
     console.error('[Login] Failed:', error)
   } finally {
     loading.value = false

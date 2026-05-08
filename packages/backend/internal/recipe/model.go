@@ -42,7 +42,7 @@ type RecipeStageTarget struct {
 	TargetMax     *float64  `gorm:"column:target_max;type:decimal(12,4)"`
 	Tolerance     *float64  `gorm:"type:decimal(12,4)"`
 	Unit          string    `gorm:"size:16"`
-	Enabled       uint8     `gorm:"default:1"`
+	Enabled       bool      `gorm:"default:true"`
 	CreatedAt     time.Time `gorm:"autoCreateTime:milli"`
 	UpdatedAt     time.Time `gorm:"autoUpdateTime:milli"`
 }
@@ -56,7 +56,7 @@ type RecipeIonTarget struct {
 	IonCode       string    `gorm:"column:ion_code;size:8;not null"`
 	TargetMinMgL  *float64  `gorm:"column:target_min_mg_l;type:decimal(10,4)"`
 	TargetMaxMgL  *float64  `gorm:"column:target_max_mg_l;type:decimal(10,4)"`
-	Enabled       uint8     `gorm:"default:1"`
+	Enabled       bool      `gorm:"default:true"`
 	CreatedAt     time.Time `gorm:"autoCreateTime:milli"`
 	UpdatedAt     time.Time `gorm:"autoUpdateTime:milli"`
 }

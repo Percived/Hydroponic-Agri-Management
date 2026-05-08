@@ -11,6 +11,9 @@ import (
 func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
 	h := NewHandler(deps.MySQL)
 
+	// Start policy auto-scheduler (event-driven + timer-scan)
+	NewScheduler(deps.MySQL, deps.EventHub, deps.MQTT, deps.Log).Start()
+
 	pol := r.Group("/policies")
 	// ControlPolicy CRUD - Admin/Operator for writes, all roles for reads
 	pol.POST("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.CreatePolicy)

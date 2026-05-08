@@ -14,7 +14,7 @@ type CreatePolicyRequest struct {
 	Priority      *int       `json:"priority"`
 	RetryLimit    *uint8     `json:"retry_limit" binding:"omitempty,max=10"`
 	TimeoutSec    *uint      `json:"timeout_sec" binding:"omitempty,min=1"`
-	Enabled       *uint8     `json:"enabled" binding:"omitempty,oneof=0 1"`
+	Enabled       *bool      `json:"enabled"`
 	Version       *string    `json:"version" binding:"omitempty,min=1,max=32"`
 	EffectiveFrom *time.Time `json:"effective_from"`
 	EffectiveTo   *time.Time `json:"effective_to"`
@@ -28,7 +28,7 @@ type UpdatePolicyRequest struct {
 	Priority      *int       `json:"priority"`
 	RetryLimit    *uint8     `json:"retry_limit" binding:"omitempty,max=10"`
 	TimeoutSec    *uint      `json:"timeout_sec" binding:"omitempty,min=1"`
-	Enabled       *uint8     `json:"enabled" binding:"omitempty,oneof=0 1"`
+	Enabled       *bool      `json:"enabled"`
 	Version       *string    `json:"version" binding:"omitempty,min=1,max=32"`
 	EffectiveFrom *time.Time `json:"effective_from"`
 	EffectiveTo   *time.Time `json:"effective_to"`
@@ -45,7 +45,7 @@ type ControlPolicyResponse struct {
 	Priority      int                       `json:"priority"`
 	RetryLimit    uint8                     `json:"retry_limit"`
 	TimeoutSec    uint                      `json:"timeout_sec"`
-	Enabled       uint8                     `json:"enabled"`
+	Enabled       bool                      `json:"enabled"`
 	Version       string                    `json:"version"`
 	EffectiveFrom *time.Time                `json:"effective_from"`
 	EffectiveTo   *time.Time                `json:"effective_to"`
@@ -77,7 +77,7 @@ type CreatePolicyConditionRequest struct {
 	WindowSec           *uint    `json:"window_sec" binding:"omitempty,min=1"`
 	RequiredDurationSec *uint    `json:"required_duration_sec" binding:"omitempty,min=1"`
 	Aggregation         *string  `json:"aggregation" binding:"omitempty,oneof=avg max min last"`
-	Enabled             *uint8   `json:"enabled" binding:"omitempty,oneof=0 1"`
+	Enabled             *bool    `json:"enabled"`
 }
 
 // UpdatePolicyConditionRequest is the request body for updating a policy condition.
@@ -88,7 +88,7 @@ type UpdatePolicyConditionRequest struct {
 	WindowSec           *uint    `json:"window_sec" binding:"omitempty,min=1"`
 	RequiredDurationSec *uint    `json:"required_duration_sec" binding:"omitempty,min=1"`
 	Aggregation         *string  `json:"aggregation" binding:"omitempty,oneof=avg max min last"`
-	Enabled             *uint8   `json:"enabled" binding:"omitempty,oneof=0 1"`
+	Enabled             *bool    `json:"enabled"`
 }
 
 // PolicyConditionResponse is the response body for a policy condition.
@@ -102,7 +102,7 @@ type PolicyConditionResponse struct {
 	WindowSec           *uint     `json:"window_sec"`
 	RequiredDurationSec *uint     `json:"required_duration_sec"`
 	Aggregation         string    `json:"aggregation"`
-	Enabled             uint8     `json:"enabled"`
+	Enabled             bool      `json:"enabled"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 }
@@ -115,7 +115,7 @@ type CreatePolicyTargetRequest struct {
 	CommandType       string                 `json:"command_type" binding:"required,min=1,max=32"`
 	CommandPayload    map[string]interface{} `json:"command_payload" binding:"required"`
 	ExecutionOrder    *uint16                `json:"execution_order" binding:"omitempty,min=1"`
-	Enabled           *uint8                 `json:"enabled" binding:"omitempty,oneof=0 1"`
+	Enabled           *bool                  `json:"enabled"`
 }
 
 // UpdatePolicyTargetRequest is the request body for updating a policy target.
@@ -124,7 +124,7 @@ type UpdatePolicyTargetRequest struct {
 	CommandType       *string                `json:"command_type" binding:"omitempty,min=1,max=32"`
 	CommandPayload    map[string]interface{} `json:"command_payload"`
 	ExecutionOrder    *uint16                `json:"execution_order" binding:"omitempty,min=1"`
-	Enabled           *uint8                 `json:"enabled" binding:"omitempty,oneof=0 1"`
+	Enabled           *bool                  `json:"enabled"`
 }
 
 // PolicyTargetResponse is the response body for a policy target.
@@ -135,7 +135,7 @@ type PolicyTargetResponse struct {
 	CommandType       string    `json:"command_type"`
 	CommandPayload    string    `json:"command_payload"`
 	ExecutionOrder    uint16    `json:"execution_order"`
-	Enabled           uint8     `json:"enabled"`
+	Enabled           bool      `json:"enabled"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
 }
@@ -177,7 +177,7 @@ type ConditionWithTargets struct {
 	WindowSec           *uint                       `json:"window_sec"`
 	RequiredDurationSec *uint                       `json:"required_duration_sec"`
 	Aggregation         *string                     `json:"aggregation" binding:"omitempty,oneof=avg max min last"`
-	Enabled             *uint8                      `json:"enabled" binding:"omitempty,oneof=0 1"`
+	Enabled             *bool                       `json:"enabled"`
 	Targets             []CreatePolicyTargetRequest `json:"targets"`
 }
 
@@ -191,7 +191,7 @@ type CreatePolicyWithNestedRequest struct {
 	Priority      *int                   `json:"priority"`
 	RetryLimit    *uint8                 `json:"retry_limit"`
 	TimeoutSec    *uint                  `json:"timeout_sec"`
-	Enabled       *uint8                 `json:"enabled"`
+	Enabled       *bool                  `json:"enabled"`
 	Version       *string                `json:"version"`
 	EffectiveFrom *time.Time             `json:"effective_from"`
 	EffectiveTo   *time.Time             `json:"effective_to"`

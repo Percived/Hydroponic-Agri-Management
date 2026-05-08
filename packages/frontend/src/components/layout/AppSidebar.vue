@@ -18,16 +18,15 @@
         <el-menu-item index="/assets/sensor-devices">传感器设备</el-menu-item>
         <el-menu-item index="/assets/actuator-devices">执行器设备</el-menu-item>
         <el-menu-item v-if="isAdmin" index="/assets/greenhouses">温室管理</el-menu-item>
-        <el-menu-item v-if="canOperate" index="/assets/growing-zones">种植区管理</el-menu-item>
+        <el-menu-item v-if="canControl" index="/assets/growing-zones">种植区管理</el-menu-item>
       </el-sub-menu>
       <el-sub-menu index="collection">
         <template #title>
           <el-icon><TrendCharts /></el-icon>
           <span>采集中心</span>
         </template>
-        <el-menu-item index="/collection/realtime">实时曲线</el-menu-item>
-        <el-menu-item index="/collection/history">历史趋势</el-menu-item>
-        <el-menu-item index="/collection/batch-trends">批次趋势</el-menu-item>
+        <el-menu-item index="/collection/overview">实时总览</el-menu-item>
+        <el-menu-item index="/collection/trends">趋势分析</el-menu-item>
       </el-sub-menu>
       <el-sub-menu v-if="canControl" index="strategy">
         <template #title>
@@ -62,7 +61,7 @@
         </template>
         <el-menu-item index="/batches/ledger">批次台账</el-menu-item>
         <el-menu-item index="/batches/harvest">采收记录</el-menu-item>
-        <el-menu-item v-if="canOperate" index="/batches/stage-plans">阶段计划</el-menu-item>
+        <el-menu-item v-if="canControl" index="/batches/stage-plans">阶段计划</el-menu-item>
         <el-menu-item index="/batches/review">批次复盘</el-menu-item>
       </el-sub-menu>
       <el-menu-item index="/pest/observations">
@@ -104,7 +103,6 @@ const activeMenu = computed(() => {
 })
 
 const canControl = computed(() => canControlDevice())
-const canOperate = computed(() => hasRole(Role.ADMIN) || hasRole(Role.OPERATOR))
 const isAdmin = computed(() => hasRole(Role.ADMIN))
 </script>
 

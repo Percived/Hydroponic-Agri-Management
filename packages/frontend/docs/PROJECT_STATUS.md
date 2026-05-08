@@ -1,8 +1,8 @@
 # 项目状态
 
-最后更新: 2026-05-06
+最后更新: 2026-05-07
 负责人: 前端团队
-版本: v0.7.0（全领域覆盖）
+版本: v0.8.0（SSE 实时推送就绪、仪表盘类型对齐）
 
 ## 1. 项目概述
 
@@ -11,7 +11,12 @@
 
 ## 2. 当前交付状态
 
-总体评估：26 条路由全部实现，覆盖认证、仪表盘、资产中心、采集中心、策略控制、营养液、告警、批次、植保、能耗、管理、系统设置 12 个业务领域。TypeScript 类型检查通过（vue-tsc --noEmit），生产构建通过（npm run build）。
+总体评估：26 条路由全部实现，覆盖认证、仪表盘、资产中心、采集中心、策略控制、营养液、告警、批次、植保、能耗、管理、系统设置 12 个业务领域。TypeScript 类型检查除预存问题外通过（vue-tsc --noEmit），生产构建通过（npm run build）。
+
+### v0.8.0 变更（2026-05-07）
+
+- **SSE 实时推送就绪**：后端 SSE 端点（`/api/alerts/subscribe`、`/api/telemetry/subscribe`）已开通，前端 `useAlertSSE` 在 AppHeader 挂载，实时告警计数 + 浏览器通知可用。
+- **仪表盘类型对齐**：`DashboardOverview` 新增 `devices_online/offline/total`、`device_type_distribution` 字段，与后端 v2.3.0 响应对齐；温室设备数修正为 `sensor_count + actuator_count`。
 
 ### 已完成路由表（26 条）
 
@@ -134,7 +139,7 @@ src/
 
 ### P1 - 高优先级
 
-- SSE 实时数据（useAlertSSE / useTelemetrySSE）在 composables 中有实现，但未在所有页面中充分集成展示（当前仅仪表盘与部分 telemetry 页面使用）。
+- SSE 实时数据后端已就绪（`GET /api/alerts/subscribe`、`GET /api/telemetry/subscribe`），前端 composables（`useAlertSSE`、`useTelemetrySSE`）已在 AppHeader 中挂载，实时告警计数可用。telemetry 实时曲线页面仍使用 polling 作为降级方案。
 - 批量操作 UI 目前通过 el-dropdown + el-dialog 实现，后续可能需要优化为大面板 + 进度条的体验。
 - 移动端适配虽有规划（FRONTEND_PRD.md §4），但当前仅基于 Element Plus 默认响应式，未专门适配。
 
@@ -147,10 +152,11 @@ src/
 ## 5. 后续步骤（按顺序）
 
 1. 引入自动化测试框架（vitest + vue-test-utils），为首批关键页面添加冒烟测试。
-2. 完善 SSE 实时数据在仪表盘/设备详情页的集成展示（实时推送 + 动态图表更新）。
+2. 完善 SSE 实时数据在仪表盘/设备详情页的集成展示（实时推送 + 动态图表更新），telemetry 实时曲线从 polling 迁移至 SSE。
 3. 优化批量操作体验：进度条、分批处理状态、失败重试。
 4. 移动端适配实现（侧边栏 → 底部导航，表格 → 卡片列表）。
 5. 抽取通用业务组件（DeviceCard, TelemetryCard, BatchOperationDialog）。
+6. 修复 recipes/index.vue 和 alerts/index.vue 中的类型错误（RecipeTarget、AlertStats 接口不匹配）。
 
 ## 6. 运维命令
 
