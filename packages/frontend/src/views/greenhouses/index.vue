@@ -1,243 +1,343 @@
 <template>
-    <div class="greenhouses-page">
-      <div class="page-header">
-        <h1 class="page-title">温室管理</h1>
-        <el-button type="primary" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon>
-          新增温室
-        </el-button>
-      </div>
-
-      <!-- 筛选区 -->
-      <div class="filter-section">
-        <el-input v-model="filters.keyword" placeholder="搜索温室名称" clearable style="width: 200px" />
-        <el-button type="primary" @click="fetchData">查询</el-button>
-        <el-button @click="resetFilters">重置</el-button>
-      </div>
-
-      <!-- 温室列表 -->
-      <div class="table-container">
-        <el-table :data="greenhouses" v-loading="loading" stripe>
-          <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="name" label="温室名称" width="150" />
-          <el-table-column prop="location" label="位置" width="150">
-            <template #default="{ row }">
-              {{ row.location || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="description" label="描述" min-width="200">
-            <template #default="{ row }">
-              {{ row.description || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="created_at" label="创建时间" width="180">
-            <template #default="{ row }">
-              {{ formatDateTime(row.created_at) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="230" fixed="right">
-            <template #default="{ row }">
-              <el-button type="primary" link @click="openEditDialog(row)">编辑</el-button>
-              <el-button type="primary" link @click="goGroups(row)">分组管理</el-button>
-              <el-button type="success" link @click="goZones(row)">种植区</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <!-- 分页 -->
-        <div class="pagination-container">
-          <el-pagination
-            v-model:current-page="pagination.page"
-            v-model:page-size="pagination.pageSize"
-            :total="total"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next, jumper"
-            @size-change="fetchData"
-            @current-change="fetchData"
-          />
-        </div>
-      </div>
-
-      <!-- 新增/编辑弹窗 -->
-      <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑温室' : '新增温室'" width="500px">
-        <el-form ref="formRef" :model="formData" :rules="formRules" label-width="80px">
-          <el-form-item label="名称" prop="name">
-            <el-input v-model="formData.name" placeholder="请输入温室名称" maxlength="64" />
-          </el-form-item>
-          <el-form-item label="位置" prop="location">
-            <el-input v-model="formData.location" placeholder="请输入位置（可选）" maxlength="128" />
-          </el-form-item>
-          <el-form-item label="描述" prop="description">
-            <el-input
-              v-model="formData.description"
-              type="textarea"
-              :rows="3"
-              placeholder="请输入描述（可选）"
-              maxlength="255"
-              show-word-limit
-            />
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
-        </template>
-      </el-dialog>
+  <div class="greenhouses-page">
+    <div class="page-header">
+      <h1 class="page-title">温室管理</h1>
+      <el-button v-if="isAdmin" type="primary" @click="openCreateDialog">
+        <el-icon><Plus /></el-icon>
+        新增温室
+      </el-button>
     </div>
+
+    <!-- 筛选区 -->
+    <div class="filter-section">
+      <el-input
+        v-model="filters.keyword"
+        placeholder="搜索温室名称"
+        clearable
+        style="width: 200px"
+      />
+      <el-button type="primary" @click="fetchData">查询</el-button>
+      <el-button @click="resetFilters">重置</el-button>
+    </div>
+
+    <!-- 温室列表 -->
+    <div class="table-container">
+      <el-table :data="greenhouses" v-loading="loading" stripe>
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="name" label="温室名称" width="150" />
+        <el-table-column prop="status" label="状态" width="140">
+          <template #default="{ row }">
+            <el-switch
+              v-if="isAdmin"
+              v-model="row.status"
+              active-value="ENABLED"
+              inactive-value="DISABLED"
+              :loading="statusLoading[row.id] === true"
+              @change="(val: 'ENABLED' | 'DISABLED') => updateStatus(row, val)"
+            />
+            <el-tag
+              v-else
+              :type="row.status === 'ENABLED' ? 'success' : 'info'"
+            >
+              {{ row.status === "ENABLED" ? "启用" : "停用" }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="location" label="位置" width="150">
+          <template #default="{ row }">
+            {{ row.location || "-" }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="description" label="描述" min-width="200">
+          <template #default="{ row }">
+            {{ row.description || "-" }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="创建时间" width="180">
+          <template #default="{ row }">
+            {{ formatDateTime(row.created_at) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="230" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              v-if="isAdmin"
+              type="primary"
+              link
+              @click="openEditDialog(row)"
+              >编辑</el-button
+            >
+            <el-button v-if="isAdmin" type="primary" link @click="goGroups(row)"
+              >分组管理</el-button
+            >
+            <el-button type="success" link @click="goZones(row)"
+              >种植区</el-button
+            >
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <!-- 分页 -->
+      <div class="pagination-container">
+        <el-pagination
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.pageSize"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="fetchData"
+          @current-change="fetchData"
+        />
+      </div>
+    </div>
+
+    <!-- 新增/编辑弹窗 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="isEdit ? '编辑温室' : '新增温室'"
+      width="500px"
+    >
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        label-width="80px"
+      >
+        <el-form-item label="名称" prop="name">
+          <el-input
+            v-model="formData.name"
+            placeholder="请输入温室名称"
+            maxlength="64"
+          />
+        </el-form-item>
+        <el-form-item label="位置" prop="location">
+          <el-input
+            v-model="formData.location"
+            placeholder="请输入位置（可选）"
+            maxlength="128"
+          />
+        </el-form-item>
+        <el-form-item label="描述" prop="description">
+          <el-input
+            v-model="formData.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入描述（可选）"
+            maxlength="255"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button
+          v-if="isAdmin"
+          type="primary"
+          :loading="submitLoading"
+          @click="handleSubmit"
+          >确定</el-button
+        >
+      </template>
+    </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage, FormInstance, FormRules } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { greenhouseApi } from '@/api'
-import { formatDateTime } from '@/utils/format'
-import type { Greenhouse } from '@/types'
+import { ref, reactive, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { ElMessage, FormInstance, FormRules } from "element-plus";
+import { Plus } from "@element-plus/icons-vue";
+import { greenhouseApi } from "@/api";
+import { usePermission } from "@/composables/usePermission";
+import { formatDateTime } from "@/utils/format";
+import { Role } from "@/types";
+import type { Greenhouse } from "@/types";
 
 // 表单数据类型（GreenhouseFormData 不存在于 @/types，此处本地定义）
 interface GreenhouseFormData {
-  name: string
-  location: string
-  description: string
+  name: string;
+  location: string;
+  description: string;
 }
 
-const router = useRouter()
+const router = useRouter();
+const { hasRole } = usePermission();
+const isAdmin = computed(() => hasRole(Role.ADMIN));
 
 // 数据
-const loading = ref(false)
-const greenhouses = ref<Greenhouse[]>([])
-const total = ref(0)
+const loading = ref(false);
+const greenhouses = ref<Greenhouse[]>([]);
+const total = ref(0);
+const statusLoading = reactive<Record<number, boolean>>({});
 
 // 筛选条件
 const filters = reactive({
-  keyword: ''
-})
+  keyword: "",
+});
 
 // 分页
 const pagination = reactive({
   page: 1,
-  pageSize: 20
-})
+  pageSize: 20,
+});
 
 // 弹窗
-const dialogVisible = ref(false)
-const isEdit = ref(false)
-const formRef = ref<FormInstance>()
-const submitLoading = ref(false)
-const editingId = ref<number | null>(null)
+const dialogVisible = ref(false);
+const isEdit = ref(false);
+const formRef = ref<FormInstance>();
+const submitLoading = ref(false);
+const editingId = ref<number | null>(null);
 
 const formData = reactive<GreenhouseFormData>({
-  name: '',
-  location: '',
-  description: ''
-})
+  name: "",
+  location: "",
+  description: "",
+});
 
 const formRules: FormRules = {
   name: [
-    { required: true, message: '请输入温室名称', trigger: 'blur' },
-    { min: 1, max: 64, message: '温室名称长度为 1-64 个字符', trigger: 'blur' }
-  ]
-}
+    { required: true, message: "请输入温室名称", trigger: "blur" },
+    { min: 1, max: 64, message: "温室名称长度为 1-64 个字符", trigger: "blur" },
+  ],
+};
 
 // 获取数据
 async function fetchData() {
-  loading.value = true
+  loading.value = true;
   try {
     const data = await greenhouseApi.getGreenhouses({
       page: pagination.page,
       page_size: pagination.pageSize,
-      keyword: filters.keyword || undefined
-    })
-    greenhouses.value = data.items
-    total.value = data.total
+      keyword: filters.keyword || undefined,
+    });
+    greenhouses.value = data.items;
+    total.value = data.total;
   } catch {
     // 错误已处理
   } finally {
-    loading.value = false
+    loading.value = false;
+  }
+}
+
+async function updateStatus(
+  greenhouse: Greenhouse,
+  status: "ENABLED" | "DISABLED",
+) {
+  if (!isAdmin.value) {
+    ElMessage.error("没有权限执行此操作");
+    greenhouse.status = status === "ENABLED" ? "DISABLED" : "ENABLED";
+    return;
+  }
+  const prev = status === "ENABLED" ? "DISABLED" : "ENABLED";
+  statusLoading[greenhouse.id] = true;
+  try {
+    await greenhouseApi.updateGreenhouse(greenhouse.id, { status });
+    ElMessage.success(status === "ENABLED" ? "已启用" : "已停用");
+  } catch {
+    greenhouse.status = prev;
+  } finally {
+    statusLoading[greenhouse.id] = false;
   }
 }
 
 // 重置筛选
 function resetFilters() {
-  filters.keyword = ''
-  pagination.page = 1
-  fetchData()
+  filters.keyword = "";
+  pagination.page = 1;
+  fetchData();
 }
 
 // 打开新增弹窗
 function openCreateDialog() {
-  isEdit.value = false
-  editingId.value = null
+  if (!isAdmin.value) {
+    ElMessage.error("没有权限执行此操作");
+    return;
+  }
+  isEdit.value = false;
+  editingId.value = null;
   Object.assign(formData, {
-    name: '',
-    location: '',
-    description: ''
-  })
-  dialogVisible.value = true
+    name: "",
+    location: "",
+    description: "",
+  });
+  dialogVisible.value = true;
 }
 
 // 打开编辑弹窗
 function openEditDialog(greenhouse: Greenhouse) {
-  isEdit.value = true
-  editingId.value = greenhouse.id
+  if (!isAdmin.value) {
+    ElMessage.error("没有权限执行此操作");
+    return;
+  }
+  isEdit.value = true;
+  editingId.value = greenhouse.id;
   Object.assign(formData, {
     name: greenhouse.name,
-    location: greenhouse.location || '',
-    description: greenhouse.description || ''
-  })
-  dialogVisible.value = true
+    location: greenhouse.location || "",
+    description: greenhouse.description || "",
+  });
+  dialogVisible.value = true;
 }
 
 // 提交表单
 async function handleSubmit() {
-  if (!formRef.value) return
+  if (!isAdmin.value) {
+    ElMessage.error("没有权限执行此操作");
+    return;
+  }
+  if (!formRef.value) return;
   try {
-    await formRef.value.validate()
+    await formRef.value.validate();
   } catch {
-    return
+    return;
   }
 
-  submitLoading.value = true
+  submitLoading.value = true;
   try {
     if (isEdit.value && editingId.value) {
       await greenhouseApi.updateGreenhouse(editingId.value, {
         name: formData.name,
         location: formData.location || undefined,
-        description: formData.description || undefined
-      })
-      ElMessage.success('温室更新成功')
+        description: formData.description || undefined,
+      });
+      ElMessage.success("温室更新成功");
     } else {
       await greenhouseApi.createGreenhouse({
         code: `GH-${Date.now().toString().slice(-6)}`,
         name: formData.name,
         location: formData.location || undefined,
-        description: formData.description || undefined
-      })
-      ElMessage.success('温室创建成功')
+        description: formData.description || undefined,
+      });
+      ElMessage.success("温室创建成功");
     }
-    dialogVisible.value = false
-    fetchData()
+    dialogVisible.value = false;
+    fetchData();
   } catch {
     // 错误已处理
   } finally {
-    submitLoading.value = false
+    submitLoading.value = false;
   }
 }
 
 // 跳转分组管理
 function goGroups(greenhouse: Greenhouse) {
-  router.push({ path: '/device-groups', query: { greenhouse_id: greenhouse.id } })
+  router.push({
+    path: "/device-groups",
+    query: { greenhouse_id: greenhouse.id },
+  });
 }
 
 // 跳转种植区管理
 function goZones(greenhouse: Greenhouse) {
-  router.push({ path: '/assets/growing-zones', query: { greenhouse_id: greenhouse.id } })
+  router.push({
+    path: "/assets/growing-zones",
+    query: { greenhouse_id: greenhouse.id },
+  });
 }
 
 onMounted(() => {
-  fetchData()
-})
+  fetchData();
+});
 </script>
 
 <style scoped lang="scss">

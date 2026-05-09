@@ -1,8 +1,41 @@
 # 交接文档
 
-最后更新: 2026-05-08
+最后更新: 2026-05-09
 当前分支: version2
 当前重点: v0.8.1 — 气候模块前端修复
+
+## 最新变更 (2026-05-09)
+
+### 资产中心权限与启停
+
+- **`src/views/devices/list.vue`**
+  - 资产中心设备列表：新增/删除/提交按钮按角色控制（VIEWER 只读；ADMIN/OPERATOR 可新增；删除仅 ADMIN）
+- **`src/views/devices/detail.vue`**
+  - 设备详情：编辑设备/通道增改按角色控制（ADMIN/OPERATOR）
+  - 通道启停：`enabled` 支持开关切换（调用 `PUT /api/sensor-channels/:id`、`PUT /api/actuator-channels/:id`）
+  - 修复编辑设备/编辑通道弹窗打开后被 `resetFields()` 清空的问题
+- **`src/views/greenhouses/index.vue`**
+  - 温室启停：`status` 支持开关切换（ENABLED/DISABLED，调用 `PUT /api/greenhouses/:id`）
+- **`src/views/greenhouses/zones.vue`**
+  - 种植区启停：`status` 支持开关切换（ENABLED/DISABLED，调用 `PUT /api/growing-zones/:id`）
+  - 删除取消不再抛异常；编辑/新增按角色控制（ADMIN/OPERATOR），删除仅 ADMIN
+- **`src/views/alerts/index.vue`**
+  - 补齐 `AlertStats.ignored_count` 默认值，保证类型检查通过
+- **构建说明**
+  - `npm run type-check` / `npm run build` 在部分环境下可能出现 node 内存不足，需要设置 `NODE_OPTIONS=--max-old-space-size=4096`
+
+### 采集中心趋势图修复
+
+- **`src/views/telemetry/overview.vue`**
+  - 修复 SSE 趋势缓冲区重复追加问题：只有通道最新事件真正变化时才写入趋势数组
+  - 趋势点追加改为幂等处理，避免 EventSource 重连或其他通道更新时把旧点重复写回同一条曲线
+  - 历史趋势回填改为统一排序和去重，保证图表输入始终按采集时间升序
+- **`src/views/telemetry/trendBuffer.ts`** (新增):
+  - 抽离 `appendTrendPoint` / `normalizeTrendPoints`，统一处理趋势点去重、排序、缓冲区裁剪
+- **`tests/telemetry/trend-buffer.test.ts`** (新增):
+  - 回归覆盖重复 SSE 点不重复追加
+  - 回归覆盖迟到点插入后仍保持时间升序
+  - 回归覆盖历史数据归一化时去重与排序
 
 ## 最新变更 (2026-05-08)
 

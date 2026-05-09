@@ -95,7 +95,7 @@ const canHandle = computed(() => canControlDevice())
 
 const loading = ref(false)
 const alerts = ref<Alert[]>([])
-const stats = ref<AlertStats>({ open_count: 0, acknowledged_count: 0, resolved_count: 0, critical_count: 0, warn_count: 0, info_count: 0 })
+const stats = ref<AlertStats>({ open_count: 0, acknowledged_count: 0, resolved_count: 0, ignored_count: 0, critical_count: 0, warn_count: 0, info_count: 0 })
 const total = ref(0)
 
 const filters = reactive({

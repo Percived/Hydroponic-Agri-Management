@@ -83,13 +83,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { deviceApi, greenhouseApi, telemetryApi } from '@/api'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import { formatDate, formatNumber, getMetricName } from '@/utils/format'
 import { useTelemetrySSE } from '@/composables/useTelemetrySSE'
 import type { SensorDevice, SensorChannel, Greenhouse, GrowingZone, ChannelSnapshot } from '@/types'
 import MetricTrendChart from '@/components/charts/MetricTrendChart.vue'
+import { appendTrendPoint, normalizeTrendPoints } from './trendBuffer'
 
 const greenhouses = ref<Greenhouse[]>([])
 const zones = ref<GrowingZone[]>([])
@@ -146,22 +147,30 @@ const chartSeries = computed(() => {
 // Watch SSE channelValues and update snapshots
 watch(
   () => channelValues.value,
-  (map) => {
+  (map, previousMap) => {
     if (map.size === 0) return
     const flash = new Set<number>()
 
     snapshots.value = snapshots.value.map((snap) => {
       const evt = map.get(snap.channel_id)
       if (!evt) return snap
+
+      const prevEvt = previousMap?.get(snap.channel_id)
+      const changed = !prevEvt
+        || prevEvt.collected_at !== evt.collected_at
+        || prevEvt.value !== evt.value
+        || prevEvt.metric_code !== evt.metric_code
+
+      if (!changed) return snap
       flash.add(snap.channel_id)
 
-      // Update trend buffer keyed by channel_id
-      if (!trendBuffer.value[evt.sensor_channel_id]) {
-        trendBuffer.value[evt.sensor_channel_id] = []
-      }
-      const buf = trendBuffer.value[evt.sensor_channel_id]
-      buf.push({ time: evt.collected_at, value: evt.value })
-      if (buf.length > MAX_BUFFER) buf.shift()
+      // Keep each channel series ordered and idempotent when SSE reconnects or replays the last point.
+      const buf = trendBuffer.value[evt.sensor_channel_id] || []
+      trendBuffer.value[evt.sensor_channel_id] = appendTrendPoint(
+        buf,
+        { time: evt.collected_at, value: evt.value },
+        MAX_BUFFER
+      )
 
       return {
         ...snap,
@@ -301,9 +310,10 @@ async function onDeviceChange() {
         )
         for (const { chId, items } of historyResults) {
           if (items.length > 0) {
-            trendBuffer.value[chId] = items
-              .map((r) => ({ time: r.collected_at, value: r.value }))
-              .reverse()
+            trendBuffer.value[chId] = normalizeTrendPoints(
+              items.map((r) => ({ time: r.collected_at, value: r.value })),
+              MAX_BUFFER
+            )
           }
         }
       } catch {
@@ -339,10 +349,6 @@ function qualityTagType(flag: string): string {
 
 onMounted(() => {
   loadGreenhouses()
-})
-
-onUnmounted(() => {
-  // SSE disconnect handled by composable's onUnmounted via component lifecycle
 })
 </script>
 

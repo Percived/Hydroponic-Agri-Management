@@ -3,7 +3,7 @@
       <div class="page-header">
         <h1 class="page-title">设备管理</h1>
         <div class="header-actions">
-          <el-button type="primary" @click="openCreateDialog">
+          <el-button v-if="canManage" type="primary" @click="openCreateDialog">
             <el-icon><Plus /></el-icon>新增设备
           </el-button>
         </div>
@@ -72,7 +72,7 @@
           <el-table-column label="操作" width="120" fixed="right">
             <template #default="{ row }">
               <el-button type="primary" link @click="goDetail(row.id)">详情</el-button>
-              <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+              <el-button v-if="canDelete" type="danger" link @click="handleDelete(row)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -152,7 +152,7 @@
         </el-form>
         <template #footer>
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+          <el-button v-if="canManage" type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
         </template>
       </el-dialog>
     </div>
@@ -164,13 +164,16 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { deviceApi, greenhouseApi, metricApi, cropApi } from '@/api'
+import { usePermission } from '@/composables/usePermission'
 import { formatDate } from '@/utils/format'
 import { actuatorTypeOptions } from '@/utils/device'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
+import { Role } from '@/types'
 import type { SensorDevice, ActuatorDevice, Greenhouse, GrowingZone, MetricDefinition } from '@/types'
 
 const router = useRouter()
 const route = useRoute()
+const { canControlDevice, hasRole } = usePermission()
 
 type AnyDevice = SensorDevice | ActuatorDevice
 
@@ -184,6 +187,8 @@ const greenhouses = ref<Greenhouse[]>([])
 const growingZones = ref<GrowingZone[]>([])
 const channelCountMap = ref<Record<number, number>>({})
 const batchBindingMap = ref<Record<number, { batch_id: number; batch_no: string }>>({})
+const canManage = computed(() => canControlDevice())
+const canDelete = computed(() => hasRole(Role.ADMIN))
 
 const filters = reactive({
   status: '' as string,
@@ -405,6 +410,10 @@ function resetFilters() {
 }
 
 function openCreateDialog() {
+  if (!canManage.value) {
+    ElMessage.error('没有权限执行此操作')
+    return
+  }
   isEdit.value = false
   editingId.value = null
   formData.device_code = ''
@@ -416,10 +425,14 @@ function openCreateDialog() {
   formData.growing_zone_id = undefined
   channelDrafts.value = []
   dialogVisible.value = true
-  formRef.value?.resetFields()
+  formRef.value?.clearValidate()
 }
 
 async function handleSubmit() {
+  if (!canManage.value) {
+    ElMessage.error('没有权限执行此操作')
+    return
+  }
   if (!formRef.value) return
   try { await formRef.value.validate() } catch { return }
 
@@ -499,6 +512,10 @@ async function handleSubmit() {
 }
 
 async function handleDelete(device: AnyDevice) {
+  if (!canDelete.value) {
+    ElMessage.error('没有权限执行此操作')
+    return
+  }
   try {
     await ElMessageBox.confirm(`确认删除设备「${device.name}」？此操作不可撤销。`, '警告', {
       type: 'warning',
