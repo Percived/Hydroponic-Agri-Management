@@ -24,6 +24,22 @@
 - **构建说明**
   - `npm run type-check` / `npm run build` 在部分环境下可能出现 node 内存不足，需要设置 `NODE_OPTIONS=--max-old-space-size=4096`
 
+### 采集中心可用性提升：SSE 生命周期 + 过滤生效 + 错误可见
+
+- **`src/composables/useTelemetrySSE.ts`**
+  - 新增连接状态：`status`（disconnected/connecting/connected/error）与 `lastError`
+  - 订阅 URL 支持过滤参数：`device_codes`、`metric_codes`
+- **`src/views/telemetry/overview.vue`**
+  - 页面挂载自动连接 SSE，离开页面断开
+  - 顶部显示连接状态，连接失败可手动重连
+  - 级联加载/通道加载增加竞态保护（避免快速切换时旧请求覆盖新状态）
+  - 加载失败显示错误提示与“重试”
+- **`src/views/telemetry/trends.vue`**
+  - 级联加载增加竞态保护
+  - 加载失败显示错误提示与“重试”
+- **`src/types/telemetry.ts`**
+  - `quality_flag` 枚举对齐后端：`normal/missing/out_of_range/device_offline`
+
 ### 采集中心趋势图修复
 
 - **`src/views/telemetry/overview.vue`**

@@ -223,6 +223,7 @@ func (s *IngressService) handleTelemetry(deviceCode string, payload []byte) {
 				"sensor_channel_id": rec.SensorChannelID,
 				"metric_code":       rec.MetricCode,
 				"value":             rec.Value,
+					"quality_flag":      rec.QualityFlag,
 				"collected_at":      rec.CollectedAt.Format(time.RFC3339),
 				"device_code":       deviceCode,
 			},

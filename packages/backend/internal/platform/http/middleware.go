@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"log/slog"
+	"net/url"
 	"strings"
 	"time"
 
@@ -45,9 +46,12 @@ func RequestLogger(log *slog.Logger) gin.HandlerFunc {
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 		}
 
-		// Wrap response writer to capture response body
-		rw := &responseWriter{ResponseWriter: c.Writer, body: &bytes.Buffer{}}
-		c.Writer = rw
+		isSubscribe := strings.HasPrefix(c.Request.URL.Path, "/api/") && strings.HasSuffix(c.Request.URL.Path, "/subscribe")
+		var rw *responseWriter
+		if !isSubscribe {
+			rw = &responseWriter{ResponseWriter: c.Writer, body: &bytes.Buffer{}}
+			c.Writer = rw
+		}
 
 		c.Next()
 
@@ -57,7 +61,7 @@ func RequestLogger(log *slog.Logger) gin.HandlerFunc {
 		logArgs := []any{
 			"method", c.Request.Method,
 			"path", c.Request.URL.Path,
-			"query", c.Request.URL.RawQuery,
+			"query", sanitizeQuery(c.Request.URL.RawQuery),
 			"status", c.Writer.Status(),
 			"latency_ms", latency.Milliseconds(),
 			"request_id", c.GetString("request_id"),
@@ -72,9 +76,11 @@ func RequestLogger(log *slog.Logger) gin.HandlerFunc {
 		}
 
 		// Log response body (limit size)
-		responseBody := rw.body.Bytes()
-		if len(responseBody) > 0 && len(responseBody) < 4096 {
-			logArgs = append(logArgs, "response_body", string(responseBody))
+		if !isSubscribe && rw != nil {
+			responseBody := rw.body.Bytes()
+			if len(responseBody) > 0 && len(responseBody) < 4096 {
+				logArgs = append(logArgs, "response_body", string(responseBody))
+			}
 		}
 
 		if c.Writer.Status() >= 400 {
@@ -83,6 +89,23 @@ func RequestLogger(log *slog.Logger) gin.HandlerFunc {
 			log.Info("http_request", logArgs...)
 		}
 	}
+}
+
+func sanitizeQuery(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	v, err := url.ParseQuery(raw)
+	if err != nil {
+		return ""
+	}
+	for key := range v {
+		lk := strings.ToLower(key)
+		if lk == "token" || strings.Contains(lk, "token") {
+			v.Set(key, "REDACTED")
+		}
+	}
+	return v.Encode()
 }
 
 // CORS allows browser-based demo requests. It is intentionally permissive.

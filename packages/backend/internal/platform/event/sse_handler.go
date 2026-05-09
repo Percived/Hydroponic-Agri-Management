@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,6 +31,25 @@ func SSEHandler(hub *Hub, internalType string) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
+		deviceCodeSet := map[string]struct{}{}
+		metricCodeSet := map[string]struct{}{}
+		if mapping.internal == "telemetry:received" {
+			for _, v := range strings.Split(c.Query("device_codes"), ",") {
+				v = strings.TrimSpace(v)
+				if v == "" {
+					continue
+				}
+				deviceCodeSet[v] = struct{}{}
+			}
+			for _, v := range strings.Split(c.Query("metric_codes"), ",") {
+				v = strings.TrimSpace(v)
+				if v == "" {
+					continue
+				}
+				metricCodeSet[v] = struct{}{}
+			}
+		}
+
 		c.Header("Content-Type", "text/event-stream")
 		c.Header("Cache-Control", "no-cache")
 		c.Header("Connection", "keep-alive")
@@ -41,6 +62,8 @@ func SSEHandler(hub *Hub, internalType string) gin.HandlerFunc {
 			c.String(http.StatusInternalServerError, "streaming not supported")
 			return
 		}
+		_, _ = io.WriteString(w, "retry: 2000\n\n")
+		flusher.Flush()
 
 		sub := hub.Subscribe(func(e SSEEvent) bool {
 			return e.Type == mapping.internal
@@ -55,10 +78,57 @@ func SSEHandler(hub *Hub, internalType string) gin.HandlerFunc {
 				if !ok {
 					return
 				}
+				if mapping.internal == "telemetry:received" {
+					dataMap, ok := evt.Data.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					if len(deviceCodeSet) > 0 {
+						if v, ok := dataMap["device_code"].(string); !ok || v == "" {
+							continue
+						} else {
+							if _, ok := deviceCodeSet[v]; !ok {
+								continue
+							}
+						}
+					}
+					if len(metricCodeSet) > 0 {
+						if v, ok := dataMap["metric_code"].(string); !ok || v == "" {
+							continue
+						} else {
+							if _, ok := metricCodeSet[v]; !ok {
+								continue
+							}
+						}
+					}
+				}
 				evt.Type = mapping.client
 				data, err := FormatSSE(evt)
 				if err != nil {
 					continue
+				}
+				id := ""
+				if mapping.internal == "telemetry:received" {
+					if dataMap, ok := evt.Data.(map[string]interface{}); ok {
+						if v, ok := dataMap["collected_at"].(string); ok && v != "" {
+							id = v
+						}
+					}
+				}
+				if id == "" {
+					if dataMap, ok := evt.Data.(map[string]interface{}); ok {
+						if v, ok := dataMap["id"]; ok {
+							id = fmt.Sprint(v)
+						}
+					} else if v := fmt.Sprint(evt.Data); v != "" {
+						id = fmt.Sprint(v)
+					}
+				}
+				if id == "" {
+					id = fmt.Sprint(time.Now().UnixMilli())
+				}
+				if _, err := io.WriteString(w, "id: "+id+"\n"); err != nil {
+					return
 				}
 				if _, err := io.WriteString(w, string(data)); err != nil {
 					return

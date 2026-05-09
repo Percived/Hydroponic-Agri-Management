@@ -648,6 +648,41 @@ paths:
       responses:
         "200":
           description: OK
+  /api/telemetry/subscribe:
+    get:
+      tags: [telemetry]
+      summary: Subscribe telemetry SSE stream
+      description: |
+        Server-Sent Events subscription for real-time telemetry updates.
+        Supports optional filtering by device_codes / metric_codes.
+        For browsers where headers cannot be customized (EventSource), token can be provided via query.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: token
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: device_codes
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Comma-separated device codes, e.g. SENSOR-001,SENSOR-002
+        - name: metric_codes
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Comma-separated metric codes, e.g. TEMP,PH,EC
+      responses:
+        "200":
+          description: OK (text/event-stream)
+          content:
+            text/event-stream:
+              schema:
+                type: string
   /api/telemetry/channels/{channelId}/latest:
     parameters:
       - name: channelId

@@ -1,8 +1,23 @@
 # 交接文档
 
-最后更新: 2026-05-08
+最后更新: 2026-05-09
 当前分支: version2
 当前重点: v2.3.1 气候模块自动调度器 + 前端修复
+
+## 最新变更 (2026-05-09)
+
+### 采集中心可用性提升：SSE 过滤 + 稳定性增强
+
+- **`internal/platform/event/sse_handler.go`**
+  - `/api/telemetry/subscribe` 支持 query 过滤：`device_codes`、`metric_codes`
+  - SSE 增强：连接下发 `retry`；每条消息增加 `id`（优先使用 `collected_at`）
+- **`internal/platform/http/middleware.go`**
+  - `RequestLogger` 对 `/api/*/subscribe` 跳过响应体捕获，避免 SSE 长连接导致内存持续增长
+  - 日志 query 对 `token` 参数脱敏
+- **`internal/platform/mqtt/ingress.go`**
+  - `telemetry:received` SSE payload 增加 `quality_flag`
+- **文档**
+  - `shared/docs/API_SPEC.md`、`shared/docs/openapi.yaml` 补齐 `/api/telemetry/subscribe` 参数说明
 
 ## 最新变更 (2026-05-08)
 
