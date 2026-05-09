@@ -84,15 +84,18 @@ func (h *Handler) ListExecutionLogs(c *gin.Context) {
 	items := make([]ClimateExecutionLogResponse, 0, len(logs))
 	for _, l := range logs {
 		resp := ClimateExecutionLogResponse{
-			ID:                   l.ID,
-			ProfileID:            l.ProfileID,
-			ProfileName:          profileName,
-			FromStageLevel:       l.FromStageLevel,
-			ToStageLevel:         l.ToStageLevel,
-			TriggerValue:         l.TriggerValue,
-			ExecutedActionsCount: l.ExecutedActionsCount,
-			ExecutedAt:           l.ExecutedAt,
-			CreatedAt:            l.CreatedAt,
+			ID:                     l.ID,
+			ProfileID:              l.ProfileID,
+			ProfileName:            profileName,
+			FromStageLevel:         l.FromStageLevel,
+			ToStageLevel:           l.ToStageLevel,
+			TriggerValue:           l.TriggerValue,
+			TriggerSensorChannelID: l.TriggerSensorChannelID,
+			TriggerMetricCode:      l.TriggerMetricCode,
+			CollectedAt:            l.CollectedAt,
+			ExecutedActionsCount:   l.ExecutedActionsCount,
+			ExecutedAt:             l.ExecutedAt,
+			CreatedAt:              l.CreatedAt,
 		}
 		items = append(items, resp)
 	}
@@ -134,13 +137,16 @@ func (h *Handler) ExecuteProfile(c *gin.Context) {
 		Count(&actionCount)
 
 	log := ClimateExecutionLog{
-		ProfileID:            profileID,
-		FromStageLevel:       req.FromStageLevel,
-		ToStageLevel:         req.ToStageLevel,
-		TriggerValue:         req.TriggerValue,
-		ExecutedActionsCount: uint(actionCount),
-		ExecutedAt:           time.Now().UTC(),
+		ProfileID:              profileID,
+		FromStageLevel:         req.FromStageLevel,
+		ToStageLevel:           req.ToStageLevel,
+		TriggerValue:           req.TriggerValue,
+		TriggerSensorChannelID: profile.TriggerSensorChannelID,
+		TriggerMetricCode:      &profile.TriggerMetricCode,
+		ExecutedActionsCount:   uint(actionCount),
+		ExecutedAt:             time.Now().UTC(),
 	}
+	log.CollectedAt = &log.ExecutedAt
 
 	if err := h.db.Create(&log).Error; err != nil {
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "create_failed", nil)
@@ -204,15 +210,18 @@ func (h *Handler) ListAllExecutionLogs(c *gin.Context) {
 	items := make([]ClimateExecutionLogResponse, 0, len(logs))
 	for _, l := range logs {
 		resp := ClimateExecutionLogResponse{
-			ID:                   l.ID,
-			ProfileID:            l.ProfileID,
-			ProfileName:          nameMap[l.ProfileID],
-			FromStageLevel:       l.FromStageLevel,
-			ToStageLevel:         l.ToStageLevel,
-			TriggerValue:         l.TriggerValue,
-			ExecutedActionsCount: l.ExecutedActionsCount,
-			ExecutedAt:           l.ExecutedAt,
-			CreatedAt:            l.CreatedAt,
+			ID:                     l.ID,
+			ProfileID:              l.ProfileID,
+			ProfileName:            nameMap[l.ProfileID],
+			FromStageLevel:         l.FromStageLevel,
+			ToStageLevel:           l.ToStageLevel,
+			TriggerValue:           l.TriggerValue,
+			TriggerSensorChannelID: l.TriggerSensorChannelID,
+			TriggerMetricCode:      l.TriggerMetricCode,
+			CollectedAt:            l.CollectedAt,
+			ExecutedActionsCount:   l.ExecutedActionsCount,
+			ExecutedAt:             l.ExecutedAt,
+			CreatedAt:              l.CreatedAt,
 		}
 		items = append(items, resp)
 	}

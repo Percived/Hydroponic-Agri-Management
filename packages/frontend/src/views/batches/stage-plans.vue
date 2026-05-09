@@ -28,7 +28,9 @@
       />
       <el-table :data="stages" stripe v-loading="loading" :row-class-name="stageRowClass">
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="growth_stage_id" label="阶段ID" width="100" />
+        <el-table-column label="生长阶段" width="160">
+          <template #default="{ row }">{{ growthStageName(row.growth_stage_id) }}</template>
+        </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="stageStatusTag(row)" size="small">{{ stageStatusText(row) }}</el-tag>
@@ -71,13 +73,24 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { cropApi } from '@/api'
 import StagePlanEditor from '@/components/batch/StagePlanEditor.vue'
 import { formatDateTime } from '@/utils/format'
-import type { BatchStagePlan, CreateBatchStagePlanRequest, CropBatch } from '@/types'
+import { buildIdLabelMap, fallbackIdLabel, growthStageLabel } from '@/utils/labels'
+import type { BatchStagePlan, CreateBatchStagePlanRequest, CropBatch, GrowthStage } from '@/types'
 
 const loading = ref(false)
 const submitLoading = ref(false)
 const batches = ref<CropBatch[]>([])
 const selectedBatchId = ref<number>()
 const stages = ref<BatchStagePlan[]>([])
+const growthStages = ref<GrowthStage[]>([])
+
+const growthStageLabelById = computed(() =>
+  buildIdLabelMap(growthStages.value, s => s.id, growthStageLabel, '阶段')
+)
+
+function growthStageName(stageId?: number | null) {
+  if (!stageId) return '-'
+  return growthStageLabelById.value[stageId] || fallbackIdLabel('阶段', stageId)
+}
 
 const editorVisible = ref(false)
 const editingStageId = ref<number>()
@@ -98,7 +111,7 @@ const conflictMessage = computed(() => {
     const prevEnd = new Date(sorted[i - 1].stage_end_at).getTime()
     const currStart = new Date(sorted[i].stage_start_at).getTime()
     if (currStart < prevEnd) {
-      return `阶段时间窗冲突：阶段 ${sorted[i - 1].growth_stage_id} 与 ${sorted[i].growth_stage_id} 存在重叠。`
+      return `阶段时间窗冲突：阶段 ${growthStageName(sorted[i - 1].growth_stage_id)} 与 ${growthStageName(sorted[i].growth_stage_id)} 存在重叠。`
     }
   }
   return ''
@@ -110,6 +123,15 @@ async function initBatches() {
   if (!selectedBatchId.value && batches.value.length > 0) {
     selectedBatchId.value = batches.value[0].id
     await loadStages()
+  }
+}
+
+async function loadGrowthStages() {
+  try {
+    const res = await cropApi.getGrowthStages({ page: 1, page_size: 200 })
+    growthStages.value = res.items
+  } catch {
+    growthStages.value = []
   }
 }
 
@@ -234,7 +256,10 @@ function stageRowClass({ row }: { row: BatchStagePlan }) {
   return 'stage-active'
 }
 
-onMounted(initBatches)
+onMounted(() => {
+  initBatches()
+  loadGrowthStages()
+})
 </script>
 
 <style scoped lang="scss">

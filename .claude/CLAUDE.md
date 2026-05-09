@@ -2,6 +2,8 @@
 
 Hydroponic Agriculture Management System (水培农业管理系统) — full-stack management for greenhouse/hydroponic environments.
 
+**Versions**: Backend v2.3.1 | Frontend v0.8.1 | Last updated: 2026-05-09
+
 ## Monorepo Structure
 
 ```
@@ -26,9 +28,9 @@ cd packages/backend && go run cmd/api/main.go # Backend :3000
 
 ## Architecture
 
-**Data flow**: `Device (MQTT) → EMQX → Backend → InfluxDB (time-series) / MySQL (metadata)` | `Browser → Frontend → Backend API → MySQL + InfluxDB`
+**Data flow**: `Device (MQTT) → EMQX → Backend → InfluxDB (time-series) / MySQL (metadata)` | `Browser ← SSE ← Backend (alerts, telemetry)` | `Browser → Frontend → Backend API → MySQL + InfluxDB`
 
-**Backend pattern** (`internal/<module>/`): `model.go` (GORM) → `dto.go` → `handler.go` → `routes.go` (`RegisterRoutes(deps)`)
+**Backend pattern** (`internal/<module>/`): `model.go` (GORM) → `dto.go` → `handler.go` → `routes.go` (`RegisterRoutes(deps)`). Large modules (>400 lines) split into `*_handler.go` sub-files; policy & climate have `scheduler.go`.
 
 **Frontend pattern** (`src/`): `api/<module>.ts` → `types/<module>.ts` → `views/<module>/` → `stores/<module>.ts` (optional)
 

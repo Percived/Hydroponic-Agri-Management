@@ -111,7 +111,7 @@
             <el-table-column prop="id" label="ID" width="60" />
             <el-table-column prop="growth_stage_id" label="生长阶段" width="90">
               <template #default="{ row }">
-                {{ row.growth_stage_id ?? '-' }}
+                {{ growthStageName(row.growth_stage_id) }}
               </template>
             </el-table-column>
             <el-table-column prop="metric_code" label="指标代码" width="110" />
@@ -148,7 +148,7 @@
             <el-table-column prop="id" label="ID" width="60" />
             <el-table-column prop="growth_stage_id" label="生长阶段" width="90">
               <template #default="{ row }">
-                {{ row.growth_stage_id ?? '-' }}
+                {{ growthStageName(row.growth_stage_id) }}
               </template>
             </el-table-column>
             <el-table-column prop="ion_code" label="离子代码" width="110" />
@@ -183,8 +183,10 @@
     <!-- 阶段指标新增/编辑弹窗 -->
     <el-dialog v-model="stageTargetFormVisible" :title="isEditStageTarget ? '编辑阶段指标' : '新增阶段指标'" width="500px">
       <el-form ref="stageTargetFormRef" :model="stageTargetForm" :rules="stageTargetFormRules" label-width="120px">
-        <el-form-item label="生长阶段ID">
-          <el-input-number v-model="stageTargetForm.growth_stage_id" :min="1" style="width: 100%" />
+        <el-form-item label="生长阶段" prop="growth_stage_id">
+          <el-select v-model="stageTargetForm.growth_stage_id" placeholder="选择生长阶段" filterable style="width: 100%">
+            <el-option v-for="s in growthStages" :key="s.id" :label="`${s.name} (${s.code})`" :value="s.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="指标代码" prop="metric_code">
           <el-select v-model="stageTargetForm.metric_code" placeholder="选择指标" filterable style="width: 100%">
@@ -216,8 +218,10 @@
     <!-- 离子目标新增/编辑弹窗 -->
     <el-dialog v-model="ionTargetFormVisible" :title="isEditIonTarget ? '编辑离子目标' : '新增离子目标'" width="500px">
       <el-form ref="ionTargetFormRef" :model="ionTargetForm" :rules="ionTargetFormRules" label-width="120px">
-        <el-form-item label="生长阶段ID">
-          <el-input-number v-model="ionTargetForm.growth_stage_id" :min="1" style="width: 100%" />
+        <el-form-item label="生长阶段" prop="growth_stage_id">
+          <el-select v-model="ionTargetForm.growth_stage_id" placeholder="选择生长阶段" filterable style="width: 100%">
+            <el-option v-for="s in growthStages" :key="s.id" :label="`${s.name} (${s.code})`" :value="s.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="离子代码" prop="ion_code">
           <el-input v-model="ionTargetForm.ion_code" placeholder="如 NO3, K, Ca" maxlength="32" />
@@ -241,13 +245,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { recipeApi, metricApi } from '@/api'
+import { recipeApi, metricApi, cropApi } from '@/api'
 import { formatDateTime, populateMetricNames } from '@/utils/format'
+import { buildIdLabelMap, fallbackIdLabel, growthStageLabel } from '@/utils/labels'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
-import type { NutrientRecipe, RecipeStatus, RecipeStageTarget, RecipeIonTarget, MetricDefinition, CreateStageTargetParams, CreateIonTargetParams } from '@/types'
+import type { NutrientRecipe, RecipeStatus, RecipeStageTarget, RecipeIonTarget, MetricDefinition, CreateStageTargetParams, CreateIonTargetParams, GrowthStage } from '@/types'
 
 // ── Recipes ──
 const loading = ref(false)
@@ -386,8 +391,18 @@ const targetsSaveLoading = ref(false)
 const stageTargets = ref<RecipeStageTarget[]>([])
 const ionTargets = ref<RecipeIonTarget[]>([])
 const metrics = ref<MetricDefinition[]>([])
+const growthStages = ref<GrowthStage[]>([])
 const currentRecipeId = ref<number | null>(null)
 const activeTargetTab = ref('stage')
+
+const growthStageLabelById = computed(() =>
+  buildIdLabelMap(growthStages.value, s => s.id, growthStageLabel, '阶段')
+)
+
+function growthStageName(stageId?: number | null) {
+  if (!stageId) return '-'
+  return growthStageLabelById.value[stageId] || fallbackIdLabel('阶段', stageId)
+}
 
 // Stage target form
 const stageTargetFormVisible = ref(false)
@@ -408,6 +423,7 @@ const emptyStageTargetForm = () => ({
 const stageTargetForm = reactive(emptyStageTargetForm())
 
 const stageTargetFormRules: FormRules = {
+  growth_stage_id: [{ required: true, message: '请选择生长阶段', trigger: 'change' }],
   metric_code: [{ required: true, message: '请选择指标代码', trigger: 'change' }]
 }
 
@@ -428,7 +444,17 @@ const emptyIonTargetForm = () => ({
 const ionTargetForm = reactive(emptyIonTargetForm())
 
 const ionTargetFormRules: FormRules = {
+  growth_stage_id: [{ required: true, message: '请选择生长阶段', trigger: 'change' }],
   ion_code: [{ required: true, message: '请输入离子代码', trigger: 'blur' }]
+}
+
+async function loadGrowthStages() {
+  try {
+    const data = await cropApi.getGrowthStages({ page_size: LARGE_PAGE_SIZE })
+    growthStages.value = data.items
+  } catch {
+    growthStages.value = []
+  }
 }
 
 async function loadMetrics() {
@@ -608,6 +634,7 @@ async function handleTargetsSave() {
 
 onMounted(() => {
   loadMetrics()
+  loadGrowthStages()
   fetchData()
 })
 </script>

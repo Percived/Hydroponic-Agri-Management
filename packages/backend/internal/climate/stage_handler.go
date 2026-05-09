@@ -2,6 +2,7 @@ package climate
 
 import (
 	"net/http"
+	"sort"
 
 	platformErrors "hydroponic-backend/internal/platform/errors"
 	"hydroponic-backend/internal/platform/response"
@@ -47,6 +48,16 @@ func (h *Handler) CreateStage(c *gin.Context) {
 		Hysteresis:       hysteresis,
 	}
 
+	var existing []ClimateStage
+	if err := h.db.Model(&ClimateStage{}).Where("profile_id = ?", profileID).Find(&existing).Error; err != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
+		return
+	}
+	if err := validateStageSet(append(existing, stage)); err != nil {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_stage_set", nil)
+		return
+	}
+
 	if err := h.db.Create(&stage).Error; err != nil {
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "create_failed", nil)
 		return
@@ -70,6 +81,40 @@ func (h *Handler) UpdateStage(c *gin.Context) {
 	var req UpdateClimateStageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.ValidationError(c, err)
+		return
+	}
+
+	var stages []ClimateStage
+	if err := h.db.Model(&ClimateStage{}).Where("profile_id = ?", profileID).Find(&stages).Error; err != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
+		return
+	}
+	found := false
+	for i := range stages {
+		if stages[i].ID != stageID {
+			continue
+		}
+		found = true
+		if req.Name != nil {
+			stages[i].Name = *req.Name
+		}
+		if req.TriggerOperator != nil {
+			stages[i].TriggerOperator = *req.TriggerOperator
+		}
+		if req.TriggerThreshold != nil {
+			stages[i].TriggerThreshold = *req.TriggerThreshold
+		}
+		if req.Hysteresis != nil {
+			stages[i].Hysteresis = *req.Hysteresis
+		}
+		break
+	}
+	if !found {
+		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
+		return
+	}
+	if err := validateStageSet(stages); err != nil {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_stage_set", nil)
 		return
 	}
 
@@ -148,7 +193,9 @@ func (h *Handler) ListStages(c *gin.Context) {
 	}
 
 	var stages []ClimateStage
-	if err := h.db.Preload("Actions").Where("profile_id = ?", profileID).Order("stage_level asc").Find(&stages).Error; err != nil {
+	if err := h.db.Preload("Actions", func(db *gorm.DB) *gorm.DB {
+		return db.Order("execution_order asc, id asc")
+	}).Where("profile_id = ?", profileID).Order("stage_level asc").Find(&stages).Error; err != nil {
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
 		return
 	}
@@ -174,11 +221,52 @@ func (h *Handler) GetStage(c *gin.Context) {
 	}
 
 	var stage ClimateStage
-	if err := h.db.Preload("Actions").Where("id = ? AND profile_id = ?", stageID, profileID).First(&stage).Error; err != nil {
+	if err := h.db.Preload("Actions", func(db *gorm.DB) *gorm.DB {
+		return db.Order("execution_order asc, id asc")
+	}).Where("id = ? AND profile_id = ?", stageID, profileID).First(&stage).Error; err != nil {
 		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
 		return
 	}
 	response.Success(c, toStageResponse(stage))
+}
+
+func validateStageSet(stages []ClimateStage) error {
+	if len(stages) <= 1 {
+		if len(stages) == 1 {
+			_, ok := selectStageDirection(stages[0].TriggerOperator)
+			if !ok {
+				return gorm.ErrInvalidData
+			}
+		}
+		return nil
+	}
+	dir, ok := selectStageDirection(stages[0].TriggerOperator)
+	if !ok {
+		return gorm.ErrInvalidData
+	}
+	sort.Slice(stages, func(i, j int) bool { return stages[i].StageLevel < stages[j].StageLevel })
+	for i := range stages {
+		d, ok := selectStageDirection(stages[i].TriggerOperator)
+		if !ok || d != dir {
+			return gorm.ErrInvalidData
+		}
+		if i == 0 {
+			continue
+		}
+		if stages[i].StageLevel == stages[i-1].StageLevel {
+			return gorm.ErrInvalidData
+		}
+		if dir == "up" {
+			if stages[i].TriggerThreshold <= stages[i-1].TriggerThreshold {
+				return gorm.ErrInvalidData
+			}
+		} else {
+			if stages[i].TriggerThreshold >= stages[i-1].TriggerThreshold {
+				return gorm.ErrInvalidData
+			}
+		}
+	}
+	return nil
 }
 
 // toStageResponse converts a ClimateStage with actions to a response struct.

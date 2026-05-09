@@ -280,13 +280,27 @@ func (h *Handler) UpdateSensorChannel(c *gin.Context) {
 	}
 
 	if len(updates) > 0 {
-		result := h.db.Model(&SensorChannel{}).Where("id = ?", id).Updates(updates)
-		if result.Error != nil {
+		err := h.db.Transaction(func(tx *gorm.DB) error {
+			result := tx.Model(&SensorChannel{}).Where("id = ?", id).Updates(updates)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected == 0 {
+				return gorm.ErrRecordNotFound
+			}
+			if req.Enabled != nil && !*req.Enabled {
+				if err := tx.Table("climate_profiles").Where("trigger_sensor_channel_id = ?", id).Update("enabled", false).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
+				return
+			}
 			response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "update_failed", nil)
-			return
-		}
-		if result.RowsAffected == 0 {
-			response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
 			return
 		}
 	}
@@ -354,18 +368,8 @@ func (h *Handler) DeleteSensorChannel(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_id", nil)
 		return
 	}
-
-	result := h.db.Where("id = ?", id).Delete(&SensorChannel{})
-	if result.Error != nil {
-		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "delete_failed", nil)
-		return
-	}
-	if result.RowsAffected == 0 {
-		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
-		return
-	}
-
-	response.Success(c, gin.H{})
+	_ = id
+	response.Error(c, http.StatusConflict, platformErrors.CodeConflict, "delete_disabled_use_disable", nil)
 }
 
 // ---- ActuatorDevice CRUD ----

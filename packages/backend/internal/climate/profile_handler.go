@@ -24,6 +24,11 @@ func (h *Handler) CreateProfile(c *gin.Context) {
 		return
 	}
 
+	if err := validateTriggerSource(h.db, req.GreenhouseID, req.TriggerMetricCode, req.TriggerSensorChannelID); err != nil {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_trigger_source", nil)
+		return
+	}
+
 	profile := ClimateProfile{
 		GreenhouseID:      req.GreenhouseID,
 		Code:              req.Code,
@@ -31,6 +36,7 @@ func (h *Handler) CreateProfile(c *gin.Context) {
 		Description:       req.Description,
 		TriggerMetricCode: req.TriggerMetricCode,
 	}
+	profile.TriggerSensorChannelID = &req.TriggerSensorChannelID
 	if req.Enabled != nil {
 		profile.Enabled = *req.Enabled
 	}
@@ -52,6 +58,28 @@ func (h *Handler) CreateProfileWithStages(c *gin.Context) {
 
 	var profileID uint64
 	err := h.db.Transaction(func(tx *gorm.DB) error {
+		if err := validateTriggerSource(tx, req.GreenhouseID, req.TriggerMetricCode, req.TriggerSensorChannelID); err != nil {
+			return err
+		}
+		if len(req.Stages) > 0 {
+			toValidate := make([]ClimateStage, 0, len(req.Stages))
+			for _, s := range req.Stages {
+				hysteresis := 1.0
+				if s.Hysteresis != nil {
+					hysteresis = *s.Hysteresis
+				}
+				toValidate = append(toValidate, ClimateStage{
+					StageLevel:       s.StageLevel,
+					TriggerOperator:  s.TriggerOperator,
+					TriggerThreshold: s.TriggerThreshold,
+					Hysteresis:       hysteresis,
+				})
+			}
+			if err := validateStageSet(toValidate); err != nil {
+				return err
+			}
+		}
+
 		profile := ClimateProfile{
 			GreenhouseID:      req.GreenhouseID,
 			Code:              req.Code,
@@ -59,6 +87,7 @@ func (h *Handler) CreateProfileWithStages(c *gin.Context) {
 			Description:       req.Description,
 			TriggerMetricCode: req.TriggerMetricCode,
 		}
+		profile.TriggerSensorChannelID = &req.TriggerSensorChannelID
 		if req.Enabled != nil {
 			profile.Enabled = *req.Enabled
 		}
@@ -131,6 +160,33 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
+	var existing ClimateProfile
+	if err := h.db.First(&existing, id).Error; err != nil {
+		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
+		return
+	}
+
+	nextMetric := existing.TriggerMetricCode
+	if req.TriggerMetricCode != nil {
+		nextMetric = *req.TriggerMetricCode
+	}
+	nextChannelID := existing.TriggerSensorChannelID
+	if req.TriggerSensorChannelID != nil {
+		nextChannelID = req.TriggerSensorChannelID
+	}
+	enableRequested := req.Enabled != nil && *req.Enabled
+	triggerChanged := req.TriggerMetricCode != nil || req.TriggerSensorChannelID != nil
+	if enableRequested || triggerChanged {
+		if nextChannelID == nil {
+			response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_trigger_source", nil)
+			return
+		}
+		if err := validateTriggerSource(h.db, existing.GreenhouseID, nextMetric, *nextChannelID); err != nil {
+			response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_trigger_source", nil)
+			return
+		}
+	}
+
 	updates := map[string]interface{}{}
 	if req.Name != nil {
 		updates["name"] = *req.Name
@@ -140,6 +196,9 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 	}
 	if req.TriggerMetricCode != nil {
 		updates["trigger_metric_code"] = *req.TriggerMetricCode
+	}
+	if req.TriggerSensorChannelID != nil {
+		updates["trigger_sensor_channel_id"] = *req.TriggerSensorChannelID
 	}
 	if req.Enabled != nil {
 		updates["enabled"] = *req.Enabled
@@ -310,34 +369,64 @@ func toProfileResponse(p ClimateProfile) ClimateProfileResponse {
 	}
 
 	return ClimateProfileResponse{
-		ID:                p.ID,
-		GreenhouseID:      p.GreenhouseID,
-		Code:              p.Code,
-		Name:              p.Name,
-		Description:       p.Description,
-		TriggerMetricCode: p.TriggerMetricCode,
-		Enabled:           p.Enabled,
-		StagesCount:       len(p.Stages),
-		CreatedAt:         p.CreatedAt,
-		UpdatedAt:         p.UpdatedAt,
-		Stages:            stages,
+		ID:                     p.ID,
+		GreenhouseID:           p.GreenhouseID,
+		Code:                   p.Code,
+		Name:                   p.Name,
+		Description:            p.Description,
+		TriggerMetricCode:      p.TriggerMetricCode,
+		TriggerSensorChannelID: p.TriggerSensorChannelID,
+		Enabled:                p.Enabled,
+		StagesCount:            len(p.Stages),
+		CreatedAt:              p.CreatedAt,
+		UpdatedAt:              p.UpdatedAt,
+		Stages:                 stages,
 	}
 }
 
 // toProfileSummary converts a ClimateProfile to a summary response (without stages).
 func toProfileSummary(p ClimateProfile, stagesCount int) ClimateProfileResponse {
 	return ClimateProfileResponse{
-		ID:                p.ID,
-		GreenhouseID:      p.GreenhouseID,
-		Code:              p.Code,
-		Name:              p.Name,
-		Description:       p.Description,
-		TriggerMetricCode: p.TriggerMetricCode,
-		Enabled:           p.Enabled,
-		StagesCount:       stagesCount,
-		CreatedAt:         p.CreatedAt,
-		UpdatedAt:         p.UpdatedAt,
+		ID:                     p.ID,
+		GreenhouseID:           p.GreenhouseID,
+		Code:                   p.Code,
+		Name:                   p.Name,
+		Description:            p.Description,
+		TriggerMetricCode:      p.TriggerMetricCode,
+		TriggerSensorChannelID: p.TriggerSensorChannelID,
+		Enabled:                p.Enabled,
+		StagesCount:            stagesCount,
+		CreatedAt:              p.CreatedAt,
+		UpdatedAt:              p.UpdatedAt,
 	}
+}
+
+func validateTriggerSource(db *gorm.DB, greenhouseID uint64, triggerMetricCode string, triggerSensorChannelID uint64) error {
+	var row struct {
+		MetricCode   string `gorm:"column:metric_code"`
+		GreenhouseID uint64 `gorm:"column:greenhouse_id"`
+		Enabled      bool   `gorm:"column:enabled"`
+	}
+	if err := db.Table("sensor_channels sc").
+		Select("sc.metric_code, sd.greenhouse_id, sc.enabled").
+		Joins("JOIN sensor_devices sd ON sd.id = sc.sensor_device_id").
+		Where("sc.id = ?", triggerSensorChannelID).
+		Scan(&row).Error; err != nil {
+		return err
+	}
+	if row.MetricCode == "" || row.GreenhouseID == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	if !row.Enabled {
+		return gorm.ErrInvalidData
+	}
+	if row.GreenhouseID != greenhouseID {
+		return gorm.ErrInvalidData
+	}
+	if row.MetricCode != triggerMetricCode {
+		return gorm.ErrInvalidData
+	}
+	return nil
 }
 
 // parseID parses a uint64 from a string parameter.

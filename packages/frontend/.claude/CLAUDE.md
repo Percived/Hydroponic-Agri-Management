@@ -24,7 +24,7 @@ Hydroponic Agriculture Management System Web Frontend - a management platform fo
 
 ```bash
 npm install        # Install dependencies
-npm run dev        # Start development server (default: http://localhost:5173)
+npm run dev        # Start development server (default: http://localhost:8082)
 npm run build      # Build for production (includes type-check)
 npm run preview    # Preview production build
 npm run type-check # TypeScript type check only
@@ -40,9 +40,9 @@ src/
 ├── api/           # 20 API modules (alert, audit, auth, climate, control, crop, dashboard, device, energy, greenhouse, index, metric, notification, nutrient, pest, policy, recipe, request, telemetry, user)
 ├── assets/        # Static assets (styles/variables.scss, styles/global.scss)
 ├── components/    # Shared components (batch/, charts/, control/, device/, layout/, telemetry/)
-├── composables/   # Vue composables (useAuth.ts, usePermission.ts)
+├── composables/   # Vue composables (index.ts, useAlertSSE.ts, useAuth.ts, usePermission.ts, useTelemetrySSE.ts)
 ├── router/        # Route configuration with guards
-├── stores/        # Pinia stores (auth.ts, greenhouse.ts)
+├── stores/        # Pinia stores (auth.ts, greenhouse.ts, index.ts)
 ├── types/         # 20 TypeScript definition files (alert, api, audit, climate, control, crop, dashboard, device, domain, energy, greenhouse, index, metric, notification, nutrient, pest, policy, recipe, telemetry, user)
 ├── utils/         # Utilities (storage.ts, format.ts)
 └── views/         # 17 view directories (alerts/, audit-logs/, batches/, climate/, common/, controls/, dashboard/, devices/, energy/, greenhouses/, login/, nutrient/, pest/, recipes/, settings/, telemetry/, users/)
@@ -139,22 +139,23 @@ export const createExample = (data: CreateExampleRequest) => post<Example>('/exa
 |----------|-------------|------------|
 | `VITE_API_BASE_URL` | `http://localhost:8080/api` | Configure in `.env.production` |
 
-## Implemented Features (v0.7.0)
+## Implemented Features (v0.8.1)
 
 - [x] Login page with JWT authentication
 - [x] Dashboard with overview stats and charts
 - [x] Asset Center: sensor/actuator device lists, greenhouse/zones management
-- [x] Collection Center: realtime curves, history trends, batch trends
+- [x] Collection Center: realtime overview, trend analysis (SSE-powered)
 - [x] Strategy Control: control policies (threshold + schedule), climate profiles, command dispatch
 - [x] Nutrient Management: tanks, ion tests, recipes
-- [x] Alerts: list with workflow (assign/takeover/close), timeline view
+- [x] Alerts: list with workflow (assign/takeover/close), timeline view, real-time SSE notifications
 - [x] Batch Management: ledger, harvest records, stage plans, batch review
 - [x] Pest observations & energy records
 - [x] User management (admin only)
 - [x] Audit logs (admin only)
 - [x] Notification channels (admin only)
 - [x] Route guards with auth + role-based access control
-- [x] 26 routes across 17 view directories
+- [x] 26 routes + 12 redirects + catch-all 404 across 17 view directories
+- [x] SSE real-time: alerts (AppHeader), telemetry (overview page with connection status + filtering)
 
 ## Documentation Update Rule (MANDATORY)
 

@@ -23,10 +23,15 @@
     <div class="table-container">
       <el-table :data="profiles" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="greenhouse_id" label="温室ID" width="100" />
+        <el-table-column label="温室" width="180">
+          <template #default="{ row }">{{ greenhouseName(row.greenhouse_id) }}</template>
+        </el-table-column>
         <el-table-column prop="code" label="编号" width="120" />
         <el-table-column prop="name" label="名称" min-width="180" />
         <el-table-column prop="trigger_metric_code" label="触发指标" width="120" />
+        <el-table-column prop="trigger_sensor_channel_id" label="触发通道" width="120">
+          <template #default="{ row }">{{ sensorChannelName(row.trigger_sensor_channel_id) }}</template>
+        </el-table-column>
         <el-table-column label="阶段数" width="80">
           <template #default="{ row }">{{ row.stages_count ?? row.stages?.length ?? '-' }}</template>
         </el-table-column>
@@ -41,7 +46,7 @@
             <el-button type="success" link @click="openStagesDialog(row)">阶段</el-button>
             <el-button type="warning" link @click="openExecLogs(row)">日志</el-button>
             <el-button type="success" link @click="openExecuteDialog(row)">执行</el-button>
-            <el-button type="danger" link @click="removeProfile(row.id)">删除</el-button>
+            <el-button v-if="hasRole(Role.ADMIN)" type="danger" link @click="removeProfile(row.id)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -63,8 +68,13 @@
     <el-dialog v-model="profileDialogVisible" :title="isEditProfile ? '编辑气候配置' : '新增气候配置'" width="500px">
       <el-form ref="profileFormRef" :model="profileForm" :rules="profileFormRules" label-width="120px">
         <el-form-item label="温室" prop="greenhouse_id">
-          <el-select v-model="profileForm.greenhouse_id" placeholder="选择温室" filterable style="width: 100%">
+          <el-select v-model="profileForm.greenhouse_id" placeholder="选择温室" filterable style="width: 100%" @change="onProfileGreenhouseChange">
             <el-option v-for="gh in greenhouses" :key="gh.id" :label="`${gh.name} (ID:${gh.id})`" :value="gh.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="设备" prop="trigger_sensor_device_id">
+          <el-select v-model="profileForm.trigger_sensor_device_id" placeholder="选择采集设备" filterable style="width: 100%" @change="onProfileDeviceChange">
+            <el-option v-for="d in sensorDevices" :key="d.id" :label="`${d.name} (${d.device_code})`" :value="d.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="编号" prop="code">
@@ -77,8 +87,18 @@
           <el-input v-model="profileForm.description" type="textarea" :rows="2" />
         </el-form-item>
         <el-form-item label="触发指标" prop="trigger_metric_code">
-          <el-select v-model="profileForm.trigger_metric_code" placeholder="选择指标" filterable style="width: 100%">
+          <el-select v-model="profileForm.trigger_metric_code" placeholder="选择指标" filterable style="width: 100%" @change="onProfileMetricChange">
             <el-option v-for="m in metrics" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="采集通道" prop="trigger_sensor_channel_id">
+          <el-select v-model="profileForm.trigger_sensor_channel_id" placeholder="选择采集通道" filterable style="width: 100%">
+            <el-option
+              v-for="ch in filteredSensorChannels"
+              :key="ch.id"
+              :label="sensorChannelOptionLabel(ch)"
+              :value="ch.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="启用">
@@ -159,7 +179,9 @@
       </div>
       <el-table :data="actions" v-loading="actionsLoading" stripe size="small">
         <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="actuator_channel_id" label="通道ID" width="100" />
+        <el-table-column label="执行器通道" width="200">
+          <template #default="{ row }">{{ actuatorChannelName(row.actuator_channel_id) }}</template>
+        </el-table-column>
         <el-table-column prop="command_type" label="命令类型" width="120" />
         <el-table-column label="命令参数" min-width="200">
           <template #default="{ row }">{{ JSON.stringify(row.command_payload) }}</template>
@@ -187,7 +209,7 @@
       <el-form ref="actionFormRef" :model="actionForm" :rules="actionFormRules" label-width="120px">
         <el-form-item label="执行器通道" prop="actuator_channel_id">
           <el-select v-model="actionForm.actuator_channel_id" placeholder="选择执行器通道" filterable style="width: 100%">
-            <el-option v-for="ch in actuatorChannels" :key="ch.id" :label="`${ch.channel_code} (${ch.actuator_type})`" :value="ch.id" />
+            <el-option v-for="ch in actuatorChannels" :key="ch.id" :label="actuatorChannelName(ch.id)" :value="ch.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="命令类型" prop="command_type">
@@ -222,13 +244,24 @@
     <el-dialog v-model="logsDialogVisible" title="执行日志" width="800px">
       <el-table :data="execLogs" v-loading="logsLoading" stripe size="small">
         <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column prop="profile_id" label="配置ID" width="90" />
+        <el-table-column label="配置" width="160">
+          <template #default="{ row }">{{ profileNameForLog(row.profile_id) }}</template>
+        </el-table-column>
         <el-table-column prop="from_stage_level" label="从级别" width="90" />
         <el-table-column prop="to_stage_level" label="到级别" width="90" />
         <el-table-column prop="trigger_value" label="触发值" width="100" />
+        <el-table-column prop="trigger_sensor_channel_id" label="触发通道" width="110">
+          <template #default="{ row }">{{ sensorChannelName(row.trigger_sensor_channel_id) }}</template>
+        </el-table-column>
+        <el-table-column prop="trigger_metric_code" label="指标" width="90">
+          <template #default="{ row }">{{ row.trigger_metric_code ?? '-' }}</template>
+        </el-table-column>
         <el-table-column prop="executed_actions_count" label="执行动作数" width="110" />
         <el-table-column prop="executed_at" label="执行时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.executed_at) }}</template>
+        </el-table-column>
+        <el-table-column prop="collected_at" label="采集时间" width="180">
+          <template #default="{ row }">{{ row.collected_at ? formatDateTime(row.collected_at) : '-' }}</template>
         </el-table-column>
       </el-table>
       <template #footer>
@@ -269,6 +302,7 @@
   "code": "TEMP_CTRL",
   "name": "温度控制",
   "trigger_metric_code": "TEMP",
+  "trigger_sensor_channel_id": 123,
   "stages": [
     {
       "stage_level": 1,
@@ -297,26 +331,125 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { climateApi, greenhouseApi, deviceApi, metricApi } from '@/api'
+import { usePermission } from '@/composables/usePermission'
 import { formatDateTime } from '@/utils/format'
+import { actuatorChannelLabel, actuatorDeviceLabel, buildIdLabelMap, fallbackIdLabel, greenhouseLabel, sensorChannelLabel, sensorDeviceLabel } from '@/utils/labels'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
-import type { ClimateProfile, ClimateStage, ClimateStageAction, ClimateExecutionLog, Greenhouse, ActuatorChannel, MetricDefinition } from '@/types'
+import type { ClimateProfile, ClimateStage, ClimateStageAction, ClimateExecutionLog, Greenhouse, ActuatorChannel, ActuatorDevice, MetricDefinition, SensorDevice, SensorChannel } from '@/types'
+import { Role } from '@/types'
 
 // ── Profiles ──
 const loading = ref(false)
 const profiles = ref<ClimateProfile[]>([])
 const total = ref(0)
+const { hasRole } = usePermission()
 
 const filters = reactive({
   greenhouse_id: undefined as number | undefined
 })
 
 const greenhouses = ref<Greenhouse[]>([])
+const actuatorDevices = ref<ActuatorDevice[]>([])
 const actuatorChannels = ref<ActuatorChannel[]>([])
 const metrics = ref<MetricDefinition[]>([])
+const sensorDevices = ref<SensorDevice[]>([])
+const sensorChannels = ref<SensorChannel[]>([])
+
+const greenhouseLabelById = computed(() =>
+  buildIdLabelMap(greenhouses.value, gh => gh.id, greenhouseLabel, '温室')
+)
+
+function greenhouseName(greenhouseId?: number | null) {
+  if (!greenhouseId) return fallbackIdLabel('温室', greenhouseId)
+  return greenhouseLabelById.value[greenhouseId] || fallbackIdLabel('温室', greenhouseId)
+}
+
+const sensorDeviceLabelById = computed(() =>
+  buildIdLabelMap(sensorDevices.value, d => d.id, sensorDeviceLabel, '设备')
+)
+
+const sensorDeviceLabelCache = ref<Record<number, string>>({})
+const sensorChannelLabelCache = ref<Record<number, string>>({})
+
+function sensorChannelName(channelId?: number | null) {
+  if (!channelId) return '-'
+  if (!sensorChannelLabelCache.value[channelId]) {
+    ensureSensorChannelLabel(channelId)
+  }
+  return sensorChannelLabelCache.value[channelId] || fallbackIdLabel('通道', channelId)
+}
+
+function sensorChannelOptionLabel(ch: SensorChannel) {
+  return sensorChannelLabel(ch, sensorDeviceLabelById.value)
+}
+
+async function ensureSensorChannelLabel(channelId: number) {
+  if (sensorChannelLabelCache.value[channelId]) return
+  try {
+    const ch = await deviceApi.getSensorChannel(channelId)
+    let devLabel = sensorDeviceLabelById.value[ch.sensor_device_id] || sensorDeviceLabelCache.value[ch.sensor_device_id]
+    if (!devLabel) {
+      try {
+        const d = await deviceApi.getSensorDevice(ch.sensor_device_id)
+        devLabel = sensorDeviceLabel(d)
+        sensorDeviceLabelCache.value[ch.sensor_device_id] = devLabel
+      } catch {
+        devLabel = fallbackIdLabel('设备', ch.sensor_device_id)
+      }
+    }
+    sensorChannelLabelCache.value[channelId] = sensorChannelLabel(ch, {
+      ...sensorDeviceLabelById.value,
+      ...sensorDeviceLabelCache.value
+    })
+  } catch {
+    sensorChannelLabelCache.value[channelId] = fallbackIdLabel('通道', channelId)
+  }
+}
+
+function warmSensorChannelLabels(ids: Array<number | undefined | null>) {
+  const uniq = new Set<number>()
+  for (const id of ids) {
+    if (id) uniq.add(id)
+  }
+  for (const id of uniq) {
+    ensureSensorChannelLabel(id)
+  }
+}
+
+const actuatorDeviceLabelById = computed(() =>
+  buildIdLabelMap(actuatorDevices.value, d => d.id, actuatorDeviceLabel, '设备')
+)
+
+const actuatorChannelLabelById = computed(() => {
+  const map: Record<number, string> = {}
+  for (const ch of actuatorChannels.value) {
+    map[ch.id] = actuatorChannelLabel(ch, actuatorDeviceLabelById.value)
+  }
+  return map
+})
+
+function actuatorChannelName(channelId?: number | null) {
+  if (!channelId) return '-'
+  return actuatorChannelLabelById.value[channelId] || fallbackIdLabel('通道', channelId)
+}
+
+const profileNameById = computed(() => {
+  const map: Record<number, string> = {}
+  for (const p of profiles.value) {
+    const label = (p.name || '').trim() || (p.code || '').trim() || fallbackIdLabel('配置', p.id)
+    map[p.id] = label
+  }
+  return map
+})
+
+function profileNameForLog(profileId?: number | null) {
+  if (!profileId) return '-'
+  return profileNameById.value[profileId] || fallbackIdLabel('配置', profileId)
+}
 
 async function loadGreenhouses() {
   try {
@@ -324,6 +457,15 @@ async function loadGreenhouses() {
     greenhouses.value = data.items
   } catch {
     greenhouses.value = []
+  }
+}
+
+async function loadActuatorDevices() {
+  try {
+    const data = await deviceApi.getActuatorDevices({ page_size: LARGE_PAGE_SIZE })
+    actuatorDevices.value = data.items
+  } catch {
+    actuatorDevices.value = []
   }
 }
 
@@ -355,10 +497,12 @@ const editingProfileId = ref<number | null>(null)
 
 const emptyProfileForm = () => ({
   greenhouse_id: undefined as number | undefined,
+  trigger_sensor_device_id: undefined as number | undefined,
   code: '',
   name: '',
   description: '' as string,
   trigger_metric_code: '',
+  trigger_sensor_channel_id: undefined as number | undefined,
   enabled: true
 })
 
@@ -366,10 +510,18 @@ const profileForm = reactive(emptyProfileForm())
 
 const profileFormRules: FormRules = {
   greenhouse_id: [{ required: true, message: '请输入温室ID', trigger: 'blur' }],
+  trigger_sensor_device_id: [{ required: true, message: '请选择采集设备', trigger: 'change' }],
   code: [{ required: true, message: '请输入编号', trigger: 'blur' }],
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  trigger_metric_code: [{ required: true, message: '请输入触发指标', trigger: 'blur' }]
+  trigger_metric_code: [{ required: true, message: '请输入触发指标', trigger: 'change' }],
+  trigger_sensor_channel_id: [{ required: true, message: '请选择采集通道', trigger: 'change' }]
 }
+
+const filteredSensorChannels = computed(() => {
+  const metric = profileForm.trigger_metric_code
+  if (!metric) return sensorChannels.value
+  return sensorChannels.value.filter(ch => ch.metric_code === metric)
+})
 
 async function fetchData() {
   loading.value = true
@@ -382,6 +534,7 @@ async function fetchData() {
     const data = await climateApi.getClimateProfiles(params)
     profiles.value = data.items
     total.value = data.total
+    warmSensorChannelLabels(profiles.value.map(p => p.trigger_sensor_channel_id))
   } catch {
     // handled by interceptor
   } finally {
@@ -399,21 +552,38 @@ function openCreateProfile() {
   isEditProfile.value = false
   editingProfileId.value = null
   Object.assign(profileForm, emptyProfileForm())
+  sensorDevices.value = []
+  sensorChannels.value = []
   profileDialogVisible.value = true
 }
 
-function openEditProfile(profile: ClimateProfile) {
+async function openEditProfile(profile: ClimateProfile) {
   isEditProfile.value = true
   editingProfileId.value = profile.id
   Object.assign(profileForm, {
     greenhouse_id: profile.greenhouse_id,
+    trigger_sensor_device_id: undefined,
     code: profile.code,
     name: profile.name,
     description: profile.description || '',
     trigger_metric_code: profile.trigger_metric_code,
+    trigger_sensor_channel_id: profile.trigger_sensor_channel_id,
     enabled: profile.enabled
   })
   profileDialogVisible.value = true
+
+  await loadSensorDevicesForProfile()
+  if (profile.trigger_sensor_channel_id) {
+    try {
+      const ch = await deviceApi.getSensorChannel(profile.trigger_sensor_channel_id)
+      profileForm.trigger_sensor_device_id = ch.sensor_device_id
+      profileForm.trigger_metric_code = ch.metric_code
+      await loadSensorChannelsForDevice(ch.sensor_device_id)
+      profileForm.trigger_sensor_channel_id = ch.id
+    } catch {
+      // handled by interceptor
+    }
+  }
 }
 
 async function handleProfileSubmit() {
@@ -431,6 +601,7 @@ async function handleProfileSubmit() {
         name: profileForm.name,
         description: profileForm.description || undefined,
         trigger_metric_code: profileForm.trigger_metric_code,
+        trigger_sensor_channel_id: profileForm.trigger_sensor_channel_id!,
         enabled: profileForm.enabled
       })
       ElMessage.success('气候配置已更新')
@@ -441,6 +612,7 @@ async function handleProfileSubmit() {
         name: profileForm.name,
         description: profileForm.description || undefined,
         trigger_metric_code: profileForm.trigger_metric_code,
+        trigger_sensor_channel_id: profileForm.trigger_sensor_channel_id!,
         enabled: profileForm.enabled
       })
       ElMessage.success('气候配置已创建')
@@ -459,6 +631,48 @@ async function removeProfile(id: number) {
   await climateApi.deleteClimateProfile(id)
   ElMessage.success('已删除')
   fetchData()
+}
+
+async function loadSensorDevicesForProfile() {
+  const greenhouseId = profileForm.greenhouse_id
+  if (!greenhouseId) {
+    sensorDevices.value = []
+    return
+  }
+  try {
+    const data = await deviceApi.getSensorDevices({ greenhouse_id: greenhouseId, page_size: LARGE_PAGE_SIZE })
+    sensorDevices.value = data.items
+  } catch {
+    sensorDevices.value = []
+  }
+}
+
+async function loadSensorChannelsForDevice(sensorDeviceId: number) {
+  try {
+    const data = await deviceApi.getSensorChannels({ sensor_device_id: sensorDeviceId, enabled: 1, page_size: LARGE_PAGE_SIZE })
+    sensorChannels.value = data.items
+  } catch {
+    sensorChannels.value = []
+  }
+}
+
+async function onProfileGreenhouseChange() {
+  profileForm.trigger_sensor_device_id = undefined
+  profileForm.trigger_sensor_channel_id = undefined
+  sensorChannels.value = []
+  await loadSensorDevicesForProfile()
+}
+
+async function onProfileDeviceChange() {
+  const sensorDeviceId = profileForm.trigger_sensor_device_id
+  profileForm.trigger_sensor_channel_id = undefined
+  sensorChannels.value = []
+  if (!sensorDeviceId) return
+  await loadSensorChannelsForDevice(sensorDeviceId)
+}
+
+function onProfileMetricChange() {
+  profileForm.trigger_sensor_channel_id = undefined
 }
 
 // ── Stages (Level 2) ──
@@ -731,6 +945,7 @@ async function openExecLogs(profile: ClimateProfile) {
   try {
     const data = await climateApi.getClimateExecutionLogs({ profile_id: profile.id })
     execLogs.value = data.items
+    warmSensorChannelLabels(execLogs.value.map(l => l.trigger_sensor_channel_id))
   } catch {
     execLogs.value = []
   } finally {
@@ -815,6 +1030,10 @@ async function handleFullCreate() {
     ElMessage.error('JSON 格式无效')
     return
   }
+  if (!parsed.trigger_sensor_channel_id) {
+    ElMessage.error('缺少 trigger_sensor_channel_id')
+    return
+  }
 
   fullCreateLoading.value = true
   try {
@@ -831,6 +1050,7 @@ async function handleFullCreate() {
 
 onMounted(() => {
   loadGreenhouses()
+  loadActuatorDevices()
   loadActuatorChannels()
   loadMetrics()
   fetchData()

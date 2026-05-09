@@ -47,10 +47,11 @@
       <el-table :data="batches" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="batch_no" label="批次编号" width="160" />
-        <el-table-column prop="greenhouse_id" label="温室ID" width="100" />
-        <el-table-column prop="crop_variety_id" label="作物ID" width="100" />
-        <el-table-column label="作物名称" width="120">
-          <template #default="{ row }">{{ row.variety_name || '-' }}</template>
+        <el-table-column label="温室" width="160">
+          <template #default="{ row }">{{ greenhouseName(row.greenhouse_id) }}</template>
+        </el-table-column>
+        <el-table-column label="作物品种" width="160">
+          <template #default="{ row }">{{ cropVarietyName(row.crop_variety_id, row.variety_name) }}</template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="130">
           <template #default="{ row }">
@@ -71,7 +72,9 @@
             <el-tag v-else size="small">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="growing_zone_id" label="种植区" width="80" />
+        <el-table-column label="种植区" width="160">
+          <template #default="{ row }">{{ growingZoneName(row.growing_zone_id) }}</template>
+        </el-table-column>
         <el-table-column prop="planting_density" label="定植密度(株/㎡)" width="120" />
         <el-table-column prop="total_plants" label="总株数" width="90" />
         <el-table-column label="预计采收" width="180">
@@ -117,14 +120,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { cropApi, greenhouseApi } from '@/api'
 import BatchForm from '@/components/batch/BatchForm.vue'
 import { formatDateTime } from '@/utils/format'
+import { buildIdLabelMap, cropVarietyLabel, fallbackIdLabel, greenhouseLabel, growingZoneLabel } from '@/utils/labels'
 import { usePermission } from '@/composables'
-import type { CropBatch, CreateCropBatchRequest, CropVariety, Greenhouse } from '@/types'
+import type { CropBatch, CreateCropBatchRequest, CropVariety, Greenhouse, GrowingZone } from '@/types'
 
 const router = useRouter()
 const { canControlDevice } = usePermission()
@@ -153,12 +157,40 @@ const total = ref(0)
 const range = ref<[string, string] | null>(null)
 const greenhouses = ref<Greenhouse[]>([])
 const varieties = ref<CropVariety[]>([])
+const zones = ref<GrowingZone[]>([])
 const filters = reactive({
   greenhouse_id: undefined as number | undefined,
   crop_variety_id: undefined as number | undefined,
   status: undefined as string | undefined
 })
 const pagination = reactive({ page: 1, pageSize: 20 })
+
+const greenhouseLabelById = computed(() =>
+  buildIdLabelMap(greenhouses.value, g => g.id, greenhouseLabel, '温室')
+)
+const cropVarietyLabelById = computed(() =>
+  buildIdLabelMap(varieties.value, v => v.id, cropVarietyLabel, '作物')
+)
+const growingZoneLabelById = computed(() =>
+  buildIdLabelMap(zones.value, z => z.id, growingZoneLabel, '种植区')
+)
+
+function greenhouseName(greenhouseId?: number) {
+  if (!greenhouseId) return fallbackIdLabel('温室', greenhouseId)
+  return greenhouseLabelById.value[greenhouseId] || fallbackIdLabel('温室', greenhouseId)
+}
+
+function cropVarietyName(cropVarietyId?: number, fallbackName?: string) {
+  const n = (fallbackName || '').trim()
+  if (n) return n
+  if (!cropVarietyId) return fallbackIdLabel('作物', cropVarietyId)
+  return cropVarietyLabelById.value[cropVarietyId] || fallbackIdLabel('作物', cropVarietyId)
+}
+
+function growingZoneName(zoneId?: number) {
+  if (!zoneId) return fallbackIdLabel('种植区', zoneId)
+  return growingZoneLabelById.value[zoneId] || fallbackIdLabel('种植区', zoneId)
+}
 
 const createVisible = ref(false)
 const formData = ref<CreateCropBatchRequest>({
@@ -266,7 +298,8 @@ onMounted(() => {
   Promise.all([
     fetchData(),
     greenhouseApi.getGreenhouses({ page_size: 200 }).then(res => greenhouses.value = res.items),
-    cropApi.getCropVarieties({ page_size: 200 }).then(res => varieties.value = res.items)
+    cropApi.getCropVarieties({ page_size: 200 }).then(res => varieties.value = res.items),
+    greenhouseApi.getGrowingZones({ page_size: 500 }).then(res => zones.value = res.items)
   ])
 })
 </script>

@@ -45,9 +45,7 @@
         <el-table-column prop="message" label="消息" min-width="220" />
         <el-table-column label="通道" width="120">
           <template #default="{ row }">
-            <span v-if="row.sensor_channel_id">传感器 #{{ row.sensor_channel_id }}</span>
-            <span v-else-if="row.actuator_channel_id">执行器 #{{ row.actuator_channel_id }}</span>
-            <span v-else>-</span>
+            {{ channelDisplay(row) }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="110">
@@ -84,9 +82,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { alertApi } from '@/api'
+import { alertApi, deviceApi } from '@/api'
 import { usePermission } from '@/composables/usePermission'
 import { formatDateTime, getAlertLevelName, getAlertLevelType, getAlertStatusName, getAlertStatusType, getAlertTypeName } from '@/utils/format'
+import { actuatorChannelLabel, actuatorDeviceLabel, fallbackIdLabel, sensorChannelLabel, sensorDeviceLabel } from '@/utils/labels'
 import type { Alert, AlertLevel, AlertStats, AlertStatus, AlertType } from '@/types'
 
 const router = useRouter()
@@ -108,6 +107,63 @@ const pagination = reactive({
   pageSize: 20
 })
 
+const sensorDeviceLabelCache = ref<Record<number, string>>({})
+const sensorChannelLabelCache = ref<Record<number, string>>({})
+const actuatorDeviceLabelCache = ref<Record<number, string>>({})
+const actuatorChannelLabelCache = ref<Record<number, string>>({})
+
+function channelDisplay(row: Alert) {
+  if (row.sensor_channel_id) return `传感器: ${sensorChannelName(row.sensor_channel_id)}`
+  if (row.actuator_channel_id) return `执行器: ${actuatorChannelName(row.actuator_channel_id)}`
+  return '-'
+}
+
+function sensorChannelName(channelId: number) {
+  if (!sensorChannelLabelCache.value[channelId]) {
+    ensureSensorChannelLabel(channelId)
+  }
+  return sensorChannelLabelCache.value[channelId] || fallbackIdLabel('通道', channelId)
+}
+
+async function ensureSensorChannelLabel(channelId: number) {
+  if (sensorChannelLabelCache.value[channelId]) return
+  try {
+    const ch = await deviceApi.getSensorChannel(channelId)
+    let devLabel = sensorDeviceLabelCache.value[ch.sensor_device_id]
+    if (!devLabel) {
+      const dev = await deviceApi.getSensorDevice(ch.sensor_device_id)
+      devLabel = sensorDeviceLabel(dev)
+      sensorDeviceLabelCache.value[ch.sensor_device_id] = devLabel
+    }
+    sensorChannelLabelCache.value[channelId] = sensorChannelLabel(ch, { [ch.sensor_device_id]: devLabel })
+  } catch {
+    sensorChannelLabelCache.value[channelId] = fallbackIdLabel('通道', channelId)
+  }
+}
+
+function actuatorChannelName(channelId: number) {
+  if (!actuatorChannelLabelCache.value[channelId]) {
+    ensureActuatorChannelLabel(channelId)
+  }
+  return actuatorChannelLabelCache.value[channelId] || fallbackIdLabel('通道', channelId)
+}
+
+async function ensureActuatorChannelLabel(channelId: number) {
+  if (actuatorChannelLabelCache.value[channelId]) return
+  try {
+    const ch = await deviceApi.getActuatorChannel(channelId)
+    let devLabel = actuatorDeviceLabelCache.value[ch.actuator_device_id]
+    if (!devLabel) {
+      const dev = await deviceApi.getActuatorDevice(ch.actuator_device_id)
+      devLabel = actuatorDeviceLabel(dev)
+      actuatorDeviceLabelCache.value[ch.actuator_device_id] = devLabel
+    }
+    actuatorChannelLabelCache.value[channelId] = actuatorChannelLabel(ch, { [ch.actuator_device_id]: devLabel })
+  } catch {
+    actuatorChannelLabelCache.value[channelId] = fallbackIdLabel('通道', channelId)
+  }
+}
+
 async function fetchData() {
   loading.value = true
   try {
@@ -124,6 +180,10 @@ async function fetchData() {
     alerts.value = alertData.items
     total.value = alertData.total
     stats.value = statsData
+    for (const a of alerts.value) {
+      if (a.sensor_channel_id) ensureSensorChannelLabel(a.sensor_channel_id)
+      if (a.actuator_channel_id) ensureActuatorChannelLabel(a.actuator_channel_id)
+    }
   } finally {
     loading.value = false
   }

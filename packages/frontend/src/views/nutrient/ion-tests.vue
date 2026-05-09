@@ -27,7 +27,9 @@
     <div class="table-container">
       <el-table :data="tests" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="tank_id" label="液槽ID" width="100" />
+        <el-table-column label="液槽" width="160">
+          <template #default="{ row }">{{ tankName(row.tank_id) }}</template>
+        </el-table-column>
         <el-table-column prop="sample_code" label="样品编号" width="140" />
         <el-table-column prop="test_method" label="检测方法" width="100">
           <template #default="{ row }">{{ testMethodName(row.test_method) }}</template>
@@ -248,11 +250,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { nutrientApi, cropApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
+import { buildIdLabelMap, fallbackIdLabel, nutrientTankLabel } from '@/utils/labels'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import type { IonTestRecord, NutrientTank, CropBatch } from '@/types'
 
@@ -261,6 +264,15 @@ const tests = ref<IonTestRecord[]>([])
 const total = ref(0)
 const tanks = ref<NutrientTank[]>([])
 const batches = ref<CropBatch[]>([])
+
+const tankLabelById = computed(() =>
+  buildIdLabelMap(tanks.value, t => t.id, nutrientTankLabel, '液槽')
+)
+
+function tankName(tankId?: number) {
+  if (!tankId) return fallbackIdLabel('液槽', tankId)
+  return tankLabelById.value[tankId] || fallbackIdLabel('液槽', tankId)
+}
 
 const filters = reactive({
   tank_id: undefined as number | undefined,

@@ -48,9 +48,9 @@
               {{ getTargetTypeName(row.target_type) }}
             </template>
           </el-table-column>
-          <el-table-column prop="target_id" label="目标ID" width="80">
+          <el-table-column prop="target_id" label="目标" width="80">
             <template #default="{ row }">
-              {{ row.target_id || '-' }}
+              {{ row.target_id ? `#${row.target_id}` : '-' }}
             </template>
           </el-table-column>
           <el-table-column prop="detail" label="详情" min-width="200">

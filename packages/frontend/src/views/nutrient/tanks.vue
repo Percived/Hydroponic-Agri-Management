@@ -52,7 +52,9 @@
         </el-table-column>
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="code" label="液槽编号" width="160" />
-        <el-table-column prop="growing_zone_id" label="种植区ID" width="100" />
+        <el-table-column label="种植区" width="160">
+          <template #default="{ row }">{{ growingZoneName(row.growing_zone_id) }}</template>
+        </el-table-column>
         <el-table-column label="总容积(L)" width="100">
           <template #default="{ row }">{{ row.total_volume_liter }}</template>
         </el-table-column>
@@ -146,7 +148,8 @@ import { Plus } from '@element-plus/icons-vue'
 import { nutrientApi, greenhouseApi, deviceApi, telemetryApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
 import { EXTRA_LARGE_PAGE_SIZE } from '@/utils/constants'
-import type { NutrientTank, GrowingZone, SensorChannel } from '@/types'
+import { buildIdLabelMap, fallbackIdLabel, growingZoneLabel } from '@/utils/labels'
+import type { NutrientTank, GrowingZone, SensorChannel, SensorDevice } from '@/types'
 
 // ── Sensor Card Component ──
 import { h, defineComponent } from 'vue'
@@ -190,7 +193,17 @@ const loading = ref(false)
 const tanks = ref<NutrientTank[]>([])
 const total = ref(0)
 const zones = ref<GrowingZone[]>([])
+const sensorDevices = ref<SensorDevice[]>([])
 const allChannels = ref<SensorChannel[]>([])
+
+const growingZoneLabelById = computed(() =>
+  buildIdLabelMap(zones.value, z => z.id, growingZoneLabel, '种植区')
+)
+
+function growingZoneName(zoneId?: number) {
+  if (!zoneId) return fallbackIdLabel('种植区', zoneId)
+  return growingZoneLabelById.value[zoneId] || fallbackIdLabel('种植区', zoneId)
+}
 
 // Filter channels by metric_code
 const ecChannels = computed(() => allChannels.value.filter(ch => ch.metric_code === 'EC'))
@@ -198,8 +211,19 @@ const phChannels = computed(() => allChannels.value.filter(ch => ch.metric_code 
 const levelChannels = computed(() => allChannels.value.filter(ch => ch.metric_code === 'LEVEL'))
 const tempChannels = computed(() => allChannels.value.filter(ch => ch.metric_code === 'TEMP' || ch.metric_code === 'TEMPERATURE'))
 
+const sensorDeviceLabelById = computed(() => {
+  const map: Record<number, string> = {}
+  for (const d of sensorDevices.value) {
+    const name = (d.name || '').trim()
+    const code = (d.device_code || '').trim()
+    map[d.id] = name && code && name !== code ? `${name}/${code}` : (name || code || `设备#${d.id}`)
+  }
+  return map
+})
+
 function channelLabel(ch: SensorChannel): string {
-  return `${ch.channel_code} (ID:${ch.id})`
+  const devLabel = sensorDeviceLabelById.value[ch.sensor_device_id] || `设备#${ch.sensor_device_id}`
+  return `${ch.channel_code} (${devLabel})`
 }
 
 const filters = reactive({
@@ -446,10 +470,18 @@ async function loadChannels() {
   } catch { /* ignore */ }
 }
 
+async function loadSensorDevices() {
+  try {
+    const data = await deviceApi.getSensorDevices({ page_size: EXTRA_LARGE_PAGE_SIZE })
+    sensorDevices.value = data.items
+  } catch { /* ignore */ }
+}
+
 onMounted(() => {
   fetchData()
   loadZones()
   loadChannels()
+  loadSensorDevices()
 })
 
 onUnmounted(() => {

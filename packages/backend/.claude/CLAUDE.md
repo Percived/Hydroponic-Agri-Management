@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code when working with the backend package.
 
+**Version**: v2.3.1 | **Last updated**: 2026-05-09
+
 ## Package Overview
 
 Go + Gin HTTP API server for the Hydroponic Agri Management System. Provides RESTful endpoints for device management, telemetry ingestion/query, MQTT integration, alert handling, and role-based access control.
@@ -56,7 +58,7 @@ packages/backend/
 │   ├── nutrient/             # Nutrient tanks, solution changes, ion tests
 │   ├── overview/             # Dashboard overview
 │   ├── pest/                 # Pest observations & treatment records
-│   ├── platform/             # Infrastructure (config, db, di, errors, http, influx, logger, mqtt, response)
+│   ├── platform/             # Infrastructure (config, db, di, errors, http, influx, logger, mqtt, response, event)
 │   ├── policy/               # Control policies (conditions, schedules, targets)
 │   ├── recipe/               # Nutrient recipes & targets
 │   ├── review/               # Batch review snapshots
@@ -71,8 +73,11 @@ packages/backend/
 Each domain module follows this structure:
 - `model.go` - GORM data model
 - `dto.go` - Request/response DTOs
-- `handler.go` - HTTP handlers
+- `handler.go` - HTTP handlers (main Handler struct + shared helpers)
 - `routes.go` - Route registration via `RegisterRoutes(deps *di.Deps)`
+- `*_handler.go` - Split sub-handlers for modules >400 lines (climate, policy, nutrient, crop)
+- `scheduler.go` - Auto-scheduler (policy, climate: event-driven + timer-based)
+- `cache.go` - In-memory cache (telemetry, device)
 
 ### Dependency Injection
 

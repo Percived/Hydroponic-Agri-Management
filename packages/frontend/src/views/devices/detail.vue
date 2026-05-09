@@ -213,7 +213,7 @@
                     >编辑</el-button
                   >
                   <el-button
-                    v-if="canDelete"
+                    v-if="canDelete && deviceType !== 'sensor'"
                     type="danger"
                     link
                     @click="handleChannelDelete(row)"

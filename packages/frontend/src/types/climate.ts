@@ -7,6 +7,7 @@ export interface ClimateProfile {
   name: string
   description?: string
   trigger_metric_code: string
+  trigger_sensor_channel_id?: number
   enabled: boolean
   created_at: string
   updated_at: string
@@ -46,6 +47,9 @@ export interface ClimateExecutionLog {
   from_stage_level?: number
   to_stage_level: number
   trigger_value: number
+  trigger_sensor_channel_id?: number
+  trigger_metric_code?: string
+  collected_at?: string
   executed_actions_count: number
   executed_at: string
   created_at: string
@@ -58,6 +62,7 @@ export interface CreateClimateProfileRequest {
   name: string
   description?: string
   trigger_metric_code: string
+  trigger_sensor_channel_id: number
   enabled?: boolean
 }
 
@@ -84,6 +89,7 @@ export interface CreateClimateProfileWithStagesRequest {
   name: string
   description?: string
   trigger_metric_code: string
+  trigger_sensor_channel_id: number
   enabled?: boolean
   stages: StageWithActions[]
 }

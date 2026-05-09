@@ -62,7 +62,9 @@
     <div class="table-container">
       <el-table :data="harvests" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="batch_id" label="批次ID" width="100" />
+        <el-table-column label="批次" width="180">
+          <template #default="{ row }">{{ batchName(row.batch_id) }}</template>
+        </el-table-column>
         <el-table-column prop="harvested_at" label="采收时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.harvested_at) }}</template>
         </el-table-column>
@@ -142,6 +144,7 @@ import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { cropApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
+import { buildIdLabelMap, cropBatchLabel, fallbackIdLabel } from '@/utils/labels'
 import type { CropBatch, HarvestRecord } from '@/types'
 
 const loading = ref(false)
@@ -155,6 +158,15 @@ const summary = ref<{
   yield_rate?: number
   grades?: { grade: string; weight_kg: number; count: number }[]
 }>({})
+
+const batchLabelById = computed(() =>
+  buildIdLabelMap(batches.value, b => b.id, cropBatchLabel, '批次')
+)
+
+function batchName(batchId?: number | null) {
+  if (!batchId) return '-'
+  return batchLabelById.value[batchId] || fallbackIdLabel('批次', batchId)
+}
 
 const harvestCount = computed(() => {
   if (!summary.value.grades) return 0

@@ -93,7 +93,9 @@ func (s *Scheduler) evaluateThresholdPolicies(triggerMetric string, triggerValue
 	var policies []ControlPolicy
 	err := s.db.
 		Preload("Conditions", "enabled = true").
-		Preload("Targets", "enabled = true").
+		Preload("Targets", func(db *gorm.DB) *gorm.DB {
+			return db.Where("enabled = true").Order("execution_order asc, id asc")
+		}).
 		Where("control_policies.enabled = true AND policy_type = ?", "THRESHOLD").
 		Where("(effective_from IS NULL OR effective_from <= ?)", now).
 		Where("(effective_to IS NULL OR effective_to >= ?)", now).
@@ -117,7 +119,9 @@ func (s *Scheduler) evaluateScheduledPolicies() {
 	var policies []ControlPolicy
 	err := s.db.
 		Preload("Conditions", "enabled = true").
-		Preload("Targets", "enabled = true").
+		Preload("Targets", func(db *gorm.DB) *gorm.DB {
+			return db.Where("enabled = true").Order("execution_order asc, id asc")
+		}).
 		Where("control_policies.enabled = true AND policy_type = ?", "SCHEDULE").
 		Where("(effective_from IS NULL OR effective_from <= ?)", now).
 		Where("(effective_to IS NULL OR effective_to >= ?)", now).
@@ -311,12 +315,16 @@ func (s *Scheduler) executeTarget(t PolicyTarget, p ControlPolicy) (uint64, erro
 	}
 
 	if s.mqttClient == nil || !s.mqttClient.IsConnected() {
-		now := time.Now().UTC()
-		s.db.Model(&cmd).Updates(map[string]interface{}{
-			"status":  "SENT",
-			"sent_at": now,
+		s.db.Model(&cmd).Update("status", "FAILED")
+		s.hub.Publish(event.SSEEvent{
+			Type: "command:dispatched",
+			Data: map[string]interface{}{
+				"command_id": cmd.ID,
+				"status":     "FAILED",
+				"policy_id":  p.ID,
+			},
 		})
-		return cmd.ID, nil
+		return cmd.ID, fmt.Errorf("mqtt offline")
 	}
 
 	deviceCode, err := s.lookupActuatorDeviceCode(t.ActuatorChannelID)
@@ -327,6 +335,7 @@ func (s *Scheduler) executeTarget(t PolicyTarget, p ControlPolicy) (uint64, erro
 	topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, deviceCode, mqttpkg.TopicCmdPrefix, t.CommandType)
 	token := s.mqttClient.Publish(topic, 1, false, t.CommandPayload)
 	if token.Wait() && token.Error() != nil {
+		s.db.Model(&cmd).Update("status", "FAILED")
 		return cmd.ID, fmt.Errorf("mqtt publish: %w", token.Error())
 	}
 

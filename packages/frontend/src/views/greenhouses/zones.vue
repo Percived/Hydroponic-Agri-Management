@@ -50,7 +50,9 @@
     <div class="table-container">
       <el-table :data="zones" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="greenhouse_id" label="温室ID" width="100" />
+        <el-table-column label="温室" width="160">
+          <template #default="{ row }">{{ greenhouseName(row.greenhouse_id) }}</template>
+        </el-table-column>
         <el-table-column prop="code" label="编号" width="120" />
         <el-table-column prop="name" label="名称" width="150" />
         <el-table-column prop="system_type" label="系统类型" width="120">
@@ -211,6 +213,7 @@ import { Plus } from "@element-plus/icons-vue";
 import { greenhouseApi } from "@/api";
 import { usePermission } from "@/composables/usePermission";
 import { formatDateTime } from "@/utils/format";
+import { buildIdLabelMap, fallbackIdLabel, greenhouseLabel } from "@/utils/labels";
 import { LARGE_PAGE_SIZE } from "@/utils/constants";
 import { Role } from "@/types";
 import type { GrowingZone, Greenhouse } from "@/types";
@@ -225,6 +228,15 @@ const zones = ref<GrowingZone[]>([]);
 const total = ref(0);
 const greenhouses = ref<Greenhouse[]>([]);
 const statusLoading = reactive<Record<number, boolean>>({});
+
+const greenhouseLabelById = computed(() =>
+  buildIdLabelMap(greenhouses.value, (g) => g.id, greenhouseLabel, "温室")
+);
+
+function greenhouseName(greenhouseId?: number) {
+  if (!greenhouseId) return fallbackIdLabel("温室", greenhouseId);
+  return greenhouseLabelById.value[greenhouseId] || fallbackIdLabel("温室", greenhouseId);
+}
 
 const filters = reactive({
   greenhouse_id: undefined as number | undefined,

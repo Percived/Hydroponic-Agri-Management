@@ -48,7 +48,9 @@
     <div class="table-container">
       <el-table :data="records" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="greenhouse_id" label="温室ID" width="100" />
+        <el-table-column label="温室" width="160">
+          <template #default="{ row }">{{ greenhouseName(row.greenhouse_id) }}</template>
+        </el-table-column>
         <el-table-column prop="record_type" label="能耗类型" width="120">
           <template #default="{ row }">{{ recordTypeName(row.record_type) }}</template>
         </el-table-column>
@@ -61,8 +63,8 @@
         <el-table-column prop="record_period_end" label="周期结束" width="180">
           <template #default="{ row }">{{ formatDateTime(row.record_period_end) }}</template>
         </el-table-column>
-        <el-table-column prop="batch_id" label="批次ID" width="100">
-          <template #default="{ row }">{{ row.batch_id || '-' }}</template>
+        <el-table-column label="批次" width="160">
+          <template #default="{ row }">{{ batchName(row.batch_id) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
@@ -148,11 +150,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { energyApi, greenhouseApi, cropApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
+import { buildIdLabelMap, cropBatchLabel, fallbackIdLabel, greenhouseLabel } from '@/utils/labels'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import type { EnergyConsumptionRecord, EnergySummary, Greenhouse, CropBatch } from '@/types'
 
@@ -162,6 +165,23 @@ const total = ref(0)
 const summaryItems = ref<EnergySummary[]>([])
 const greenhouses = ref<Greenhouse[]>([])
 const batches = ref<CropBatch[]>([])
+
+const greenhouseLabelById = computed(() =>
+  buildIdLabelMap(greenhouses.value, g => g.id, greenhouseLabel, '温室')
+)
+const batchLabelById = computed(() =>
+  buildIdLabelMap(batches.value, b => b.id, cropBatchLabel, '批次')
+)
+
+function greenhouseName(greenhouseId?: number) {
+  if (!greenhouseId) return fallbackIdLabel('温室', greenhouseId)
+  return greenhouseLabelById.value[greenhouseId] || fallbackIdLabel('温室', greenhouseId)
+}
+
+function batchName(batchId?: number) {
+  if (!batchId) return '-'
+  return batchLabelById.value[batchId] || fallbackIdLabel('批次', batchId)
+}
 
 const filters = reactive({
   record_type: '' as string,

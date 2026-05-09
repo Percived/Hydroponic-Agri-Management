@@ -6,35 +6,38 @@ import "time"
 
 // CreateClimateProfileRequest is the request body for creating a climate profile.
 type CreateClimateProfileRequest struct {
-	GreenhouseID      uint64 `json:"greenhouse_id" binding:"required"`
-	Code              string `json:"code" binding:"required,min=1,max=64"`
-	Name              string `json:"name" binding:"required,min=1,max=128"`
-	Description       string `json:"description" binding:"max=255"`
-	TriggerMetricCode string `json:"trigger_metric_code" binding:"required,min=1,max=32"`
-	Enabled           *bool  `json:"enabled"`
+	GreenhouseID           uint64 `json:"greenhouse_id" binding:"required"`
+	Code                   string `json:"code" binding:"required,min=1,max=64"`
+	Name                   string `json:"name" binding:"required,min=1,max=128"`
+	Description            string `json:"description" binding:"max=255"`
+	TriggerMetricCode      string `json:"trigger_metric_code" binding:"required,min=1,max=32"`
+	TriggerSensorChannelID uint64 `json:"trigger_sensor_channel_id" binding:"required"`
+	Enabled                *bool  `json:"enabled"`
 }
 
 // UpdateClimateProfileRequest is the request body for updating a climate profile.
 type UpdateClimateProfileRequest struct {
-	Name              *string `json:"name" binding:"omitempty,min=1,max=128"`
-	Description       *string `json:"description" binding:"omitempty,max=255"`
-	TriggerMetricCode *string `json:"trigger_metric_code" binding:"omitempty,min=1,max=32"`
-	Enabled           *bool   `json:"enabled"`
+	Name                   *string `json:"name" binding:"omitempty,min=1,max=128"`
+	Description            *string `json:"description" binding:"omitempty,max=255"`
+	TriggerMetricCode      *string `json:"trigger_metric_code" binding:"omitempty,min=1,max=32"`
+	TriggerSensorChannelID *uint64 `json:"trigger_sensor_channel_id"`
+	Enabled                *bool   `json:"enabled"`
 }
 
 // ClimateProfileResponse is the response body for a climate profile.
 type ClimateProfileResponse struct {
-	ID                uint64                 `json:"id"`
-	GreenhouseID      uint64                 `json:"greenhouse_id"`
-	Code              string                 `json:"code"`
-	Name              string                 `json:"name"`
-	Description       string                 `json:"description"`
-	TriggerMetricCode string                 `json:"trigger_metric_code"`
-	Enabled           bool                   `json:"enabled"`
-	StagesCount       int                    `json:"stages_count"`
-	CreatedAt         time.Time              `json:"created_at"`
-	UpdatedAt         time.Time              `json:"updated_at"`
-	Stages            []ClimateStageResponse `json:"stages,omitempty"`
+	ID                     uint64                 `json:"id"`
+	GreenhouseID           uint64                 `json:"greenhouse_id"`
+	Code                   string                 `json:"code"`
+	Name                   string                 `json:"name"`
+	Description            string                 `json:"description"`
+	TriggerMetricCode      string                 `json:"trigger_metric_code"`
+	TriggerSensorChannelID *uint64                `json:"trigger_sensor_channel_id"`
+	Enabled                bool                   `json:"enabled"`
+	StagesCount            int                    `json:"stages_count"`
+	CreatedAt              time.Time              `json:"created_at"`
+	UpdatedAt              time.Time              `json:"updated_at"`
+	Stages                 []ClimateStageResponse `json:"stages,omitempty"`
 }
 
 // ClimateProfileListResponse is the paginated list response for climate profiles.
@@ -116,15 +119,18 @@ type ClimateStageActionResponse struct {
 
 // ClimateExecutionLogResponse is the response body for an execution log.
 type ClimateExecutionLogResponse struct {
-	ID                   uint64    `json:"id"`
-	ProfileID            uint64    `json:"profile_id"`
-	ProfileName          string    `json:"profile_name,omitempty"`
-	FromStageLevel       *uint8    `json:"from_stage_level"`
-	ToStageLevel         uint8     `json:"to_stage_level"`
-	TriggerValue         float64   `json:"trigger_value"`
-	ExecutedActionsCount uint      `json:"executed_actions_count"`
-	ExecutedAt           time.Time `json:"executed_at"`
-	CreatedAt            time.Time `json:"created_at"`
+	ID                     uint64     `json:"id"`
+	ProfileID              uint64     `json:"profile_id"`
+	ProfileName            string     `json:"profile_name,omitempty"`
+	FromStageLevel         *uint8     `json:"from_stage_level"`
+	ToStageLevel           uint8      `json:"to_stage_level"`
+	TriggerValue           float64    `json:"trigger_value"`
+	TriggerSensorChannelID *uint64    `json:"trigger_sensor_channel_id,omitempty"`
+	TriggerMetricCode      *string    `json:"trigger_metric_code,omitempty"`
+	CollectedAt            *time.Time `json:"collected_at,omitempty"`
+	ExecutedActionsCount   uint       `json:"executed_actions_count"`
+	ExecutedAt             time.Time  `json:"executed_at"`
+	CreatedAt              time.Time  `json:"created_at"`
 }
 
 // ClimateExecutionLogListResponse is the paginated list response for execution logs.
@@ -149,13 +155,14 @@ type StageWithActions struct {
 
 // CreateClimateProfileWithStagesRequest creates a profile with nested stages and actions.
 type CreateClimateProfileWithStagesRequest struct {
-	GreenhouseID      uint64             `json:"greenhouse_id" binding:"required"`
-	Code              string             `json:"code" binding:"required,min=1,max=64"`
-	Name              string             `json:"name" binding:"required,min=1,max=128"`
-	Description       string             `json:"description" binding:"max=255"`
-	TriggerMetricCode string             `json:"trigger_metric_code" binding:"required,min=1,max=32"`
-	Enabled           *bool              `json:"enabled"`
-	Stages            []StageWithActions `json:"stages"`
+	GreenhouseID           uint64             `json:"greenhouse_id" binding:"required"`
+	Code                   string             `json:"code" binding:"required,min=1,max=64"`
+	Name                   string             `json:"name" binding:"required,min=1,max=128"`
+	Description            string             `json:"description" binding:"max=255"`
+	TriggerMetricCode      string             `json:"trigger_metric_code" binding:"required,min=1,max=32"`
+	TriggerSensorChannelID uint64             `json:"trigger_sensor_channel_id" binding:"required"`
+	Enabled                *bool              `json:"enabled"`
+	Stages                 []StageWithActions `json:"stages"`
 }
 
 // ExecuteClimateProfileRequest is the request body for manually executing a profile.

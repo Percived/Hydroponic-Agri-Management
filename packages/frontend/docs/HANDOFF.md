@@ -2,9 +2,56 @@
 
 最后更新: 2026-05-09
 当前分支: version2
-当前重点: v0.8.1 — 气候模块前端修复
+当前重点: v0.8.1 — 气候联动触发源单通道化
 
 ## 最新变更 (2026-05-09)
+
+### 气候联动触发源改造：固定单一采集通道
+
+- **`src/views/climate/index.vue`**
+  - Profile 表单新增：温室→采集设备→指标→采集通道四级选择
+  - 创建/更新 Profile 提交 `trigger_sensor_channel_id`
+  - 列表与执行日志弹窗补充展示触发通道/指标/采集时间字段
+  - 删除按钮仅 ADMIN 展示（后端限制 DELETE 为 ADMIN）
+- **`src/types/climate.ts`**
+  - `CreateClimateProfileRequest` / `CreateClimateProfileWithStagesRequest` 增加必填 `trigger_sensor_channel_id`
+  - `ClimateExecutionLog` 增加可选字段：`trigger_sensor_channel_id/trigger_metric_code/collected_at`
+- **`src/views/devices/detail.vue`**
+  - 采集通道删除入口移除（后端禁止 DELETE）；通过启用开关进行停用
+
+### 营养液管理可用性优化
+
+- **`src/views/nutrient/tanks.vue`**
+  - 新增/编辑液槽：传感器通道下拉项由 `channel_code (ID:channel_id)` 改为 `channel_code (设备名/设备编码)`，减少用户记忆成本
+
+### 列表外键字段可读化
+
+- **`src/utils/labels.ts`**
+  - 新增 `*_id → 名称` 的通用 label 工具（温室/种植区/批次/作物/阶段/设备/通道等）
+- **`src/views/greenhouses/zones.vue`**
+  - 表格列：`温室ID` → `温室`（显示温室名称）
+- **`src/views/nutrient/tanks.vue`**
+  - 表格列：`种植区ID` → `种植区`（显示种植区名称）
+- **`src/views/batches/ledger.vue`**
+  - 表格列：温室/作物品种/种植区外键改为名称展示
+- **`src/views/pest/observations.vue`**
+  - 表格列：温室/种植区/批次外键改为名称展示
+- **`src/views/energy/records.vue`**
+  - 表格列：温室/批次外键改为名称展示
+- **`src/views/nutrient/ion-tests.vue`**
+  - 表格列：液槽外键改为液槽编号展示
+- **`src/views/recipes/index.vue`**
+  - 阶段指标/离子目标：生长阶段由 ID 改为名称展示；新增/编辑改为下拉选择生长阶段
+- **`src/views/batches/stage-plans.vue`**
+  - 表格列：生长阶段由 ID 改为名称展示（冲突提示同步名称化）
+- **`src/views/batches/harvest.vue`**
+  - 表格列：批次由 ID 改为名称展示
+- **`src/views/climate/index.vue`**
+  - Profiles/Logs：温室与触发通道由 ID 改为名称展示；Actions：执行器通道展示 `channel_code (所属设备)`
+- **`src/views/alerts/index.vue`**
+  - 通道列由 `#id` 改为 `channel_code (所属设备)`（按需缓存查询）
+- **`src/views/audit-logs/index.vue`**
+  - `目标ID` 列更名为 `目标`（展示 `#id`，避免“XXID”表头）
 
 ### 资产中心权限与启停
 

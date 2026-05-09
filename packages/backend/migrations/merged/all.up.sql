@@ -454,11 +454,13 @@ CREATE TABLE `climate_profiles` (
   `name` VARCHAR(128) NOT NULL,
   `description` VARCHAR(255) DEFAULT NULL,
   `trigger_metric_code` VARCHAR(32) NOT NULL COMMENT '触发指标（TEMP/HUMIDITY/CO2）',
+  `trigger_sensor_channel_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '触发采集通道ID（固定单通道触发）',
   `enabled` TINYINT UNSIGNED NOT NULL DEFAULT 1,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_climate_profiles_code` (`greenhouse_id`, `code`),
+  KEY `idx_climate_profiles_trigger_sc` (`trigger_sensor_channel_id`, `enabled`),
   CONSTRAINT `fk_climate_profile_greenhouse` FOREIGN KEY (`greenhouse_id`) REFERENCES `greenhouses` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -499,11 +501,15 @@ CREATE TABLE `climate_execution_logs` (
   `from_stage_level` TINYINT UNSIGNED DEFAULT NULL COMMENT '从哪个级别切换',
   `to_stage_level` TINYINT UNSIGNED NOT NULL COMMENT '切换到哪个级别',
   `trigger_value` DECIMAL(12,4) NOT NULL COMMENT '触发时的实际值',
+  `trigger_sensor_channel_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '触发采集通道ID',
+  `trigger_metric_code` VARCHAR(32) DEFAULT NULL COMMENT '触发指标',
+  `collected_at` DATETIME(3) DEFAULT NULL COMMENT '遥测采集时间（无则与 executed_at 相同）',
   `executed_actions_count` INT UNSIGNED NOT NULL DEFAULT 0,
   `executed_at` DATETIME(3) NOT NULL,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   KEY `idx_climate_log_profile_time` (`profile_id`, `executed_at`),
+  KEY `idx_climate_log_trigger_sc_time` (`trigger_sensor_channel_id`, `executed_at`),
   CONSTRAINT `fk_climate_log_profile` FOREIGN KEY (`profile_id`) REFERENCES `climate_profiles` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

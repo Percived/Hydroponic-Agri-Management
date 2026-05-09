@@ -63,20 +63,24 @@ func (s *ProfileScheduler) runEventDriven() {
 		if !ok {
 			continue
 		}
+		sensorChannelID, ok := toUint64(data["sensor_channel_id"])
+		if !ok {
+			continue
+		}
 		metricCode, _ := data["metric_code"].(string)
 		value, _ := toFloat64(data["value"])
 		if metricCode == "" || value == nil {
 			continue
 		}
-		s.evaluateProfiles(metricCode, *value)
+		collectedAt := parseRFC3339Time(data["collected_at"])
+		s.evaluateProfilesByChannel(sensorChannelID, metricCode, *value, collectedAt)
 	}
 }
 
-// evaluateProfiles loads enabled climate profiles matching the trigger metric and evaluates each.
-func (s *ProfileScheduler) evaluateProfiles(triggerMetric string, triggerValue float64) {
+func (s *ProfileScheduler) evaluateProfilesByChannel(triggerSensorChannelID uint64, triggerMetric string, triggerValue float64, collectedAt *time.Time) {
 	var profiles []ClimateProfile
 	err := s.db.
-		Where("enabled = true AND trigger_metric_code = ?", triggerMetric).
+		Where("enabled = true AND trigger_sensor_channel_id = ?", triggerSensorChannelID).
 		Find(&profiles).Error
 	if err != nil {
 		s.log.Error("profile_scheduler: failed to load profiles", "error", err)
@@ -84,13 +88,13 @@ func (s *ProfileScheduler) evaluateProfiles(triggerMetric string, triggerValue f
 	}
 
 	for _, p := range profiles {
-		s.evaluateProfile(p, triggerValue)
+		s.evaluateProfile(p, triggerSensorChannelID, triggerMetric, triggerValue, collectedAt)
 	}
 }
 
 // evaluateProfile checks all stages for a profile and transitions to the highest
 // matching stage if conditions are met.
-func (s *ProfileScheduler) evaluateProfile(p ClimateProfile, triggerValue float64) {
+func (s *ProfileScheduler) evaluateProfile(p ClimateProfile, triggerSensorChannelID uint64, triggerMetric string, triggerValue float64, collectedAt *time.Time) {
 	now := time.Now().UTC()
 
 	// Check cooldown
@@ -102,7 +106,9 @@ func (s *ProfileScheduler) evaluateProfile(p ClimateProfile, triggerValue float6
 	// Load stages with enabled actions, ordered by stage_level ASC
 	var stages []ClimateStage
 	err := s.db.
-		Preload("Actions", "enabled = true").
+		Preload("Actions", func(db *gorm.DB) *gorm.DB {
+			return db.Where("enabled = true").Order("execution_order asc, id asc")
+		}).
 		Where("profile_id = ?", p.ID).
 		Order("stage_level ASC").
 		Find(&stages).Error
@@ -112,18 +118,6 @@ func (s *ProfileScheduler) evaluateProfile(p ClimateProfile, triggerValue float6
 	}
 
 	if len(stages) == 0 {
-		return
-	}
-
-	// Find the highest matching stage
-	var matchedStage *ClimateStage
-	for i := range stages {
-		if s.evaluateStageTrigger(stages[i], triggerValue) {
-			matchedStage = &stages[i]
-		}
-	}
-
-	if matchedStage == nil {
 		return
 	}
 
@@ -137,6 +131,11 @@ func (s *ProfileScheduler) evaluateProfile(p ClimateProfile, triggerValue float6
 		fromStageLevel = &lastLog.ToStageLevel
 	}
 
+	matchedStage := s.selectStageWithStatefulHysteresis(stages, fromStageLevel, triggerValue)
+	if matchedStage == nil {
+		return
+	}
+
 	// Skip if already at this stage (no transition needed)
 	if fromStageLevel != nil && *fromStageLevel == matchedStage.StageLevel {
 		return
@@ -147,12 +146,15 @@ func (s *ProfileScheduler) evaluateProfile(p ClimateProfile, triggerValue float6
 
 	// Log execution
 	execLog := ClimateExecutionLog{
-		ProfileID:            p.ID,
-		FromStageLevel:       fromStageLevel,
-		ToStageLevel:         matchedStage.StageLevel,
-		TriggerValue:         triggerValue,
-		ExecutedActionsCount: executedCount,
-		ExecutedAt:           now,
+		ProfileID:              p.ID,
+		FromStageLevel:         fromStageLevel,
+		ToStageLevel:           matchedStage.StageLevel,
+		TriggerValue:           triggerValue,
+		TriggerSensorChannelID: &triggerSensorChannelID,
+		TriggerMetricCode:      &triggerMetric,
+		CollectedAt:            collectedAt,
+		ExecutedActionsCount:   executedCount,
+		ExecutedAt:             now,
 	}
 	s.db.Create(&execLog)
 
@@ -210,12 +212,16 @@ func (s *ProfileScheduler) executeAction(action ClimateStageAction) (uint64, err
 	}
 
 	if s.mqttClient == nil || !s.mqttClient.IsConnected() {
-		now := time.Now().UTC()
-		s.db.Model(&cmd).Updates(map[string]interface{}{
-			"status":  "SENT",
-			"sent_at": now,
+		s.db.Model(&cmd).Update("status", "FAILED")
+		s.hub.Publish(event.SSEEvent{
+			Type: "command:dispatched",
+			Data: map[string]interface{}{
+				"command_id": cmd.ID,
+				"status":     "FAILED",
+				"profile_id": action.StageID,
+			},
 		})
-		return cmd.ID, nil
+		return cmd.ID, fmt.Errorf("mqtt offline")
 	}
 
 	deviceCode, err := s.lookupActuatorDeviceCode(action.ActuatorChannelID)
@@ -226,6 +232,7 @@ func (s *ProfileScheduler) executeAction(action ClimateStageAction) (uint64, err
 	topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, deviceCode, mqttpkg.TopicCmdPrefix, action.CommandType)
 	token := s.mqttClient.Publish(topic, 1, false, action.CommandPayload)
 	if token.Wait() && token.Error() != nil {
+		s.db.Model(&cmd).Update("status", "FAILED")
 		return cmd.ID, fmt.Errorf("mqtt publish: %w", token.Error())
 	}
 
@@ -341,4 +348,140 @@ func toFloat64(v interface{}) (*float64, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func toUint64(v interface{}) (uint64, bool) {
+	switch val := v.(type) {
+	case uint64:
+		return val, true
+	case uint32:
+		return uint64(val), true
+	case uint:
+		return uint64(val), true
+	case int:
+		if val < 0 {
+			return 0, false
+		}
+		return uint64(val), true
+	case int64:
+		if val < 0 {
+			return 0, false
+		}
+		return uint64(val), true
+	case float64:
+		if val < 0 {
+			return 0, false
+		}
+		return uint64(val), true
+	case json.Number:
+		i, err := val.Int64()
+		if err != nil || i < 0 {
+			return 0, false
+		}
+		return uint64(i), true
+	case string:
+		i, err := json.Number(val).Int64()
+		if err != nil || i < 0 {
+			return 0, false
+		}
+		return uint64(i), true
+	default:
+		return 0, false
+	}
+}
+
+func parseRFC3339Time(v interface{}) *time.Time {
+	s, ok := v.(string)
+	if !ok || s == "" {
+		return nil
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		tt := t.UTC()
+		return &tt
+	}
+	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+		tt := t.UTC()
+		return &tt
+	}
+	return nil
+}
+
+func selectStageDirection(op string) (string, bool) {
+	switch op {
+	case ">", ">=":
+		return "up", true
+	case "<", "<=":
+		return "down", true
+	default:
+		return "", false
+	}
+}
+
+func (s *ProfileScheduler) selectStageWithStatefulHysteresis(stages []ClimateStage, currentStageLevel *uint8, value float64) *ClimateStage {
+	if len(stages) == 0 {
+		return nil
+	}
+	dir, ok := selectStageDirection(stages[0].TriggerOperator)
+	if !ok {
+		return nil
+	}
+
+	var current *ClimateStage
+	if currentStageLevel != nil {
+		for i := range stages {
+			if stages[i].StageLevel == *currentStageLevel {
+				current = &stages[i]
+				break
+			}
+		}
+	}
+
+	var candidate *ClimateStage
+	for i := range stages {
+		if compareValues(value, stages[i].TriggerThreshold, stages[i].TriggerOperator) {
+			candidate = &stages[i]
+		}
+	}
+	if candidate == nil {
+		return nil
+	}
+
+	if current != nil {
+		if candidate.StageLevel == current.StageLevel {
+			return candidate
+		}
+		if dir == "up" {
+			if candidate.StageLevel > current.StageLevel {
+				if value < candidate.TriggerThreshold+candidate.Hysteresis {
+					return nil
+				}
+			} else {
+				if value >= current.TriggerThreshold-current.Hysteresis {
+					return nil
+				}
+			}
+		} else {
+			if candidate.StageLevel > current.StageLevel {
+				if value > candidate.TriggerThreshold-candidate.Hysteresis {
+					return nil
+				}
+			} else {
+				if value <= current.TriggerThreshold+current.Hysteresis {
+					return nil
+				}
+			}
+		}
+	} else {
+		if dir == "up" {
+			if value < candidate.TriggerThreshold+candidate.Hysteresis {
+				return nil
+			}
+		} else {
+			if value > candidate.TriggerThreshold-candidate.Hysteresis {
+				return nil
+			}
+		}
+	}
+
+	return candidate
 }

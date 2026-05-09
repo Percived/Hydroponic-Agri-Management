@@ -27,9 +27,15 @@
     <div class="table-container">
       <el-table :data="observations" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="greenhouse_id" label="温室ID" width="100" />
-        <el-table-column prop="growing_zone_id" label="种植区ID" width="120" />
-        <el-table-column prop="batch_id" label="批次ID" width="100" />
+        <el-table-column label="温室" width="160">
+          <template #default="{ row }">{{ greenhouseName(row.greenhouse_id) }}</template>
+        </el-table-column>
+        <el-table-column label="种植区" width="160">
+          <template #default="{ row }">{{ growingZoneName(row.growing_zone_id) }}</template>
+        </el-table-column>
+        <el-table-column label="批次" width="160">
+          <template #default="{ row }">{{ batchName(row.batch_id) }}</template>
+        </el-table-column>
         <el-table-column prop="pest_or_disease" label="病虫害" width="140" />
         <el-table-column prop="severity" label="严重程度" width="110">
           <template #default="{ row }">
@@ -260,6 +266,7 @@ import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { pestApi, greenhouseApi, cropApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
+import { buildIdLabelMap, cropBatchLabel, fallbackIdLabel, greenhouseLabel, growingZoneLabel } from '@/utils/labels'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import type { PestDiseaseObservation, TreatmentRecord, Greenhouse, CropBatch, GrowingZone } from '@/types'
 
@@ -270,6 +277,31 @@ const total = ref(0)
 const greenhouses = ref<Greenhouse[]>([])
 const batches = ref<CropBatch[]>([])
 const growingZones = ref<GrowingZone[]>([])
+
+const greenhouseLabelById = computed(() =>
+  buildIdLabelMap(greenhouses.value, g => g.id, greenhouseLabel, '温室')
+)
+const batchLabelById = computed(() =>
+  buildIdLabelMap(batches.value, b => b.id, cropBatchLabel, '批次')
+)
+const growingZoneLabelById = computed(() =>
+  buildIdLabelMap(growingZones.value, z => z.id, growingZoneLabel, '种植区')
+)
+
+function greenhouseName(greenhouseId?: number) {
+  if (!greenhouseId) return fallbackIdLabel('温室', greenhouseId)
+  return greenhouseLabelById.value[greenhouseId] || fallbackIdLabel('温室', greenhouseId)
+}
+
+function batchName(batchId?: number) {
+  if (!batchId) return fallbackIdLabel('批次', batchId)
+  return batchLabelById.value[batchId] || fallbackIdLabel('批次', batchId)
+}
+
+function growingZoneName(zoneId?: number) {
+  if (!zoneId) return fallbackIdLabel('种植区', zoneId)
+  return growingZoneLabelById.value[zoneId] || fallbackIdLabel('种植区', zoneId)
+}
 
 const filteredGrowingZones = computed(() => {
   if (!obsForm.greenhouse_id) return growingZones.value

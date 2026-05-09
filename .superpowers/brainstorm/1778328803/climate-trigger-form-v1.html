@@ -1,0 +1,70 @@
+<h2>气候联动：触发来源如何指定？</h2>
+<p class="subtitle">目标：固定“单一采集通道”的温度值作为触发依据，避免跨温室与多探头互相干扰</p>
+
+<div class="cards">
+  <div class="card" data-choice="A" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">方案 A（推荐）：显式指定 温室 + 设备 + 指标 + 采集通道</div>
+        <div class="mockup-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px">温室 *</div>
+              <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface)">选择温室（下拉）</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px">设备 *</div>
+              <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface)">选择设备（下拉，按温室过滤）</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px">指标 *</div>
+              <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface)">TEMP / HUM / CO2…（下拉）</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px">采集通道 *</div>
+              <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface)">选择通道（按设备+指标过滤）</div>
+            </div>
+          </div>
+          <div style="margin-top:10px;font-size:12px;color:var(--muted)">
+            触发规则：只消费该“采集通道”的遥测值；其他温室/其他探头的 TEMP 不参与评估
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>显式、可解释</h3>
+      <p>用户在 UI 上完整指定来源，审计与排障更直观；后端可严格校验归属关系。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="B" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">方案 B：只指定“采集通道”（设备/指标由通道反推）</div>
+        <div class="mockup-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px">温室 *</div>
+              <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface)">选择温室（下拉）</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:6px">采集通道 *</div>
+              <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface)">选择通道（按温室过滤）</div>
+            </div>
+          </div>
+          <div style="margin-top:10px;font-size:12px;color:var(--muted)">
+            UI 只选通道；设备/指标字段只读展示（由通道归属决定）
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>更省步骤</h3>
+      <p>选择更少，但用户对“为什么触发/用哪个点位”可能不够直观（需要展示解释信息）。</p>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:14px" class="callout">
+  <strong>请点选你想要的方案：</strong>我默认推荐 A，因为你明确提出需要用户指定温室、设备、指标、采集通道。
+</div>

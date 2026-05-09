@@ -2,9 +2,26 @@
 
 最后更新: 2026-05-09
 当前分支: version2
-当前重点: v2.3.1 气候模块自动调度器 + 前端修复
+当前重点: v2.3.2 气候联动触发源单通道化
 
 ## 最新变更 (2026-05-09)
+
+### 气候联动触发源改造：固定单一采集通道
+
+- **Schema**
+  - `climate_profiles` 新增 `trigger_sensor_channel_id`（固定单通道触发）
+  - `climate_execution_logs` 新增 `trigger_sensor_channel_id` / `trigger_metric_code` / `collected_at`（可观测性增强）
+- **`internal/climate/profile_scheduler.go`**
+  - 自动调度从“按 trigger_metric_code 匹配”改为“按 telemetry:received 的 sensor_channel_id 精确匹配 profile”
+  - 写入执行日志时补齐触发来源字段（通道/指标/采集时间）
+  - 执行器动作按 `execution_order` 排序执行；MQTT 不可用或 publish 失败时，命令记录标记为 `FAILED`（不再写成 `SENT`）
+- **`internal/climate/profile_handler.go`**
+  - Profile 创建/更新增加触发源一致性校验：温室归属一致 + 指标与通道 metric_code 一致 + 通道必须 enabled
+- **`internal/device/handler.go`**
+  - 采集通道禁用（enabled=false）时，自动将引用该通道的气候 Profile 置为 enabled=false
+  - 禁止删除采集通道（DELETE 直接返回冲突提示，要求改用禁用）
+- **文档**
+  - `shared/docs/API_SPEC.md`、`shared/docs/openapi.yaml` 对齐新增字段与删除策略
 
 ### 采集中心可用性提升：SSE 过滤 + 稳定性增强
 
