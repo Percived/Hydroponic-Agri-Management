@@ -79,6 +79,11 @@
     </template>
 
     <!-- Error state -->
+    <el-alert v-if="loadError" :title="loadError" type="error" show-icon closable style="margin-top: 16px" @close="loadError = ''">
+      <template #default>
+        <el-button text type="primary" @click="retryLoad">重试</el-button>
+      </template>
+    </el-alert>
     <el-alert v-if="queryError" :title="queryError" type="error" show-icon closable style="margin-top: 16px" @close="queryError = ''">
       <template #default>
         <el-button text type="primary" @click="doQuery">重试</el-button>
@@ -155,6 +160,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { deviceApi, greenhouseApi, telemetryApi, metricApi, cropApi } from '@/api'
 import { LARGE_PAGE_SIZE, EXTRA_LARGE_PAGE_SIZE } from '@/utils/constants'
 import { formatDate, formatNumber, getMetricName, populateMetricNames } from '@/utils/format'
+import { ElMessage } from 'element-plus'
 import MetricTrendChart from '@/components/charts/MetricTrendChart.vue'
 import BatchEventOverlay from '@/components/charts/BatchEventOverlay.vue'
 import type {
@@ -193,6 +199,8 @@ const qualityFilter = ref('')
 const querying = ref(false)
 const queryError = ref('')
 const hasQueried = ref(false)
+const loadError = ref('')
+let loadSeq = 0
 
 // Results
 const rawData = ref<TelemetryRecord[]>([])
@@ -313,28 +321,51 @@ function getTimeRange(): { start: string; end: string } {
 }
 
 async function loadGreenhouses() {
+  const seq = ++loadSeq
+  loadError.value = ''
   try {
     const result = await greenhouseApi.getGreenhouses({ page_size: LARGE_PAGE_SIZE })
+    if (seq !== loadSeq) return
     greenhouses.value = result.items
-  } catch { /* ignore */ }
+  } catch {
+    if (seq !== loadSeq) return
+    loadError.value = '温室列表加载失败'
+    ElMessage.error(loadError.value)
+  }
 }
 
 async function loadMetrics() {
+  const seq = ++loadSeq
+  loadError.value = ''
   try {
     const result = await metricApi.getMetrics({ page_size: EXTRA_LARGE_PAGE_SIZE })
+    if (seq !== loadSeq) return
     metricList.value = result.items
     populateMetricNames(result.items)
-  } catch { /* ignore */ }
+  } catch {
+    if (seq !== loadSeq) return
+    loadError.value = '指标列表加载失败'
+    ElMessage.error(loadError.value)
+  }
 }
 
 async function loadBatches() {
+  const seq = ++loadSeq
+  loadError.value = ''
   try {
     const result = await cropApi.getBatches({ page_size: LARGE_PAGE_SIZE })
+    if (seq !== loadSeq) return
     batches.value = result.items || []
-  } catch { /* ignore */ }
+  } catch {
+    if (seq !== loadSeq) return
+    loadError.value = '批次列表加载失败'
+    ElMessage.error(loadError.value)
+  }
 }
 
 async function onGreenhouseChange() {
+  const seq = ++loadSeq
+  loadError.value = ''
   selectedZoneId.value = null
   selectedChannelIds.value = []
   devices.value = []
@@ -344,23 +375,35 @@ async function onGreenhouseChange() {
 
   try {
     const result = await greenhouseApi.getGreenhouseZones(selectedGreenhouseId.value)
+    if (seq !== loadSeq) return
     zones.value = result.items
-  } catch { /* ignore */ }
+  } catch {
+    if (seq !== loadSeq) return
+    loadError.value = '种植区列表加载失败'
+    ElMessage.error(loadError.value)
+  }
 
   try {
     const result = await deviceApi.getSensorDevices({
       greenhouse_id: selectedGreenhouseId.value,
       page_size: LARGE_PAGE_SIZE
     })
+    if (seq !== loadSeq) return
     devices.value = result.items
     deviceMap.value = new Map(result.items.map((d) => [d.id, d]))
-  } catch { /* ignore */ }
+  } catch {
+    if (seq !== loadSeq) return
+    loadError.value = '设备列表加载失败'
+    ElMessage.error(loadError.value)
+  }
 
   // Load all channels for all devices
-  await loadAllChannels()
+  await loadAllChannels(seq)
 }
 
 async function onZoneChange() {
+  const seq = ++loadSeq
+  loadError.value = ''
   if (!selectedGreenhouseId.value) return
 
   const params: Record<string, unknown> = {
@@ -373,14 +416,19 @@ async function onZoneChange() {
 
   try {
     const result = await deviceApi.getSensorDevices(params)
+    if (seq !== loadSeq) return
     devices.value = result.items
     deviceMap.value = new Map(result.items.map((d) => [d.id, d]))
-  } catch { /* ignore */ }
+  } catch {
+    if (seq !== loadSeq) return
+    loadError.value = '设备列表加载失败'
+    ElMessage.error(loadError.value)
+  }
 
-  await loadAllChannels()
+  await loadAllChannels(seq)
 }
 
-async function loadAllChannels() {
+async function loadAllChannels(seq: number) {
   channels.value = []
   const results = await Promise.all(
     devices.value.map((dev) =>
@@ -390,9 +438,22 @@ async function loadAllChannels() {
       }).catch(() => ({ items: [] as SensorChannel[] }))
     )
   )
+  if (seq !== loadSeq) return
   const allCh = results.flatMap((r) => r.items)
   channels.value = allCh
   channelMap.value = new Map(allCh.map((c) => [c.id, c]))
+}
+
+async function retryLoad() {
+  if (selectedGreenhouseId.value) {
+    if (selectedZoneId.value) {
+      await onZoneChange()
+      return
+    }
+    await onGreenhouseChange()
+    return
+  }
+  await loadGreenhouses()
 }
 
 function onPresetChange() {

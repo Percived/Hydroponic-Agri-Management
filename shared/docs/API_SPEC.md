@@ -1334,6 +1334,36 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 响应：分页列表，items 为 TelemetryRecordResponse[]
 
+**GET /api/telemetry/subscribe**
+
+鉴权：ADMIN / OPERATOR / VIEWER
+
+说明：SSE 订阅遥测实时事件（事件类型：`telemetry_update`），用于采集中心实时总览。支持按设备/指标过滤。
+
+查询参数：
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| token | string | 否 | JWT（仅用于 EventSource 场景无法自定义 Header 时）；也可使用 `Authorization: Bearer <token>` |
+| device_codes | string | 否 | 逗号分隔设备编码，如 `"SENSOR-001,SENSOR-002"` |
+| metric_codes | string | 否 | 逗号分隔指标编码，如 `"TEMP,PH,EC"` |
+
+推送数据（SSE `data:` 行 JSON）：
+
+```json
+{
+  "type": "telemetry_update",
+  "data": {
+    "sensor_channel_id": 1,
+    "metric_code": "TEMP",
+    "value": 25.5,
+    "quality_flag": "normal",
+    "collected_at": "2026-01-01T12:00:00Z",
+    "device_code": "SENSOR-001"
+  }
+}
+```
+
 **GET /api/telemetry/channels/latest**
 
 鉴权：ADMIN / OPERATOR / VIEWER

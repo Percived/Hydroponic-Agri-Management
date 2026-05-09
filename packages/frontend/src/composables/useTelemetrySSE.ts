@@ -20,6 +20,8 @@ export interface UseTelemetrySSEOptions {
 
 export interface UseTelemetrySSEReturn {
   connected: Ref<boolean>
+  status: Ref<'disconnected' | 'connecting' | 'connected' | 'error'>
+  lastError: Ref<string>
   latestUpdate: Ref<TelemetryUpdate | null>
   channelValues: Ref<Map<number, TelemetrySSEEvent>>
   connect: () => void
@@ -28,6 +30,8 @@ export interface UseTelemetrySSEReturn {
 
 export function useTelemetrySSE(options?: UseTelemetrySSEOptions): UseTelemetrySSEReturn {
   const connected = ref(false)
+  const status = ref<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected')
+  const lastError = ref('')
   const latestUpdate = ref<TelemetryUpdate | null>(null)
   const channelValues = ref<Map<number, TelemetrySSEEvent>>(new Map())
 
@@ -42,12 +46,18 @@ export function useTelemetrySSE(options?: UseTelemetrySSEOptions): UseTelemetryS
     const params = new URLSearchParams()
     params.set('token', token)
 
+    const deviceCodes = options?.deviceCodes?.value || []
+    const metricCodes = options?.metricCodes?.value || []
+    if (deviceCodes.length > 0) params.set('device_codes', deviceCodes.join(','))
+    if (metricCodes.length > 0) params.set('metric_codes', metricCodes.join(','))
+
     const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
     return `${baseURL}/telemetry/subscribe?${params.toString()}`
   }
 
   function scheduleReconnect() {
     if (reconnectTimer) return
+    status.value = 'connecting'
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null
       reconnectDelay = Math.min(reconnectDelay * 2, 30000)
@@ -59,12 +69,19 @@ export function useTelemetrySSE(options?: UseTelemetrySSEOptions): UseTelemetryS
     disconnect()
 
     const url = buildURL()
-    if (!url) return
+    if (!url) {
+      status.value = 'error'
+      lastError.value = '未登录或缺少 token'
+      return
+    }
 
+    status.value = 'connecting'
+    lastError.value = ''
     eventSource = new EventSource(url)
 
     eventSource.onopen = () => {
       connected.value = true
+      status.value = 'connected'
       reconnectDelay = 1000
     }
 
@@ -96,6 +113,8 @@ export function useTelemetrySSE(options?: UseTelemetrySSEOptions): UseTelemetryS
 
     eventSource.onerror = () => {
       connected.value = false
+      status.value = 'error'
+      lastError.value = '连接失败，正在重试'
       eventSource?.close()
       eventSource = null
       scheduleReconnect()
@@ -112,6 +131,7 @@ export function useTelemetrySSE(options?: UseTelemetrySSEOptions): UseTelemetryS
       eventSource = null
     }
     connected.value = false
+    status.value = 'disconnected'
   }
 
   // If deviceCodes or metricCodes are reactive refs, reconnect when they change
@@ -122,7 +142,7 @@ export function useTelemetrySSE(options?: UseTelemetrySSEOptions): UseTelemetryS
     watch(options.metricCodes, () => connect(), { deep: true })
   }
 
-  return { connected, latestUpdate, channelValues, connect, disconnect }
+  return { connected, status, lastError, latestUpdate, channelValues, connect, disconnect }
 }
 
 /** Request browser notification permission. Call on user interaction. */

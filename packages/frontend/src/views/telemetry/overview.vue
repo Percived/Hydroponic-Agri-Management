@@ -2,9 +2,17 @@
   <div class="overview-page">
     <div class="page-header">
       <h1 class="page-title">实时总览</h1>
-      <span v-if="sseConnected" class="sse-status connected">&#x25CF; 实时连接中</span>
-      <span v-else class="sse-status disconnected">&#x25CB; 连接断开</span>
+      <div class="header-right">
+        <span class="sse-status" :class="sseStatusClass">{{ sseStatusText }}</span>
+        <el-button v-if="sseStatus !== 'connected'" text type="primary" @click="reconnectSSE">重连</el-button>
+      </div>
     </div>
+    <div v-if="sseLastError" class="sse-error">{{ sseLastError }}</div>
+    <el-alert v-if="pageError" :title="pageError" type="error" show-icon closable style="margin-bottom: 12px" @close="pageError = ''">
+      <template #default>
+        <el-button text type="primary" @click="retryLoad">重试</el-button>
+      </template>
+    </el-alert>
 
     <div class="filter-section">
       <el-select v-model="selectedGreenhouseId" placeholder="选择温室" filterable style="width: 200px" @change="onGreenhouseChange">
@@ -83,11 +91,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { deviceApi, greenhouseApi, telemetryApi } from '@/api'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import { formatDate, formatNumber, getMetricName } from '@/utils/format'
 import { useTelemetrySSE } from '@/composables/useTelemetrySSE'
+import { ElMessage } from 'element-plus'
 import type { SensorDevice, SensorChannel, Greenhouse, GrowingZone, ChannelSnapshot } from '@/types'
 import MetricTrendChart from '@/components/charts/MetricTrendChart.vue'
 
@@ -103,9 +112,40 @@ const snapshots = ref<ChannelSnapshot[]>([])
 const loading = ref(false)
 const updatedChannels = ref(new Set<number>())
 const chartExpanded = ref(true)
+const pageError = ref('')
+let loadSeq = 0
 
 // SSE
-const { connected: sseConnected, channelValues } = useTelemetrySSE()
+const selectedDeviceCodes = computed(() => {
+  if (selectedDeviceIds.value.length === 0) return []
+  const idSet = new Set(selectedDeviceIds.value)
+  return devices.value.filter(d => idSet.has(d.id)).map(d => d.device_code)
+})
+const {
+  status: sseStatus,
+  lastError: sseLastError,
+  channelValues,
+  connect,
+  disconnect
+} = useTelemetrySSE({ deviceCodes: selectedDeviceCodes, metricCodes: selectedMetricCodes })
+
+const sseStatusText = computed(() => {
+  if (sseStatus.value === 'connected') return '● 实时已连接'
+  if (sseStatus.value === 'connecting') return '○ 正在连接'
+  if (sseStatus.value === 'error') return '○ 连接失败'
+  return '○ 未连接'
+})
+const sseStatusClass = computed(() => {
+  if (sseStatus.value === 'connected') return 'connected'
+  if (sseStatus.value === 'connecting') return 'connecting'
+  if (sseStatus.value === 'error') return 'error'
+  return 'disconnected'
+})
+
+function reconnectSSE() {
+  disconnect()
+  connect()
+}
 
 // Trend buffer: channel_id -> [time, value]
 const trendBuffer = ref<Record<number, Array<{ time: string; value: number }>>>({})
@@ -166,7 +206,7 @@ watch(
       return {
         ...snap,
         latest_value: evt.value,
-        quality_flag: 'normal',
+        quality_flag: evt.quality_flag || snap.quality_flag,
         collected_at: evt.collected_at
       }
     })
@@ -177,18 +217,26 @@ watch(
         updatedChannels.value = new Set()
       }, 1500)
     }
-  },
-  { deep: true }
+  }
 )
 
 async function loadGreenhouses() {
+  const seq = ++loadSeq
+  pageError.value = ''
   try {
     const result = await greenhouseApi.getGreenhouses({ page_size: LARGE_PAGE_SIZE })
+    if (seq !== loadSeq) return
     greenhouses.value = result.items
-  } catch { /* ignore */ }
+  } catch {
+    if (seq !== loadSeq) return
+    pageError.value = '温室列表加载失败'
+    ElMessage.error(pageError.value)
+  }
 }
 
 async function onGreenhouseChange() {
+  const seq = ++loadSeq
+  pageError.value = ''
   selectedZoneId.value = null
   selectedDeviceIds.value = []
   devices.value = []
@@ -199,8 +247,13 @@ async function onGreenhouseChange() {
 
   try {
     const result = await greenhouseApi.getGreenhouseZones(selectedGreenhouseId.value)
+    if (seq !== loadSeq) return
     zones.value = result.items
-  } catch { /* ignore */ }
+  } catch {
+    if (seq !== loadSeq) return
+    pageError.value = '种植区列表加载失败'
+    ElMessage.error(pageError.value)
+  }
 
   // Load all sensor devices for this greenhouse
   try {
@@ -208,11 +261,18 @@ async function onGreenhouseChange() {
       greenhouse_id: selectedGreenhouseId.value,
       page_size: LARGE_PAGE_SIZE
     })
+    if (seq !== loadSeq) return
     devices.value = result.items
-  } catch { /* ignore */ }
+  } catch {
+    if (seq !== loadSeq) return
+    pageError.value = '设备列表加载失败'
+    ElMessage.error(pageError.value)
+  }
 }
 
 async function onZoneChange() {
+  const seq = ++loadSeq
+  pageError.value = ''
   selectedDeviceIds.value = []
   channels.value = []
   snapshots.value = []
@@ -229,11 +289,18 @@ async function onZoneChange() {
 
   try {
     const result = await deviceApi.getSensorDevices(params)
+    if (seq !== loadSeq) return
     devices.value = result.items
-  } catch { /* ignore */ }
+  } catch {
+    if (seq !== loadSeq) return
+    pageError.value = '设备列表加载失败'
+    ElMessage.error(pageError.value)
+  }
 }
 
 async function onDeviceChange() {
+  const seq = ++loadSeq
+  pageError.value = ''
   channels.value = []
   snapshots.value = []
 
@@ -251,6 +318,7 @@ async function onDeviceChange() {
         }).catch(() => ({ items: [] as SensorChannel[] }))
       )
     )
+    if (seq !== loadSeq) return
     const allChannels = results.flatMap((r) => r.items)
     channels.value = allChannels
 
@@ -266,6 +334,7 @@ async function onDeviceChange() {
       const channelIds = allChannels.map((ch) => ch.id)
       try {
         const latest = await telemetryApi.getChannelsLatest(channelIds)
+        if (seq !== loadSeq) return
         const latestMap = new Map(latest.items.map((it) => [it.sensor_channel_id, it]))
 
         snapshots.value = allChannels.map((ch) => {
@@ -299,6 +368,7 @@ async function onDeviceChange() {
               .catch(() => ({ chId: ch.id, items: [] }))
           })
         )
+        if (seq !== loadSeq) return
         for (const { chId, items } of historyResults) {
           if (items.length > 0) {
             trendBuffer.value[chId] = items
@@ -307,6 +377,7 @@ async function onDeviceChange() {
           }
         }
       } catch {
+        if (seq !== loadSeq) return
         // Even if latest fails, show cards with null values
         snapshots.value = allChannels.map((ch) => {
           const dev = deviceMap.value.get(ch.sensor_device_id)
@@ -326,8 +397,24 @@ async function onDeviceChange() {
       }
     }
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
+}
+
+async function retryLoad() {
+  if (selectedDeviceIds.value.length > 0) {
+    await onDeviceChange()
+    return
+  }
+  if (selectedGreenhouseId.value) {
+    if (selectedZoneId.value) {
+      await onZoneChange()
+      return
+    }
+    await onGreenhouseChange()
+    return
+  }
+  await loadGreenhouses()
 }
 
 function qualityTagType(flag: string): string {
@@ -339,10 +426,11 @@ function qualityTagType(flag: string): string {
 
 onMounted(() => {
   loadGreenhouses()
+  connect()
 })
 
-onUnmounted(() => {
-  // SSE disconnect handled by composable's onUnmounted via component lifecycle
+onBeforeUnmount(() => {
+  disconnect()
 })
 </script>
 
@@ -353,6 +441,16 @@ onUnmounted(() => {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sse-error {
+    font-size: 12px;
+    color: #f56c6c;
+    margin-bottom: 8px;
   }
 
   .page-title {
@@ -368,6 +466,14 @@ onUnmounted(() => {
     &.connected {
       color: #67c23a;
       background: #f0f9eb;
+    }
+    &.connecting {
+      color: #e6a23c;
+      background: #fdf6ec;
+    }
+    &.error {
+      color: #f56c6c;
+      background: #fef0f0;
     }
     &.disconnected {
       color: #909399;
