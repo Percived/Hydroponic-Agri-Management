@@ -28,11 +28,15 @@ func (h *Handler) CreateTank(c *gin.Context) {
 	}
 
 	tank := NutrientTank{
-		GrowingZoneID:      req.GrowingZoneID,
-		Code:               req.Code,
-		TotalVolumeLiter:   req.TotalVolumeLiter,
-		CurrentVolumeLiter: req.CurrentVolumeLiter,
-		Status:             status,
+		GrowingZoneID:        req.GrowingZoneID,
+		Code:                 req.Code,
+		TotalVolumeLiter:     req.TotalVolumeLiter,
+		CurrentVolumeLiter:   req.CurrentVolumeLiter,
+		Status:               status,
+		ECSensorChannelID:    req.ECSensorChannelID,
+		PHSensorChannelID:    req.PHSensorChannelID,
+		LevelSensorChannelID: req.LevelSensorChannelID,
+		TempSensorChannelID:  req.TempSensorChannelID,
 	}
 
 	if err := h.db.Create(&tank).Error; err != nil {
@@ -88,6 +92,18 @@ func (h *Handler) UpdateTank(c *gin.Context) {
 	}
 	if req.Status != nil {
 		updates["status"] = *req.Status
+	}
+	if req.ECSensorChannelID != nil {
+		updates["ec_sensor_channel_id"] = *req.ECSensorChannelID
+	}
+	if req.PHSensorChannelID != nil {
+		updates["ph_sensor_channel_id"] = *req.PHSensorChannelID
+	}
+	if req.LevelSensorChannelID != nil {
+		updates["level_sensor_channel_id"] = *req.LevelSensorChannelID
+	}
+	if req.TempSensorChannelID != nil {
+		updates["temp_sensor_channel_id"] = *req.TempSensorChannelID
 	}
 
 	if len(updates) == 0 {
@@ -177,13 +193,17 @@ func (h *Handler) ListTanks(c *gin.Context) {
 
 func toTankResponse(t NutrientTank) NutrientTankResponse {
 	return NutrientTankResponse{
-		ID:                 t.ID,
-		GrowingZoneID:      t.GrowingZoneID,
-		Code:               t.Code,
-		TotalVolumeLiter:   t.TotalVolumeLiter,
-		CurrentVolumeLiter: t.CurrentVolumeLiter,
-		Status:             t.Status,
-		CreatedAt:          t.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:          t.UpdatedAt.Format(time.RFC3339),
+		ID:                   t.ID,
+		GrowingZoneID:        t.GrowingZoneID,
+		Code:                 t.Code,
+		TotalVolumeLiter:     t.TotalVolumeLiter,
+		CurrentVolumeLiter:   t.CurrentVolumeLiter,
+		Status:               t.Status,
+		ECSensorChannelID:    t.ECSensorChannelID,
+		PHSensorChannelID:    t.PHSensorChannelID,
+		LevelSensorChannelID: t.LevelSensorChannelID,
+		TempSensorChannelID:  t.TempSensorChannelID,
+		CreatedAt:            t.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:            t.UpdatedAt.Format(time.RFC3339),
 	}
 }

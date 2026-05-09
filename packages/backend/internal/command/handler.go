@@ -56,6 +56,7 @@ func (h *Handler) CreateCommand(c *gin.Context) {
 	userID := currentUserID(c)
 	cmd := ControlCommand{
 		ActuatorChannelID: req.ActuatorChannelID,
+		BatchID:           req.BatchID,
 		CommandType:       req.CommandType,
 		Payload:           string(payloadBytes),
 		Status:            "PENDING",
@@ -146,6 +147,7 @@ func (h *Handler) DispatchAndWait(c *gin.Context) {
 	userID := currentUserID(c)
 	cmd := ControlCommand{
 		ActuatorChannelID: req.ActuatorChannelID,
+		BatchID:           req.BatchID,
 		CommandType:       req.CommandType,
 		Payload:           string(payloadBytes),
 		Status:            "PENDING",
@@ -212,6 +214,7 @@ func (h *Handler) DispatchAsync(c *gin.Context) {
 	userID := currentUserID(c)
 	cmd := ControlCommand{
 		ActuatorChannelID: req.ActuatorChannelID,
+		BatchID:           req.BatchID,
 		CommandType:       req.CommandType,
 		Payload:           string(payloadBytes),
 		Status:            "PENDING",
@@ -264,8 +267,23 @@ func (h *Handler) dispatchMQTT(cmd ControlCommand) error {
 		return fmt.Errorf("device lookup: %w", err)
 	}
 
+	// Merge command_id and command_type into payload for backward-compatible device ACK
+	var payloadMap map[string]interface{}
+	if err := json.Unmarshal([]byte(cmd.Payload), &payloadMap); err != nil {
+		// If payload is not valid JSON, send it as-is
+		topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, deviceCode, mqttpkg.TopicCmdPrefix, cmd.CommandType)
+		token := h.mqttClient.Publish(topic, 1, false, cmd.Payload)
+		if token.Wait() && token.Error() != nil {
+			return fmt.Errorf("publish: %w", token.Error())
+		}
+		return nil
+	}
+	payloadMap["_command_id"] = cmd.ID
+	payloadMap["_command_type"] = cmd.CommandType
+	wrappedPayload, _ := json.Marshal(payloadMap)
+
 	topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, deviceCode, mqttpkg.TopicCmdPrefix, cmd.CommandType)
-	token := h.mqttClient.Publish(topic, 1, false, cmd.Payload)
+	token := h.mqttClient.Publish(topic, 1, false, wrappedPayload)
 	if token.Wait() && token.Error() != nil {
 		return fmt.Errorf("publish: %w", token.Error())
 	}
@@ -389,6 +407,12 @@ func (h *Handler) ListCommands(c *gin.Context) {
 	if v := c.Query("command_type"); v != "" {
 		q = q.Where("command_type = ?", v)
 	}
+	if v := c.Query("batch_id"); v != "" {
+		id, err := strconv.ParseUint(v, 10, 64)
+		if err == nil {
+			q = q.Where("batch_id = ?", id)
+		}
+	}
 	if v := c.Query("from"); v != "" {
 		t, err := time.Parse(time.RFC3339, v)
 		if err != nil {
@@ -425,6 +449,7 @@ func (h *Handler) ListCommands(c *gin.Context) {
 		items = append(items, CommandResponse{
 			ID:                cmd.ID,
 			ActuatorChannelID: cmd.ActuatorChannelID,
+			BatchID:           cmd.BatchID,
 			CommandType:       cmd.CommandType,
 			Payload:           cmd.Payload,
 			Status:            cmd.Status,
@@ -552,6 +577,7 @@ func toCommandResponse(cmd ControlCommand) CommandResponse {
 	return CommandResponse{
 		ID:                cmd.ID,
 		ActuatorChannelID: cmd.ActuatorChannelID,
+		BatchID:           cmd.BatchID,
 		CommandType:       cmd.CommandType,
 		Payload:           cmd.Payload,
 		Status:            cmd.Status,

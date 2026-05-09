@@ -18,6 +18,10 @@ export const getCommand = (id: number) =>
 export const createCommand = (data: CreateCommandRequest) =>
   post<ControlCommand>('/commands', data)
 
+// 异步下发命令（创建并立即通过MQTT发送给设备）
+export const dispatchAsync = (data: CreateCommandRequest) =>
+  post<ControlCommand>('/commands/dispatch-async', data)
+
 // 发送命令
 export const sendCommand = (id: number) =>
   put<ControlCommand>(`/commands/${id}/send`)

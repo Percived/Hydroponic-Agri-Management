@@ -7,6 +7,7 @@ import "time"
 // CreateCommandRequest is the request body for creating a control command.
 type CreateCommandRequest struct {
 	ActuatorChannelID uint64                 `json:"actuator_channel_id" binding:"required"`
+	BatchID           *uint64                `json:"batch_id"`
 	CommandType       string                 `json:"command_type" binding:"required,min=1,max=32"`
 	Payload           map[string]interface{} `json:"payload" binding:"required"`
 	RequestID         string                 `json:"request_id" binding:"omitempty,max=64"`
@@ -28,6 +29,7 @@ type AckCommandRequest struct {
 type CommandResponse struct {
 	ID                uint64                   `json:"id"`
 	ActuatorChannelID uint64                   `json:"actuator_channel_id"`
+	BatchID           *uint64                  `json:"batch_id"`
 	CommandType       string                   `json:"command_type"`
 	Payload           string                   `json:"payload"`
 	Status            string                   `json:"status"`

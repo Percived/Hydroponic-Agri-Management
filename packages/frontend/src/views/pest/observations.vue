@@ -76,7 +76,7 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="温室" prop="greenhouse_id">
-              <el-select v-model="obsForm.greenhouse_id" placeholder="选择温室" filterable style="width: 100%">
+              <el-select v-model="obsForm.greenhouse_id" placeholder="选择温室" filterable style="width: 100%" @change="onObsGreenhouseChange">
                 <el-option v-for="g in greenhouses" :key="g.id" :label="`${g.name} (ID:${g.id})`" :value="g.id" />
               </el-select>
             </el-form-item>
@@ -84,7 +84,7 @@
           <el-col :span="12">
             <el-form-item label="种植区">
               <el-select v-model="obsForm.growing_zone_id" placeholder="选择种植区" clearable filterable style="width: 100%">
-                <el-option v-for="z in growingZones" :key="z.id" :label="`${z.name} (ID:${z.id})`" :value="z.id" />
+                <el-option v-for="z in filteredGrowingZones" :key="z.id" :label="`${z.name} (ID:${z.id})`" :value="z.id" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -119,14 +119,14 @@
               />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="12">
             <el-form-item label="受害面积%">
-              <el-input-number v-model="obsForm.affected_area_pct" :min="0" :max="100" :precision="1" style="width: 100%" />
+              <el-input v-model="obsForm.affected_area_pct" placeholder="如 15.5" style="width: 100%" />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="12">
             <el-form-item label="受害株数">
-              <el-input-number v-model="obsForm.affected_plant_count" :min="0" style="width: 100%" />
+              <el-input v-model="obsForm.affected_plant_count" placeholder="如 50" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -255,7 +255,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { pestApi, greenhouseApi, cropApi } from '@/api'
@@ -270,6 +270,15 @@ const total = ref(0)
 const greenhouses = ref<Greenhouse[]>([])
 const batches = ref<CropBatch[]>([])
 const growingZones = ref<GrowingZone[]>([])
+
+const filteredGrowingZones = computed(() => {
+  if (!obsForm.greenhouse_id) return growingZones.value
+  return growingZones.value.filter(z => z.greenhouse_id === obsForm.greenhouse_id)
+})
+
+function onObsGreenhouseChange() {
+  obsForm.growing_zone_id = undefined
+}
 
 const filters = reactive({
   greenhouse_id: undefined as number | undefined,
@@ -385,8 +394,8 @@ async function handleObsSubmit() {
       observed_at: obsForm.observed_at,
       pest_or_disease: obsForm.pest_or_disease,
       severity: obsForm.severity,
-      affected_area_pct: obsForm.affected_area_pct,
-      affected_plant_count: obsForm.affected_plant_count,
+      affected_area_pct: obsForm.affected_area_pct ? Number(obsForm.affected_area_pct) : undefined,
+      affected_plant_count: obsForm.affected_plant_count ? Number(obsForm.affected_plant_count) : undefined,
       symptoms: obsForm.symptoms || undefined
     }
     if (isEditObs.value && editingObsId.value) {

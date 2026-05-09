@@ -9,6 +9,7 @@ const (
 	SnapshotDaily        = "DAILY"
 	SnapshotWeekly       = "WEEKLY"
 	SnapshotStageSummary = "STAGE_SUMMARY"
+	SnapshotFinal        = "FINAL"
 )
 
 type BatchReviewSnapshot struct {

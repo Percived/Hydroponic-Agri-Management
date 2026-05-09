@@ -26,7 +26,7 @@
           <el-option v-for="gh in greenhouses" :key="gh.id" :label="gh.name" :value="gh.id" />
         </el-select>
         <el-select v-model="filters.zone_id" placeholder="种植区" clearable style="width: 150px">
-          <el-option v-for="zone in growingZones" :key="zone.id" :label="zone.name" :value="zone.id" />
+          <el-option v-for="zone in filteredZonesFilter" :key="zone.id" :label="zone.name" :value="zone.id" />
         </el-select>
         <el-input v-model="filters.keyword" placeholder="搜索设备编码/名称" clearable style="width: 200px" />
         <el-button type="primary" @click="fetchData">查询</el-button>
@@ -53,6 +53,16 @@
               <el-tag :type="row.status === 'ONLINE' ? 'success' : row.status === 'FAULT' ? 'warning' : 'danger'">
                 {{ row.status === 'ONLINE' ? '在线' : row.status === 'FAULT' ? '故障' : '离线' }}
               </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="当前批次" width="140">
+            <template #default="{ row }">
+              <template v-if="batchBindingMap[row.id]">
+                <el-tag size="small" type="success" effect="plain" @click="goBatchDetail(batchBindingMap[row.id].batch_id)" style="cursor: pointer">
+                  {{ batchBindingMap[row.id].batch_no }}
+                </el-tag>
+              </template>
+              <span v-else style="color: var(--text-secondary)">-</span>
             </template>
           </el-table-column>
           <el-table-column prop="protocol" label="协议" width="80" />
@@ -149,12 +159,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
-import { deviceApi, greenhouseApi, metricApi } from '@/api'
+import { deviceApi, greenhouseApi, metricApi, cropApi } from '@/api'
 import { formatDate } from '@/utils/format'
+import { actuatorTypeOptions } from '@/utils/device'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import type { SensorDevice, ActuatorDevice, Greenhouse, GrowingZone, MetricDefinition } from '@/types'
 
@@ -172,6 +183,7 @@ const loading = ref(false)
 const greenhouses = ref<Greenhouse[]>([])
 const growingZones = ref<GrowingZone[]>([])
 const channelCountMap = ref<Record<number, number>>({})
+const batchBindingMap = ref<Record<number, { batch_id: number; batch_no: string }>>({})
 
 const filters = reactive({
   status: '' as string,
@@ -216,6 +228,21 @@ const filteredGrowingZones = computed(() => {
   return growingZones.value.filter(z => z.greenhouse_id === formData.greenhouse_id)
 })
 
+// 筛选区种植区选项随温室联动
+const filteredZonesFilter = computed(() => {
+  if (!filters.greenhouse_id) return growingZones.value
+  return growingZones.value.filter(z => z.greenhouse_id === filters.greenhouse_id)
+})
+
+watch(() => filters.greenhouse_id, () => {
+  if (filters.zone_id && filters.greenhouse_id) {
+    const matched = growingZones.value.find(z => z.id === filters.zone_id)
+    if (!matched || matched.greenhouse_id !== filters.greenhouse_id) {
+      filters.zone_id = null
+    }
+  }
+})
+
 // ── 通道配置（创建设备时可用）──
 interface ChannelDraft {
   key: number
@@ -228,17 +255,6 @@ let channelKey = 0
 const channelDrafts = ref<ChannelDraft[]>([])
 const metricDefs = ref<MetricDefinition[]>([])
 
-const actuatorTypeOptions = [
-  { label: '水泵', value: 'PUMP' },
-  { label: '增氧机', value: 'AERATOR' },
-  { label: '风机', value: 'FAN' },
-  { label: '阀门', value: 'VALVE' },
-  { label: '遮阳网', value: 'SHADE' },
-  { label: '补光灯', value: 'LED' },
-  { label: '加热器', value: 'HEATER' },
-  { label: 'CO2发生器', value: 'CO2_GEN' },
-  { label: '雾化器', value: 'FOGGER' },
-]
 
 function addChannelDraft() {
   channelDrafts.value.push({
@@ -272,6 +288,34 @@ function getZoneName(id: number | undefined | null): string {
   return zone?.name || '-'
 }
 
+function goBatchDetail(batchId: number) {
+  router.push(`/batches/${batchId}`)
+}
+
+async function fetchBatchBindings() {
+  // Fetch active batch bindings for displayed devices
+  if (devices.value.length === 0) return
+  try {
+    // Get all running batches
+    const batchRes = await cropApi.getBatches({ status: 'RUNNING', page_size: 200 })
+    const runningBatches = batchRes.items || []
+
+    // For each device, check active batch bindings
+    const bindingMap: Record<number, { batch_id: number; batch_no: string }> = {}
+    for (const batch of runningBatches) {
+      try {
+        const { items } = await cropApi.getBatchDevices(batch.id, activeDeviceType.value)
+        for (const bd of items) {
+          if (bd.is_active) {
+            bindingMap[bd.device_id] = { batch_id: batch.id, batch_no: batch.batch_no }
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    batchBindingMap.value = bindingMap
+  } catch { /* ignore */ }
+}
+
 function goDetail(id: number) {
   router.push({ path: `/devices/${id}`, query: { type: activeDeviceType.value } })
 }
@@ -299,6 +343,8 @@ async function fetchData() {
       // Load channel counts for actuator devices
       loadActuatorChannelCounts(data.items as ActuatorDevice[])
     }
+    // Load batch bindings for displayed devices
+    fetchBatchBindings()
   } catch {
     // error handled
   } finally {

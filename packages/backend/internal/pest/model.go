@@ -28,7 +28,7 @@ type PestDiseaseObservation struct {
 	AffectedAreaPct    *float64  `gorm:"column:affected_area_pct;type:decimal(5,2)"`
 	AffectedPlantCount *uint     `gorm:"column:affected_plant_count"`
 	Symptoms           string    `gorm:"size:255"`
-	PhotoUrls          string    `gorm:"column:photo_urls;type:json"`
+	PhotoUrls          *string   `gorm:"column:photo_urls;type:json"`
 	ObservedBy         *uint64   `gorm:"column:observed_by"`
 	CreatedAt          time.Time `gorm:"autoCreateTime:milli"`
 }

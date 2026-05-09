@@ -145,9 +145,30 @@
 
 ---
 
-## 四、前端优化
+## 四、设备管理模块
 
-### 4.1 策略表单条件多行支持
+### 4.1 ActuatorChannel / SensorChannel 删除 500 问题
+
+**现状**：设备详情页删除通道时报 500 错误。`ActuatorChannel` 和 `SensorChannel` 模型缺少 `gorm.DeletedAt` 字段，GORM 执行物理 DELETE，被 MySQL 外键约束（RESTRICT）阻止。
+
+**涉及外键**：
+- `control_commands.actuator_channel_id` → `actuator_channels`
+- `climate_stage_actions.actuator_channel_id` → `actuator_channels`
+- `policy_targets.actuator_channel_id` → `actuator_channels`
+- `alerts.actuator_channel_id` → `actuator_channels`
+
+**建议方案**（二选一）：
+- [ ] 方案 A：模型加 `gorm.DeletedAt`（软删除）+ migration，GORM 改为 UPDATE 不触发 FK 约束
+- [ ] 方案 B：删除前检查依赖表，有数据时返回明确错误提示而非 500
+
+**涉及文件**：
+- `packages/backend/internal/device/model.go`
+- `packages/backend/internal/device/handler.go`
+
+---
+## 五、前端优化
+
+### 5.1 策略表单条件多行支持
 
 **现状**：表单只支持添加一个条件，但后端支持多条件 AND 逻辑。
 
@@ -160,7 +181,7 @@
 
 ---
 
-### 4.2 策略目标多行支持
+### 5.2 策略目标多行支持
 
 **现状**：同上，只支持一个目标，但后端支持多目标顺序执行。
 
@@ -173,7 +194,7 @@
 
 ---
 
-### 4.3 策略执行历史展示
+### 5.3 策略执行历史展示
 
 **现状**：列表页没有展示每条策略的执行记录。
 
@@ -188,7 +209,7 @@
 
 ---
 
-## 五、已完成项（本次迭代）
+## 六、已完成项（本次迭代）
 
 | 项目 | 状态 |
 |------|:--:|

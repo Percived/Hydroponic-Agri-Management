@@ -8,6 +8,14 @@
         <el-option label="电导率" value="EC" />
         <el-option label="CO2" value="CO2" />
         <el-option label="光照" value="LIGHT" />
+        <el-option label="水温" value="WATER_TEMP" />
+        <el-option label="溶解氧" value="DO" />
+        <el-option label="液位" value="LEVEL" />
+        <el-option label="氧化还原电位" value="ORP" />
+        <el-option label="总溶解固体" value="TDS" />
+        <el-option label="臭氧浓度" value="O3" />
+        <el-option label="浊度" value="TURBIDITY" />
+        <el-option label="流量" value="FLOW_RATE" />
       </el-select>
     </el-form-item>
     <el-form-item label="比较运算">

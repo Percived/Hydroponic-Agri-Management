@@ -26,14 +26,18 @@ const (
 )
 
 type NutrientTank struct {
-	ID                 uint64    `gorm:"primaryKey;autoIncrement"`
-	GrowingZoneID      uint64    `gorm:"column:growing_zone_id;not null"`
-	Code               string    `gorm:"size:32;not null"`
-	TotalVolumeLiter   float64   `gorm:"column:total_volume_liter;type:decimal(10,2);not null"`
-	CurrentVolumeLiter *float64  `gorm:"column:current_volume_liter;type:decimal(10,2)"`
-	Status             string    `gorm:"size:16;default:ACTIVE"`
-	CreatedAt          time.Time `gorm:"autoCreateTime:milli"`
-	UpdatedAt          time.Time `gorm:"autoUpdateTime:milli"`
+	ID                   uint64    `gorm:"primaryKey;autoIncrement"`
+	GrowingZoneID        uint64    `gorm:"column:growing_zone_id;not null"`
+	Code                 string    `gorm:"size:32;not null"`
+	TotalVolumeLiter     float64   `gorm:"column:total_volume_liter;type:decimal(10,2);not null"`
+	CurrentVolumeLiter   *float64  `gorm:"column:current_volume_liter;type:decimal(10,2)"`
+	Status               string    `gorm:"size:16;default:ACTIVE"`
+	ECSensorChannelID    *uint64   `gorm:"column:ec_sensor_channel_id"`
+	PHSensorChannelID    *uint64   `gorm:"column:ph_sensor_channel_id"`
+	LevelSensorChannelID *uint64   `gorm:"column:level_sensor_channel_id"`
+	TempSensorChannelID  *uint64   `gorm:"column:temp_sensor_channel_id"`
+	CreatedAt            time.Time `gorm:"autoCreateTime:milli"`
+	UpdatedAt            time.Time `gorm:"autoUpdateTime:milli"`
 }
 
 func (NutrientTank) TableName() string { return "nutrient_tanks" }

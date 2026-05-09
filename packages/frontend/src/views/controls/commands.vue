@@ -58,11 +58,26 @@
       </div>
     </div>
 
-    <el-dialog v-model="createDialogVisible" title="下发命令" width="500px">
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="120px">
+    <el-dialog v-model="createDialogVisible" title="下发命令" width="560px">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
+        <el-form-item label="温室">
+          <el-select v-model="selectedGreenhouseId" placeholder="请选择温室" filterable style="width: 100%" @change="onGreenhouseChange">
+            <el-option v-for="gh in greenhouses" :key="gh.id" :label="`${gh.name} (${gh.code})`" :value="gh.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="种植区">
+          <el-select v-model="selectedZoneId" placeholder="请选择种植区" filterable style="width: 100%" :disabled="!selectedGreenhouseId" @change="onZoneChange">
+            <el-option v-for="zone in filteredZones" :key="zone.id" :label="`${zone.name} (${zone.code})`" :value="zone.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="执行器设备">
+          <el-select v-model="selectedDeviceId" placeholder="请选择执行器设备" filterable style="width: 100%" :disabled="!selectedZoneId" @change="onDeviceChange">
+            <el-option v-for="dev in filteredDevices" :key="dev.id" :label="`${dev.name} (${dev.device_code})`" :value="dev.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="执行器通道" prop="actuator_channel_id">
-          <el-select v-model="formData.actuator_channel_id" placeholder="请选择执行器通道" filterable style="width: 100%">
-            <el-option v-for="ch in actuatorChannels" :key="ch.id" :label="`${ch.channel_code} (${ch.actuator_type})`" :value="ch.id" />
+          <el-select v-model="formData.actuator_channel_id" placeholder="请选择执行器通道" filterable style="width: 100%" :disabled="!selectedDeviceId">
+            <el-option v-for="ch in filteredChannels" :key="ch.id" :label="`${ch.channel_code} (${ch.actuator_type})`" :value="ch.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="命令类型" prop="command_type">
@@ -130,10 +145,10 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { commandApi, deviceApi } from '@/api'
+import { commandApi, deviceApi, greenhouseApi } from '@/api'
 import { formatDateTime, getCommandTypeName, getCommandStatusType, getCommandStatusName } from '@/utils/format'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
-import type { ControlCommand, ControlCommandReceipt, ActuatorChannel } from '@/types'
+import type { ControlCommand, ControlCommandReceipt, ActuatorChannel, ActuatorDevice, Greenhouse, GrowingZone } from '@/types'
 
 const loading = ref(false)
 const commands = ref<ControlCommand[]>([])
@@ -141,6 +156,9 @@ const total = ref(0)
 const statusFilter = ref<string>()
 
 const actuatorChannels = ref<ActuatorChannel[]>([])
+const actuatorDevices = ref<ActuatorDevice[]>([])
+const greenhouses = ref<Greenhouse[]>([])
+const growingZones = ref<GrowingZone[]>([])
 
 const channelNameMap = computed(() => {
   const map = new Map<number, string>()
@@ -162,6 +180,25 @@ const formRef = ref<FormInstance>()
 const submitLoading = ref(false)
 const payloadStr = ref('{"state": "ON"}')
 const payloadError = ref('')
+// 四级联动选择
+const selectedGreenhouseId = ref<number | null>(null)
+const selectedZoneId = ref<number | null>(null)
+const selectedDeviceId = ref<number | null>(null)
+
+const filteredZones = computed(() => {
+  if (!selectedGreenhouseId.value) return []
+  return growingZones.value.filter(z => z.greenhouse_id === selectedGreenhouseId.value)
+})
+
+const filteredDevices = computed(() => {
+  if (!selectedZoneId.value) return []
+  return actuatorDevices.value.filter(d => d.growing_zone_id === selectedZoneId.value)
+})
+
+const filteredChannels = computed(() => {
+  if (!selectedDeviceId.value) return []
+  return actuatorChannels.value.filter(ch => ch.actuator_device_id === selectedDeviceId.value)
+})
 
 const formData = reactive({
   actuator_channel_id: null as number | null,
@@ -191,6 +228,20 @@ watch(() => formData.command_type, (type) => {
   }
 })
 
+// 级联清空：上级变动时清空所有下级
+function onGreenhouseChange() {
+  selectedZoneId.value = null
+  selectedDeviceId.value = null
+  formData.actuator_channel_id = null
+}
+function onZoneChange() {
+  selectedDeviceId.value = null
+  formData.actuator_channel_id = null
+}
+function onDeviceChange() {
+  formData.actuator_channel_id = null
+}
+
 // 获取数据
 async function fetchData() {
   loading.value = true
@@ -212,11 +263,19 @@ async function fetchData() {
   }
 }
 
-// 加载执行器通道
-async function loadActuatorChannels() {
+// 加载四级联动所需全部数据
+async function loadCascadeData() {
   try {
-    const data = await deviceApi.getActuatorChannels({ page_size: LARGE_PAGE_SIZE })
-    actuatorChannels.value = data.items
+    const [chData, devData, ghData, zoneData] = await Promise.all([
+      deviceApi.getActuatorChannels({ page_size: LARGE_PAGE_SIZE }),
+      deviceApi.getActuatorDevices({ page_size: LARGE_PAGE_SIZE }),
+      greenhouseApi.getGreenhouses({ page_size: LARGE_PAGE_SIZE }),
+      greenhouseApi.getGrowingZones({ page_size: LARGE_PAGE_SIZE })
+    ])
+    actuatorChannels.value = chData.items
+    actuatorDevices.value = devData.items
+    greenhouses.value = ghData.items
+    growingZones.value = zoneData.items
   } catch {
     // ignore
   }
@@ -228,6 +287,9 @@ function openCreateDialog() {
   formData.command_type = 'SWITCH'
   payloadStr.value = '{"state": "ON"}'
   payloadError.value = ''
+  selectedGreenhouseId.value = null
+  selectedZoneId.value = null
+  selectedDeviceId.value = null
   createDialogVisible.value = true
 }
 
@@ -253,7 +315,7 @@ async function handleSubmit() {
 
   submitLoading.value = true
   try {
-    await commandApi.createCommand({
+    await commandApi.dispatchAsync({
       actuator_channel_id: formData.actuator_channel_id,
       command_type: formData.command_type,
       payload: formData.payload
@@ -304,7 +366,7 @@ function getChannelName(channelId: number): string {
 
 onMounted(() => {
   fetchData()
-  loadActuatorChannels()
+  loadCascadeData()
 })
 </script>
 

@@ -99,67 +99,142 @@
       </template>
     </el-dialog>
 
-    <!-- 指标列表弹窗（嵌套） -->
-    <el-dialog v-model="targetsDialogVisible" title="配方指标" width="700px">
-      <div style="margin-bottom: 12px">
-        <el-button type="primary" size="small" @click="openCreateTarget">新增指标</el-button>
-      </div>
-      <el-table :data="targets" v-loading="targetsLoading" stripe size="small">
-        <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column prop="growth_stage_id" label="生长阶段ID" width="110" />
-        <el-table-column prop="metric_code" label="指标代码" width="120" />
-        <el-table-column label="目标值范围" min-width="180">
-          <template #default="{ row }">
-            <span v-if="row.target_min != null || row.target_max != null">
-              {{ row.target_min ?? '-' }} ~ {{ row.target_max ?? '-' }}
-            </span>
-            <span v-else>{{ row.target_value ?? '-' }}</span>
-            <span v-if="row.tolerance != null" class="tolerance">&plusmn;{{ row.tolerance }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="unit" label="单位" width="80" />
-        <el-table-column label="操作" width="120" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="openEditTarget(row)">编辑</el-button>
-            <el-button type="danger" link size="small" @click="removeTarget(row.id)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+    <!-- 指标管理弹窗（含阶段指标+离子目标两个Tab） -->
+    <el-dialog v-model="targetsDialogVisible" title="配方指标" width="800px" @closed="resetTargetsEdit">
+      <el-tabs v-model="activeTargetTab" type="card">
+        <!-- Tab 1: 阶段指标 -->
+        <el-tab-pane label="阶段指标" name="stage">
+          <div style="margin-bottom: 12px">
+            <el-button type="primary" size="small" @click="openCreateStageTarget">新增阶段指标</el-button>
+          </div>
+          <el-table :data="stageTargets" v-loading="targetsLoading" stripe size="small">
+            <el-table-column prop="id" label="ID" width="60" />
+            <el-table-column prop="growth_stage_id" label="生长阶段" width="90">
+              <template #default="{ row }">
+                {{ row.growth_stage_id ?? '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="metric_code" label="指标代码" width="110" />
+            <el-table-column label="目标范围" min-width="160">
+              <template #default="{ row }">
+                <span v-if="row.target_min != null || row.target_max != null">
+                  {{ row.target_min ?? '-' }} ~ {{ row.target_max ?? '-' }}
+                </span>
+                <span v-else>-</span>
+                <span v-if="row.tolerance != null" class="tolerance">&plusmn;{{ row.tolerance }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="unit" label="单位" width="80" />
+            <el-table-column prop="enabled" label="启用" width="70">
+              <template #default="{ row }">
+                <el-switch :model-value="row.enabled" disabled size="small" />
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="110" fixed="right">
+              <template #default="{ row, $index }">
+                <el-button type="primary" link size="small" @click="openEditStageTarget(row, $index)">编辑</el-button>
+                <el-button type="danger" link size="small" @click="removeStageTarget($index)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
+        <!-- Tab 2: 离子目标 -->
+        <el-tab-pane label="离子目标" name="ion">
+          <div style="margin-bottom: 12px">
+            <el-button type="primary" size="small" @click="openCreateIonTarget">新增离子目标</el-button>
+          </div>
+          <el-table :data="ionTargets" v-loading="targetsLoading" stripe size="small">
+            <el-table-column prop="id" label="ID" width="60" />
+            <el-table-column prop="growth_stage_id" label="生长阶段" width="90">
+              <template #default="{ row }">
+                {{ row.growth_stage_id ?? '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="ion_code" label="离子代码" width="110" />
+            <el-table-column label="范围 (mg/L)" min-width="160">
+              <template #default="{ row }">
+                <span v-if="row.target_min_mg_l != null || row.target_max_mg_l != null">
+                  {{ row.target_min_mg_l ?? '-' }} ~ {{ row.target_max_mg_l ?? '-' }}
+                </span>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="enabled" label="启用" width="70">
+              <template #default="{ row }">
+                <el-switch :model-value="row.enabled" disabled size="small" />
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="110" fixed="right">
+              <template #default="{ row, $index }">
+                <el-button type="primary" link size="small" @click="openEditIonTarget(row, $index)">编辑</el-button>
+                <el-button type="danger" link size="small" @click="removeIonTarget($index)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
       <template #footer>
-        <el-button @click="targetsDialogVisible = false">关闭</el-button>
+        <el-button @click="targetsDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="targetsSaveLoading" @click="handleTargetsSave">保存指标</el-button>
       </template>
     </el-dialog>
 
-    <!-- 指标新增/编辑弹窗 -->
-    <el-dialog v-model="targetFormVisible" :title="isEditTarget ? '编辑指标' : '新增指标'" width="500px">
-      <el-form ref="targetFormRef" :model="targetForm" :rules="targetFormRules" label-width="120px">
+    <!-- 阶段指标新增/编辑弹窗 -->
+    <el-dialog v-model="stageTargetFormVisible" :title="isEditStageTarget ? '编辑阶段指标' : '新增阶段指标'" width="500px">
+      <el-form ref="stageTargetFormRef" :model="stageTargetForm" :rules="stageTargetFormRules" label-width="120px">
         <el-form-item label="生长阶段ID">
-          <el-input-number v-model="targetForm.growth_stage_id" :min="1" style="width: 100%" />
+          <el-input-number v-model="stageTargetForm.growth_stage_id" :min="1" style="width: 100%" />
         </el-form-item>
         <el-form-item label="指标代码" prop="metric_code">
-          <el-select v-model="targetForm.metric_code" placeholder="选择指标" filterable style="width: 100%">
+          <el-select v-model="stageTargetForm.metric_code" placeholder="选择指标" filterable style="width: 100%">
             <el-option v-for="m in metrics" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
           </el-select>
         </el-form-item>
         <el-form-item label="目标最小值">
-          <el-input-number v-model="targetForm.target_min" :precision="2" style="width: 100%" />
+          <el-input-number v-model="stageTargetForm.target_min" :precision="2" style="width: 100%" />
         </el-form-item>
         <el-form-item label="目标最大值">
-          <el-input-number v-model="targetForm.target_max" :precision="2" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="精确目标值">
-          <el-input-number v-model="targetForm.target_value" :precision="2" style="width: 100%" />
+          <el-input-number v-model="stageTargetForm.target_max" :precision="2" style="width: 100%" />
         </el-form-item>
         <el-form-item label="容差">
-          <el-input-number v-model="targetForm.tolerance" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number v-model="stageTargetForm.tolerance" :min="0" :precision="2" style="width: 100%" />
         </el-form-item>
         <el-form-item label="单位">
-          <el-input v-model="targetForm.unit" placeholder="如 ℃, mS/cm" />
+          <el-input v-model="stageTargetForm.unit" placeholder="如 ℃, mS/cm" />
+        </el-form-item>
+        <el-form-item label="启用">
+          <el-switch v-model="stageTargetForm.enabled" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="targetFormVisible = false">取消</el-button>
-        <el-button type="primary" :loading="targetSubmitLoading" @click="handleTargetSubmit">确定</el-button>
+        <el-button @click="stageTargetFormVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleStageTargetFormSubmit">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 离子目标新增/编辑弹窗 -->
+    <el-dialog v-model="ionTargetFormVisible" :title="isEditIonTarget ? '编辑离子目标' : '新增离子目标'" width="500px">
+      <el-form ref="ionTargetFormRef" :model="ionTargetForm" :rules="ionTargetFormRules" label-width="120px">
+        <el-form-item label="生长阶段ID">
+          <el-input-number v-model="ionTargetForm.growth_stage_id" :min="1" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="离子代码" prop="ion_code">
+          <el-input v-model="ionTargetForm.ion_code" placeholder="如 NO3, K, Ca" maxlength="32" />
+        </el-form-item>
+        <el-form-item label="最小值 (mg/L)">
+          <el-input-number v-model="ionTargetForm.target_min_mg_l" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="最大值 (mg/L)">
+          <el-input-number v-model="ionTargetForm.target_max_mg_l" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="启用">
+          <el-switch v-model="ionTargetForm.enabled" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="ionTargetFormVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleIonTargetFormSubmit">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -172,7 +247,7 @@ import { Plus } from '@element-plus/icons-vue'
 import { recipeApi, metricApi } from '@/api'
 import { formatDateTime, populateMetricNames } from '@/utils/format'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
-import type { NutrientRecipe, RecipeStatus, RecipeTarget, MetricDefinition } from '@/types'
+import type { NutrientRecipe, RecipeStatus, RecipeStageTarget, RecipeIonTarget, MetricDefinition, CreateStageTargetParams, CreateIonTargetParams } from '@/types'
 
 // ── Recipes ──
 const loading = ref(false)
@@ -304,33 +379,56 @@ async function removeRecipe(id: number) {
   fetchData()
 }
 
-// ── Targets (nested) ──
+// ── Targets (tabs: stage + ion) ──
 const targetsDialogVisible = ref(false)
 const targetsLoading = ref(false)
-const targets = ref<RecipeTarget[]>([])
+const targetsSaveLoading = ref(false)
+const stageTargets = ref<RecipeStageTarget[]>([])
+const ionTargets = ref<RecipeIonTarget[]>([])
 const metrics = ref<MetricDefinition[]>([])
 const currentRecipeId = ref<number | null>(null)
+const activeTargetTab = ref('stage')
 
-const targetFormVisible = ref(false)
-const isEditTarget = ref(false)
-const targetFormRef = ref<FormInstance>()
-const targetSubmitLoading = ref(false)
-const editingTargetId = ref<number | null>(null)
+// Stage target form
+const stageTargetFormVisible = ref(false)
+const isEditStageTarget = ref(false)
+const editingStageIndex = ref<number | null>(null)
+const stageTargetFormRef = ref<FormInstance>()
 
-const emptyTargetForm = () => ({
+const emptyStageTargetForm = () => ({
   growth_stage_id: undefined as number | undefined,
   metric_code: '',
   target_min: undefined as number | undefined,
   target_max: undefined as number | undefined,
-  target_value: undefined as number | undefined,
   tolerance: undefined as number | undefined,
-  unit: '' as string
+  unit: '' as string,
+  enabled: true as boolean
 })
 
-const targetForm = reactive(emptyTargetForm())
+const stageTargetForm = reactive(emptyStageTargetForm())
 
-const targetFormRules: FormRules = {
+const stageTargetFormRules: FormRules = {
   metric_code: [{ required: true, message: '请选择指标代码', trigger: 'change' }]
+}
+
+// Ion target form
+const ionTargetFormVisible = ref(false)
+const isEditIonTarget = ref(false)
+const editingIonIndex = ref<number | null>(null)
+const ionTargetFormRef = ref<FormInstance>()
+
+const emptyIonTargetForm = () => ({
+  growth_stage_id: undefined as number | undefined,
+  ion_code: '',
+  target_min_mg_l: undefined as number | undefined,
+  target_max_mg_l: undefined as number | undefined,
+  enabled: true as boolean
+})
+
+const ionTargetForm = reactive(emptyIonTargetForm())
+
+const ionTargetFormRules: FormRules = {
+  ion_code: [{ required: true, message: '请输入离子代码', trigger: 'blur' }]
 }
 
 async function loadMetrics() {
@@ -349,94 +447,162 @@ async function openTargetsDialog(recipe: NutrientRecipe) {
   targetsLoading.value = true
   try {
     const data = await recipeApi.getRecipeTargets(recipe.id)
-    targets.value = data.items
+    stageTargets.value = data.stage_targets || []
+    ionTargets.value = data.ion_targets || []
   } catch {
-    targets.value = []
+    stageTargets.value = []
+    ionTargets.value = []
   } finally {
     targetsLoading.value = false
   }
 }
 
-function openCreateTarget() {
-  isEditTarget.value = false
-  editingTargetId.value = null
-  Object.assign(targetForm, emptyTargetForm())
-  targetFormVisible.value = true
+function resetTargetsEdit() {
+  stageTargetFormVisible.value = false
+  ionTargetFormVisible.value = false
 }
 
-function openEditTarget(target: RecipeTarget) {
-  isEditTarget.value = true
-  editingTargetId.value = target.id
-  Object.assign(targetForm, {
+// ── Stage target CRUD (local array) ──
+function openCreateStageTarget() {
+  isEditStageTarget.value = false
+  editingStageIndex.value = null
+  Object.assign(stageTargetForm, emptyStageTargetForm())
+  stageTargetFormVisible.value = true
+}
+
+function openEditStageTarget(target: RecipeStageTarget, index: number) {
+  isEditStageTarget.value = true
+  editingStageIndex.value = index
+  Object.assign(stageTargetForm, {
     growth_stage_id: target.growth_stage_id,
     metric_code: target.metric_code,
     target_min: target.target_min,
     target_max: target.target_max,
-    target_value: target.target_value,
     tolerance: target.tolerance,
-    unit: target.unit || ''
+    unit: target.unit || '',
+    enabled: target.enabled
   })
-  targetFormVisible.value = true
+  stageTargetFormVisible.value = true
 }
 
-async function handleTargetSubmit() {
-  if (!targetFormRef.value) return
-  try {
-    await targetFormRef.value.validate()
-  } catch {
-    return
-  }
-
-  if (!currentRecipeId.value) return
-  targetSubmitLoading.value = true
-  try {
-    const payload = {
-      growth_stage_id: targetForm.growth_stage_id || undefined,
-      metric_code: targetForm.metric_code,
-      target_min: targetForm.target_min,
-      target_max: targetForm.target_max,
-      target_value: targetForm.target_value,
-      tolerance: targetForm.tolerance,
-      unit: targetForm.unit || undefined
+function handleStageTargetFormSubmit() {
+  if (!stageTargetFormRef.value) return
+  stageTargetFormRef.value.validate().then(() => {
+    const item: CreateStageTargetParams & { id?: number } = {
+      growth_stage_id: stageTargetForm.growth_stage_id || null,
+      metric_code: stageTargetForm.metric_code,
+      target_min: stageTargetForm.target_min ?? null,
+      target_max: stageTargetForm.target_max ?? null,
+      tolerance: stageTargetForm.tolerance ?? null,
+      unit: stageTargetForm.unit || undefined,
+      enabled: stageTargetForm.enabled
     }
-    if (isEditTarget.value && editingTargetId.value) {
-      await recipeApi.updateRecipeTarget(currentRecipeId.value, editingTargetId.value, payload)
-      ElMessage.success('指标已更新')
+    if (isEditStageTarget.value && editingStageIndex.value != null) {
+      // Preserve existing id so backend knows it's an update
+      const existing = stageTargets.value[editingStageIndex.value]
+      if (existing) item.id = existing.id
+      stageTargets.value.splice(editingStageIndex.value, 1, item as unknown as RecipeStageTarget)
     } else {
-      await recipeApi.createRecipeTarget(currentRecipeId.value, payload)
-      ElMessage.success('指标已创建')
+      stageTargets.value.push(item as unknown as RecipeStageTarget)
     }
-    targetFormVisible.value = false
-    // Refresh targets
+    stageTargetFormVisible.value = false
+  }).catch(() => { /* validation failed */ })
+}
+
+function removeStageTarget(index: number) {
+  stageTargets.value.splice(index, 1)
+}
+
+// ── Ion target CRUD (local array) ──
+function openCreateIonTarget() {
+  isEditIonTarget.value = false
+  editingIonIndex.value = null
+  Object.assign(ionTargetForm, emptyIonTargetForm())
+  ionTargetFormVisible.value = true
+}
+
+function openEditIonTarget(target: RecipeIonTarget, index: number) {
+  isEditIonTarget.value = true
+  editingIonIndex.value = index
+  Object.assign(ionTargetForm, {
+    growth_stage_id: target.growth_stage_id,
+    ion_code: target.ion_code,
+    target_min_mg_l: target.target_min_mg_l,
+    target_max_mg_l: target.target_max_mg_l,
+    enabled: target.enabled
+  })
+  ionTargetFormVisible.value = true
+}
+
+function handleIonTargetFormSubmit() {
+  if (!ionTargetFormRef.value) return
+  ionTargetFormRef.value.validate().then(() => {
+    const item: CreateIonTargetParams & { id?: number } = {
+      growth_stage_id: ionTargetForm.growth_stage_id || null,
+      ion_code: ionTargetForm.ion_code,
+      target_min_mg_l: ionTargetForm.target_min_mg_l ?? null,
+      target_max_mg_l: ionTargetForm.target_max_mg_l ?? null,
+      enabled: ionTargetForm.enabled
+    }
+    if (isEditIonTarget.value && editingIonIndex.value != null) {
+      const existing = ionTargets.value[editingIonIndex.value]
+      if (existing) item.id = existing.id
+      ionTargets.value.splice(editingIonIndex.value, 1, item as unknown as RecipeIonTarget)
+    } else {
+      ionTargets.value.push(item as unknown as RecipeIonTarget)
+    }
+    ionTargetFormVisible.value = false
+  }).catch(() => { /* validation failed */ })
+}
+
+function removeIonTarget(index: number) {
+  ionTargets.value.splice(index, 1)
+}
+
+// ── Save all targets (bulk replace) ──
+async function handleTargetsSave() {
+  if (!currentRecipeId.value) return
+  targetsSaveLoading.value = true
+  try {
+    const stagePayload: CreateStageTargetParams[] = stageTargets.value.map(t => ({
+      id: t.id,
+      growth_stage_id: t.growth_stage_id,
+      metric_code: t.metric_code,
+      target_min: t.target_min,
+      target_max: t.target_max,
+      tolerance: t.tolerance,
+      unit: t.unit,
+      enabled: t.enabled
+    }))
+    const ionPayload: CreateIonTargetParams[] = ionTargets.value.map(t => ({
+      id: t.id,
+      growth_stage_id: t.growth_stage_id,
+      ion_code: t.ion_code,
+      target_min_mg_l: t.target_min_mg_l,
+      target_max_mg_l: t.target_max_mg_l,
+      enabled: t.enabled
+    }))
+    await recipeApi.updateRecipeTargets(currentRecipeId.value, {
+      stage_targets: stagePayload,
+      ion_targets: ionPayload
+    })
+    ElMessage.success('指标已保存')
+    // Refresh from server
     targetsLoading.value = true
     try {
       const data = await recipeApi.getRecipeTargets(currentRecipeId.value)
-      targets.value = data.items
+      stageTargets.value = data.stage_targets || []
+      ionTargets.value = data.ion_targets || []
     } catch {
-      targets.value = []
+      stageTargets.value = []
+      ionTargets.value = []
     } finally {
       targetsLoading.value = false
     }
   } catch {
     // handled by interceptor
   } finally {
-    targetSubmitLoading.value = false
-  }
-}
-
-async function removeTarget(targetId: number) {
-  if (!currentRecipeId.value) return
-  await ElMessageBox.confirm('确认删除该指标？', '提示', { type: 'warning' })
-  await recipeApi.deleteRecipeTarget(currentRecipeId.value, targetId)
-  ElMessage.success('已删除')
-  targetsLoading.value = true
-  try {
-    const data = await recipeApi.getRecipeTargets(currentRecipeId.value)
-    targets.value = data.items
-  } catch {
-    targets.value = []
-  } finally {
-    targetsLoading.value = false
+    targetsSaveLoading.value = false
   }
 }
 

@@ -107,9 +107,13 @@ const chartExpanded = ref(true)
 // SSE
 const { connected: sseConnected, channelValues } = useTelemetrySSE()
 
-// Trend buffer: metric_code -> [time, value]
-const trendBuffer = ref<Record<string, Array<{ time: string; value: number }>>>({})
+// Trend buffer: channel_id -> [time, value]
+const trendBuffer = ref<Record<number, Array<{ time: string; value: number }>>>({})
 const MAX_BUFFER = 360
+
+// Lookup maps for building chart series labels
+const deviceMap = ref<Map<number, SensorDevice>>(new Map())
+const channelMap = ref<Map<number, SensorChannel>>(new Map())
 
 const metricOptions = computed(() => {
   const seen = new Set<string>()
@@ -122,12 +126,21 @@ const metricOptions = computed(() => {
 })
 
 const chartSeries = computed(() => {
-  return selectedMetricCodes.value
-    .filter((code) => trendBuffer.value[code] && trendBuffer.value[code].length > 0)
-    .map((code) => ({
-      name: getMetricName(code),
-      data: trendBuffer.value[code]
-    }))
+  return Object.entries(trendBuffer.value)
+    .filter(([, data]) => data.length > 0)
+    .filter(([chIdStr]) => {
+      const ch = channelMap.value.get(Number(chIdStr))
+      return ch && selectedMetricCodes.value.includes(ch.metric_code)
+    })
+    .map(([chIdStr, data]) => {
+      const chId = Number(chIdStr)
+      const ch = channelMap.value.get(chId)
+      const dev = ch ? deviceMap.value.get(ch.sensor_device_id) : undefined
+      const label = ch
+        ? `${dev?.name || '?'} / ${ch.channel_code} - ${getMetricName(ch.metric_code)}`
+        : `CH#${chId}`
+      return { name: label, data }
+    })
 })
 
 // Watch SSE channelValues and update snapshots
@@ -142,11 +155,11 @@ watch(
       if (!evt) return snap
       flash.add(snap.channel_id)
 
-      // Update trend buffer
-      if (!trendBuffer.value[evt.metric_code]) {
-        trendBuffer.value[evt.metric_code] = []
+      // Update trend buffer keyed by channel_id
+      if (!trendBuffer.value[evt.sensor_channel_id]) {
+        trendBuffer.value[evt.sensor_channel_id] = []
       }
-      const buf = trendBuffer.value[evt.metric_code]
+      const buf = trendBuffer.value[evt.sensor_channel_id]
       buf.push({ time: evt.collected_at, value: evt.value })
       if (buf.length > MAX_BUFFER) buf.shift()
 
@@ -226,22 +239,27 @@ async function onDeviceChange() {
 
   if (selectedDeviceIds.value.length === 0) return
 
-  // Load channels for all selected devices
+  // Load channels for all selected devices (parallel)
   loading.value = true
   try {
-    const allChannels: SensorChannel[] = []
-    for (const deviceId of selectedDeviceIds.value) {
-      const result = await deviceApi.getSensorChannels({
-        sensor_device_id: deviceId,
-        page_size: LARGE_PAGE_SIZE,
-        enabled: 1
-      })
-      allChannels.push(...result.items)
-    }
+    const results = await Promise.all(
+      selectedDeviceIds.value.map((deviceId) =>
+        deviceApi.getSensorChannels({
+          sensor_device_id: deviceId,
+          page_size: LARGE_PAGE_SIZE,
+          enabled: 1
+        }).catch(() => ({ items: [] as SensorChannel[] }))
+      )
+    )
+    const allChannels = results.flatMap((r) => r.items)
     channels.value = allChannels
 
-    // Build device lookup
-    const deviceMap = new Map(devices.value.map((d) => [d.id, d]))
+    // Build device and channel lookup
+    deviceMap.value = new Map(devices.value.map((d) => [d.id, d]))
+    channelMap.value = new Map(allChannels.map((c) => [c.id, c]))
+
+    // Reset trend buffer
+    trendBuffer.value = {}
 
     // Fetch latest values
     if (allChannels.length > 0) {
@@ -251,7 +269,7 @@ async function onDeviceChange() {
         const latestMap = new Map(latest.items.map((it) => [it.sensor_channel_id, it]))
 
         snapshots.value = allChannels.map((ch) => {
-          const dev = deviceMap.get(ch.sensor_device_id)
+          const dev = deviceMap.value.get(ch.sensor_device_id)
           const lat = latestMap.get(ch.id)
           return {
             channel_id: ch.id,
@@ -267,31 +285,31 @@ async function onDeviceChange() {
           } as ChannelSnapshot
         })
 
-        // Seed trend buffer from channel history
-        for (const ch of allChannels) {
-          const end = new Date()
-          const start = new Date(end.getTime() - 60 * 60 * 1000)
-          try {
-            const history = await telemetryApi.getChannelHistory(ch.id, {
+        // Seed trend buffer from channel history (keyed by channel_id)
+        const historyResults = await Promise.all(
+          allChannels.map((ch) => {
+            const end = new Date()
+            const start = new Date(end.getTime() - 60 * 60 * 1000)
+            return telemetryApi.getChannelHistory(ch.id, {
               start_time: start.toISOString(),
               end_time: end.toISOString(),
               page: 1,
               page_size: MAX_BUFFER
-            })
-            if (history.items.length > 0) {
-              if (!trendBuffer.value[ch.metric_code]) {
-                trendBuffer.value[ch.metric_code] = []
-              }
-              trendBuffer.value[ch.metric_code] = history.items
-                .map((r) => ({ time: r.collected_at, value: r.value }))
-                .reverse()
-            }
-          } catch { /* ignore */ }
+            }).then((history) => ({ chId: ch.id, items: history.items }))
+              .catch(() => ({ chId: ch.id, items: [] }))
+          })
+        )
+        for (const { chId, items } of historyResults) {
+          if (items.length > 0) {
+            trendBuffer.value[chId] = items
+              .map((r) => ({ time: r.collected_at, value: r.value }))
+              .reverse()
+          }
         }
       } catch {
         // Even if latest fails, show cards with null values
         snapshots.value = allChannels.map((ch) => {
-          const dev = deviceMap.get(ch.sensor_device_id)
+          const dev = deviceMap.value.get(ch.sensor_device_id)
           return {
             channel_id: ch.id,
             device_name: dev?.name || '-',

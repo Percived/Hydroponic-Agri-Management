@@ -124,14 +124,14 @@ type ActuatorDeviceResponse struct {
 type CreateActuatorChannelRequest struct {
 	ActuatorDeviceID uint64   `json:"actuator_device_id" binding:"required"`
 	ChannelCode      string   `json:"channel_code" binding:"required,max=64"`
-	ActuatorType     string   `json:"actuator_type" binding:"required,max=16"`
+	ActuatorType     string   `json:"actuator_type" binding:"required,max=32"`
 	RatedPowerWatt   *float64 `json:"rated_power_watt"`
 	Metadata         string   `json:"metadata"`
 }
 
 type UpdateActuatorChannelRequest struct {
 	ChannelCode    *string  `json:"channel_code" binding:"omitempty,max=64"`
-	ActuatorType   *string  `json:"actuator_type" binding:"omitempty,max=16"`
+	ActuatorType   *string  `json:"actuator_type" binding:"omitempty,max=32"`
 	CurrentState   *string  `json:"current_state" binding:"omitempty,max=16"`
 	RatedPowerWatt *float64 `json:"rated_power_watt"`
 	Enabled        *bool    `json:"enabled"`
@@ -160,7 +160,7 @@ type RegisterDeviceChannelItem struct {
 	RangeMin            *float64 `json:"range_min"`
 	RangeMax            *float64 `json:"range_max"`
 	SamplingIntervalSec uint     `json:"sampling_interval_sec"`
-	ActuatorType        string   `json:"actuator_type" binding:"max=16"`
+	ActuatorType        string   `json:"actuator_type" binding:"max=32"`
 	RatedPowerWatt      *float64 `json:"rated_power_watt"`
 }
 

@@ -28,9 +28,9 @@ type UpdateEnergyRecordRequest struct {
 // --- Energy Summary Response ---
 
 type EnergySummaryItem struct {
-	RecordType string  `json:"record_type"`
-	TotalValue float64 `json:"total_value"`
-	Unit       string  `json:"unit"`
+	RecordType       string  `json:"record_type"`
+	TotalConsumption float64 `json:"total_consumption"`
+	Unit             string  `json:"unit"`
 }
 
 // --- Time format helpers ---

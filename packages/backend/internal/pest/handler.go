@@ -47,6 +47,7 @@ func (h *Handler) CreateObservation(c *gin.Context) {
 	}
 
 	if err := h.db.Create(&obs).Error; err != nil {
+		c.Error(err)
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "create_failed", nil)
 		return
 	}

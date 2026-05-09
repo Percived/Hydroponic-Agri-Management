@@ -34,6 +34,7 @@ type Alert struct {
 	MetricCode        string     `gorm:"column:metric_code;size:32"`
 	SensorChannelID   *uint64    `gorm:"column:sensor_channel_id"`
 	ActuatorChannelID *uint64    `gorm:"column:actuator_channel_id"`
+	BatchID           *uint64    `gorm:"column:batch_id"`
 	TriggerValue      *float64   `gorm:"column:trigger_value;type:decimal(12,4)"`
 	Message           string     `gorm:"size:255;not null"`
 	Status            string     `gorm:"size:16;default:OPEN"`

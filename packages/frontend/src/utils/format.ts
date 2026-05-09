@@ -66,7 +66,25 @@ export function getCategoryName(category: string): string {
     LIGHT: '光照',
     FAN: '风机',
     PUMP: '水泵',
-    VALVE: '阀门'
+    VALVE: '阀门',
+    AERATOR: '曝气泵',
+    SHADE: '遮阳帘',
+    LED: '补光灯',
+    HEATER: '加热器',
+    CO2_GEN: 'CO2发生器',
+    FOGGER: '雾化器',
+    DOSING_PUMP: '计量泵',
+    CHILLER: '冷水机',
+    STIRRER: '搅拌器',
+    DEHUMIDIFIER: '除湿机',
+    DAMPER: '电动风阀',
+    UV_STERILIZER: '紫外线杀菌灯',
+    OZONE_GENERATOR: '臭氧发生器',
+    FILTER: '过滤器',
+    RO_SYSTEM: 'RO反渗透系统',
+    TOP_UP_VALVE: '自动补水阀',
+    ALARM: '声光报警器',
+    CALIBRATION_VALVE: '校准切换阀'
   }
   return categoryMap[category] || category
 }
@@ -232,7 +250,15 @@ const metricNameFallback: Record<string, string> = {
   PH: 'pH值',
   EC: '电导率',
   CO2: 'CO2',
-  LIGHT: '光照'
+  LIGHT: '光照',
+  WATER_TEMP: '水温',
+  DO: '溶解氧',
+  LEVEL: '液位',
+  ORP: '氧化还原电位',
+  TDS: '总溶解固体',
+  O3: '臭氧浓度',
+  TURBIDITY: '浊度',
+  FLOW_RATE: '流量'
 }
 
 export function populateMetricNames(defs: { code: string; name: string }[]) {

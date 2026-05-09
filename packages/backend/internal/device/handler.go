@@ -815,7 +815,7 @@ func (h *Handler) RegisterDevice(c *gin.Context) {
 	})
 
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "register_failed", nil)
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "register_failed: "+err.Error(), nil)
 		return
 	}
 

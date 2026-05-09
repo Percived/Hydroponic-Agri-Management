@@ -218,6 +218,7 @@ import { ArrowLeft, Edit, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { deviceApi, telemetryApi, greenhouseApi, metricApi } from '@/api'
 import { formatDate, formatNumber, getMetricName } from '@/utils/format'
+import { actuatorTypeOptions } from '@/utils/device'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import type { SensorDevice, ActuatorDevice, SensorChannel, ActuatorChannel, TelemetryRecord, Greenhouse, GrowingZone, MetricDefinition } from '@/types'
 
@@ -295,17 +296,6 @@ const channelFormRules: FormRules = {
   ]
 }
 
-const actuatorTypeOptions = [
-  { label: '水泵', value: 'PUMP' },
-  { label: '增氧机', value: 'AERATOR' },
-  { label: '风机', value: 'FAN' },
-  { label: '阀门', value: 'VALVE' },
-  { label: '遮阳网', value: 'SHADE' },
-  { label: '补光灯', value: 'LED' },
-  { label: '加热器', value: 'HEATER' },
-  { label: 'CO2发生器', value: 'CO2_GEN' },
-  { label: '雾化器', value: 'FOGGER' },
-]
 
 // Channel unit lookup map
 const channelUnitMap = computed(() => {

@@ -111,7 +111,7 @@ CREATE TABLE `actuator_channels` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `actuator_device_id` BIGINT UNSIGNED NOT NULL,
   `channel_code` VARCHAR(64) NOT NULL COMMENT '该设备内唯一，如 CH1/CH2 或 FAN/PUMP',
-  `actuator_type` VARCHAR(16) NOT NULL COMMENT 'PUMP/AERATOR/FAN/VALVE/SHADE/LED/HEATER/CO2_GEN/FOGGER',
+  `actuator_type` VARCHAR(32) NOT NULL COMMENT 'PUMP/AERATOR/FAN/VALVE/SHADE/LED/HEATER/CO2_GEN/FOGGER/DOSING_PUMP/CHILLER/STIRRER/DEHUMIDIFIER/DAMPER/UV_STERILIZER/OZONE_GENERATOR/FILTER/RO_SYSTEM/TOP_UP_VALVE/ALARM/CALIBRATION_VALVE',
   `current_state` VARCHAR(16) NOT NULL DEFAULT 'OFF' COMMENT 'ON/OFF/PERCENTAGE',
   `rated_power_watt` DECIMAL(10,2) DEFAULT NULL COMMENT '额定功率（瓦）',
   `enabled` TINYINT UNSIGNED NOT NULL DEFAULT 1,
@@ -177,11 +177,19 @@ CREATE TABLE `nutrient_tanks` (
   `total_volume_liter` DECIMAL(10,2) NOT NULL COMMENT '总容积（升）',
   `current_volume_liter` DECIMAL(10,2) DEFAULT NULL COMMENT '当前液量（估算）',
   `status` VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+  `ec_sensor_channel_id` BIGINT UNSIGNED DEFAULT NULL,
+  `ph_sensor_channel_id` BIGINT UNSIGNED DEFAULT NULL,
+  `level_sensor_channel_id` BIGINT UNSIGNED DEFAULT NULL,
+  `temp_sensor_channel_id` BIGINT UNSIGNED DEFAULT NULL,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_nutrient_tanks_code` (`growing_zone_id`, `code`),
-  CONSTRAINT `fk_tanks_zone` FOREIGN KEY (`growing_zone_id`) REFERENCES `growing_zones` (`id`)
+  CONSTRAINT `fk_tanks_zone` FOREIGN KEY (`growing_zone_id`) REFERENCES `growing_zones` (`id`),
+  CONSTRAINT `fk_nutrient_tanks_ec` FOREIGN KEY (`ec_sensor_channel_id`) REFERENCES `sensor_channels` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_nutrient_tanks_ph` FOREIGN KEY (`ph_sensor_channel_id`) REFERENCES `sensor_channels` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_nutrient_tanks_level` FOREIGN KEY (`level_sensor_channel_id`) REFERENCES `sensor_channels` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_nutrient_tanks_temp` FOREIGN KEY (`temp_sensor_channel_id`) REFERENCES `sensor_channels` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `solution_change_events` (
@@ -876,7 +884,13 @@ INSERT INTO `metric_definitions` (`code`, `name`, `unit`, `precision_digits`, `n
 ('DO',       '溶解氧',    'mg/L',   1, 5.0,  8.0,  1),
 ('WATER_TEMP','水温',     '°C',     1, 18.0, 24.0, 0),
 ('CO2',      '二氧化碳',  'ppm',    0, 400.0, 1200.0, 1),
-('LIGHT',    '光照',      'lx',     0, 10000.0, 60000.0, 1);
+('LIGHT',    '光照',      'lx',     0, 10000.0, 60000.0, 1),
+('LEVEL',    '液位',      'cm',     1, 30.0,  70.0,  0),
+('ORP',      '氧化还原电位', 'mV',   0, 200.0, 500.0, 0),
+('TDS',      '总溶解固体', 'ppm',    0, 400.0, 1200.0, 0),
+('O3',       '臭氧浓度',   'ppb',   1, 5.0,   35.0,  0),
+('TURBIDITY','浊度',      'NTU',    1, 0.0,   15.0,  0),
+('FLOW_RATE','流量',      'L/min',  1, 5.0,   15.0,  0);
 
 -- ── 生长阶段 ──
 INSERT INTO `growth_stages` (`code`, `name`, `sort_order`, `default_duration_days`) VALUES

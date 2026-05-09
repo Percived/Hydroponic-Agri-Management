@@ -112,6 +112,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: '批次台账' }
   },
   {
+    path: '/batches/:id',
+    name: 'BatchDetail',
+    component: () => import('@/views/batches/detail.vue'),
+    meta: { requiresAuth: true, title: '批次详情' }
+  },
+  {
     path: '/batches/harvest',
     name: 'HarvestRecords',
     component: () => import('@/views/batches/harvest.vue'),

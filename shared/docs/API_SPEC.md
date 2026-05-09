@@ -204,7 +204,7 @@ ID 类型：`BIGINT`，响应中以数字返回
 | id | number | 通道 ID | 1 |
 | actuator_device_id | number | 所属执行器设备 ID | 1 |
 | channel_code | string | 通道编码 | "CH-PUMP" |
-| actuator_type | string | 执行器类型：PUMP/AERATOR/FAN/VALVE/SHADE/LED/HEATER/CO2_GEN/FOGGER | "PUMP" |
+| actuator_type | string | 执行器类型：PUMP/AERATOR/FAN/VALVE/SHADE/LED/HEATER/CO2_GEN/FOGGER/DOSING_PUMP/CHILLER/STIRRER/DEHUMIDIFIER/DAMPER/UV_STERILIZER/OZONE_GENERATOR/FILTER/RO_SYSTEM/TOP_UP_VALVE/ALARM/CALIBRATION_VALVE | "PUMP" |
 | current_state | string | 当前状态：ON/OFF | "OFF" |
 | rated_power_watt | number\|null | 额定功率（瓦） | 100.00 |
 | enabled | number | 启用：1/0 | 1 |
@@ -246,6 +246,25 @@ ID 类型：`BIGINT`，响应中以数字返回
 | status | string | 状态 | "ENABLED" |
 | created_at | string | 创建时间 | "2026-01-01T00:00:00Z" |
 | updated_at | string | 更新时间 | "2026-01-01T00:00:00Z" |
+
+当前系统指标（共 14 个）：
+
+| 编码 | 名称 | 单位 | 精度 | 正常范围 | 核心指标 |
+| --- | --- | --- | --- | --- | --- |
+| TEMP | 温度 | °C | 1 | 18.0–26.0 | 是 |
+| HUMIDITY | 湿度 | % | 1 | 50.0–80.0 | 是 |
+| PH | 酸碱度 | pH | 1 | 5.5–6.5 | 是 |
+| EC | 电导率 | mS/cm | 1 | 1.2–2.0 | 是 |
+| CO2 | 二氧化碳 | ppm | 0 | 400–1200 | 是 |
+| LIGHT | 光照 | lx | 0 | 10000–60000 | 是 |
+| DO | 溶解氧 | mg/L | 1 | 5.0–8.0 | 是 |
+| WATER_TEMP | 水温 | °C | 1 | 18.0–24.0 | 否 |
+| LEVEL | 液位 | cm | 1 | 30.0–70.0 | 否 |
+| ORP | 氧化还原电位 | mV | 0 | 200–500 | 否 |
+| TDS | 总溶解固体 | ppm | 0 | 400–1200 | 否 |
+| O3 | 臭氧浓度 | ppb | 1 | 5.0–35.0 | 否 |
+| TURBIDITY | 浊度 | NTU | 1 | 0.0–15.0 | 否 |
+| FLOW_RATE | 流量 | L/min | 1 | 5.0–15.0 | 否 |
 
 ### 2.7 控制命令
 
@@ -660,6 +679,10 @@ ID 类型：`BIGINT`，响应中以数字返回
 | total_volume_liter | number | 总容积（升） | 200.00 |
 | current_volume_liter | number\|null | 当前容积（升） | 180.00 |
 | status | string | 状态：ACTIVE/INACTIVE/EMPTY | "ACTIVE" |
+| ec_sensor_channel_id | number\|null | EC 传感器通道 ID | 1 |
+| ph_sensor_channel_id | number\|null | pH 传感器通道 ID | 2 |
+| level_sensor_channel_id | number\|null | 液位传感器通道 ID | 3 |
+| temp_sensor_channel_id | number\|null | 温度传感器通道 ID | 4 |
 | created_at | string | 创建时间 | "2026-01-01T00:00:00Z" |
 | updated_at | string | 更新时间 | "2026-01-01T00:00:00Z" |
 
@@ -1227,7 +1250,7 @@ ID 类型：`BIGINT`，响应中以数字返回
 | --- | --- | --- | --- | --- |
 | actuator_device_id | number | 是 | 执行器设备 ID | 1 |
 | channel_code | string | 是 | 最多 64 字符 | "CH-PUMP" |
-| actuator_type | string | 是 | 最多 16 字符：PUMP/AERATOR/FAN/VALVE/SHADE/LED/HEATER/CO2_GEN/FOGGER | "PUMP" |
+| actuator_type | string | 是 | 最多 32 字符：PUMP/AERATOR/FAN/VALVE/SHADE/LED/HEATER/CO2_GEN/FOGGER/DOSING_PUMP/CHILLER/STIRRER/DEHUMIDIFIER/DAMPER/UV_STERILIZER/OZONE_GENERATOR/FILTER/RO_SYSTEM/TOP_UP_VALVE/ALARM/CALIBRATION_VALVE | "PUMP" |
 | rated_power_watt | number\|null | 否 | 额定功率（瓦） | 100.00 |
 | metadata | string | 否 | JSON 字符串 | "{}" |
 
@@ -2332,6 +2355,10 @@ ID 类型：`BIGINT`，响应中以数字返回
 | total_volume_liter | number | 是 | >0 | 200.00 |
 | current_volume_liter | number\|null | 否 | 当前容积 | 180.00 |
 | status | string | 否 | ACTIVE/INACTIVE/EMPTY | "ACTIVE" |
+| ec_sensor_channel_id | number\|null | 否 | EC 传感器通道 ID | 1 |
+| ph_sensor_channel_id | number\|null | 否 | pH 传感器通道 ID | 2 |
+| level_sensor_channel_id | number\|null | 否 | 液位传感器通道 ID | 3 |
+| temp_sensor_channel_id | number\|null | 否 | 温度传感器通道 ID | 4 |
 
 **GET /api/nutrient-tanks/:id**
 

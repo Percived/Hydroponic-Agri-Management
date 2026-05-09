@@ -14,7 +14,7 @@ type CreateObservationRequest struct {
 	AffectedAreaPct    *float64  `json:"affected_area_pct"`
 	AffectedPlantCount *uint     `json:"affected_plant_count"`
 	Symptoms           string    `json:"symptoms" binding:"omitempty,max=255"`
-	PhotoUrls          string    `json:"photo_urls"`
+	PhotoUrls          *string   `json:"photo_urls"`
 	ObservedBy         *uint64   `json:"observed_by"`
 }
 

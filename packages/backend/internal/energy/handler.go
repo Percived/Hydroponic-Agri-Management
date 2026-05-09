@@ -289,18 +289,16 @@ func (h *Handler) ListByBatch(c *gin.Context) {
 
 // EnergySummary returns summarized energy consumption grouped by record_type.
 func (h *Handler) EnergySummary(c *gin.Context) {
-	greenhouseIDStr := c.Query("greenhouse_id")
-	if greenhouseIDStr == "" {
-		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "greenhouse_id_required", nil)
-		return
-	}
-	greenhouseID, err := strconv.ParseUint(greenhouseIDStr, 10, 64)
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_greenhouse_id", nil)
-		return
-	}
+	query := h.db.Model(&EnergyConsumptionRecord{})
 
-	query := h.db.Model(&EnergyConsumptionRecord{}).Where("greenhouse_id = ?", greenhouseID)
+	if v := c.Query("greenhouse_id"); v != "" {
+		id, err := strconv.ParseUint(v, 10, 64)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_greenhouse_id", nil)
+			return
+		}
+		query = query.Where("greenhouse_id = ?", id)
+	}
 	if start := c.Query("start"); start != "" {
 		t, err := time.Parse(time.RFC3339, start)
 		if err == nil {
@@ -331,15 +329,14 @@ func (h *Handler) EnergySummary(c *gin.Context) {
 	summaries := make([]EnergySummaryItem, 0, len(rows))
 	for _, row := range rows {
 		summaries = append(summaries, EnergySummaryItem{
-			RecordType: row.RecordType,
-			TotalValue: row.TotalValue,
-			Unit:       row.Unit,
+			RecordType:       row.RecordType,
+			TotalConsumption: row.TotalValue,
+			Unit:             row.Unit,
 		})
 	}
 
 	response.Success(c, gin.H{
-		"greenhouse_id": greenhouseID,
-		"summaries":     summaries,
+		"items": summaries,
 	})
 }
 

@@ -6,6 +6,7 @@ import "time"
 type ControlCommand struct {
 	ID                uint64     `gorm:"primaryKey;autoIncrement"`
 	ActuatorChannelID uint64     `gorm:"column:actuator_channel_id;not null"`
+	BatchID           *uint64    `gorm:"column:batch_id"`
 	CommandType       string     `gorm:"column:command_type;size:32;not null"`
 	Payload           string     `gorm:"type:json;not null"`
 	Status            string     `gorm:"size:16;default:PENDING"` // PENDING/QUEUED/SENT/ACKED/TIMEOUT/FAILED

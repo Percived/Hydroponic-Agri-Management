@@ -274,6 +274,13 @@ func (h *Handler) GetHarvestSummary(c *gin.Context) {
 		return
 	}
 
+	// Load batch info for yield estimation
+	var batch CropBatch
+	if err := h.db.First(&batch, batchID).Error; err != nil {
+		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "batch_not_found", nil)
+		return
+	}
+
 	type gradeSummary struct {
 		Grade   string  `json:"grade"`
 		TotalKg float64 `json:"total_kg"`
@@ -301,9 +308,31 @@ func (h *Handler) GetHarvestSummary(c *gin.Context) {
 		})
 	}
 
-	response.Success(c, HarvestSummaryResponse{
-		BatchID:       batchID,
-		TotalWeightKg: totalWeight,
-		Grades:        grades,
-	})
+	// Estimate yield: planting_density × zone_area (m²)
+	var estimatedYield *float64
+	if batch.PlantingDensity != nil && batch.GrowingZoneID != nil {
+		var zoneArea float64
+		if err := h.db.Table("growing_zones").
+			Select("COALESCE(area_sqm, 0)").
+			Where("id = ?", *batch.GrowingZoneID).
+			Scan(&zoneArea).Error; err == nil && zoneArea > 0 {
+			est := *batch.PlantingDensity * zoneArea
+			estimatedYield = &est
+		}
+	}
+
+	resp := gin.H{
+		"batch_id":        batchID,
+		"total_weight_kg": totalWeight,
+		"grades":          grades,
+	}
+	if estimatedYield != nil {
+		resp["estimated_yield_kg"] = *estimatedYield
+		resp["yield_rate"] = 0.0
+		if *estimatedYield > 0 {
+			resp["yield_rate"] = float64(int(totalWeight / *estimatedYield * 1000)) / 10 // percentage with 1 decimal
+		}
+	}
+
+	response.Success(c, resp)
 }

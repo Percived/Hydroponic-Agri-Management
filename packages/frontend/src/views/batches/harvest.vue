@@ -18,6 +18,35 @@
         <div class="summary-label">采收记录数</div>
         <div class="summary-value">{{ harvestCount }}</div>
       </div>
+      <div class="summary-card" v-if="summary.estimated_yield_kg != null">
+        <div class="summary-label">预估产量</div>
+        <div class="summary-value">{{ summary.estimated_yield_kg }} kg</div>
+      </div>
+      <div class="summary-card" v-if="summary.yield_rate != null">
+        <div class="summary-label">达成率</div>
+        <div class="summary-value">{{ summary.yield_rate }}%</div>
+      </div>
+    </div>
+
+    <!-- 等级分布 -->
+    <div class="grade-distribution" v-if="summary.grades?.length">
+      <h3 class="section-title">等级分布</h3>
+      <div class="grade-bars">
+        <div
+          v-for="g in summary.grades"
+          :key="g.grade"
+          class="grade-bar-item"
+        >
+          <div class="grade-bar-label">{{ gradeName(g.grade) }}</div>
+          <el-progress
+            :percentage="gradePercent(g.weight_kg)"
+            :color="gradeBarColor(g.grade)"
+            :stroke-width="20"
+          >
+            <span class="grade-bar-text">{{ g.weight_kg }} kg ({{ g.count }}次)</span>
+          </el-progress>
+        </div>
+      </div>
     </div>
 
     <!-- 筛选区 -->
@@ -122,6 +151,8 @@ const total = ref(0)
 const summary = ref<{
   batch_id?: number
   total_weight_kg?: number
+  estimated_yield_kg?: number
+  yield_rate?: number
   grades?: { grade: string; weight_kg: number; count: number }[]
 }>({})
 
@@ -165,6 +196,16 @@ function gradeName(grade: string) {
 function gradeTagType(grade: string) {
   const map: Record<string, string> = { A: 'success', B: '', C: 'warning', Waste: 'danger' }
   return map[grade] || 'info'
+}
+
+function gradePercent(weightKg: number) {
+  const total = summary.value.total_weight_kg || 1
+  return Math.round((weightKg / total) * 100)
+}
+
+function gradeBarColor(grade: string) {
+  const map: Record<string, string> = { A: '#67C23A', B: '#409EFF', C: '#E6A23C', Waste: '#F56C6C' }
+  return map[grade] || '#909399'
 }
 
 async function fetchData() {
@@ -305,6 +346,32 @@ onMounted(async () => {
     border-radius: var(--radius-md);
     padding: var(--spacing-lg);
     box-shadow: var(--shadow-card);
+  }
+  .grade-distribution {
+    margin-bottom: 16px;
+  }
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .grade-bars {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+    box-shadow: var(--shadow-card);
+  }
+  .grade-bar-item {
+    margin-bottom: 12px;
+    &:last-child { margin-bottom: 0; }
+  }
+  .grade-bar-label {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .grade-bar-text {
+    font-size: 13px;
   }
   .pagination-container {
     display: flex;

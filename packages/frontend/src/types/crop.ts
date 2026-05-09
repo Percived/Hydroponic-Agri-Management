@@ -103,6 +103,119 @@ export interface CreateHarvestRecordRequest {
   note?: string
 }
 
+// Batch device binding
+export interface BatchDevice {
+  id: number
+  batch_id: number
+  device_type: 'sensor' | 'actuator'
+  device_id: number
+  device_name?: string
+  device_code?: string
+  is_active: boolean
+  bound_at: string
+  unbound_at?: string
+}
+
+export interface BindDeviceRequest {
+  device_type: 'sensor' | 'actuator'
+  device_id: number
+}
+
+// Planting record
+export interface PlantingRecord {
+  id: number
+  batch_id: number
+  seed_source?: string
+  seed_batch_no?: string
+  seedling_age_days?: number
+  seeded_at?: string
+  planted_at?: string
+  actual_plant_count?: number
+  initial_ec?: number
+  initial_ph?: number
+  initial_water_temp?: number
+  initial_nutrient_recipe_id?: number
+  planted_by?: number
+  note?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreatePlantingRecordRequest {
+  batch_id: number
+  seed_source?: string
+  seed_batch_no?: string
+  seedling_age_days?: number
+  seeded_at?: string
+  planted_at?: string
+  actual_plant_count?: number
+  initial_ec?: number
+  initial_ph?: number
+  initial_water_temp?: number
+  initial_nutrient_recipe_id?: number
+  note?: string
+}
+
+// Stage progress
+export interface StageProgress {
+  batch_id: number
+  current_stage_id?: number
+  current_stage_name: string
+  current_stage_code: string
+  progress_percent: number
+  days_elapsed: number
+  days_remaining: number
+  target_ec_min?: number
+  target_ec_max?: number
+  target_ph_min?: number
+  target_ph_max?: number
+}
+
+// Batch dashboard (Phase 3)
+export interface BatchDashboard {
+  batch: CropBatch
+  variety?: CropVariety
+  greenhouse_name?: string
+  zone_name?: string
+  planting_record?: PlantingRecord
+  stage_progress?: StageProgress
+  devices: BatchDevice[]
+  latest_telemetry: TelemetrySnapshot[]
+  recent_alerts: AlertSummary[]
+  recent_commands: CommandSummary[]
+  harvest_summary?: HarvestSummary
+  stage_plans: BatchStagePlan[]
+}
+
+export interface TelemetrySnapshot {
+  metric_code: string
+  metric_name: string
+  value: number
+  unit: string
+  collected_at: string
+}
+
+export interface AlertSummary {
+  id: number
+  type: string
+  level: string
+  message: string
+  status: string
+  triggered_at: string
+}
+
+export interface CommandSummary {
+  id: number
+  command_type: string
+  status: string
+  created_at: string
+}
+
+export interface HarvestSummary {
+  total_weight_kg: number
+  grades: { grade: string; weight_kg: number; count: number }[]
+}
+
 // List responses
 export interface CropVarietyListResponse extends PaginatedResponse<CropVariety> {}
 export interface GrowthStageListResponse extends PaginatedResponse<GrowthStage> {}

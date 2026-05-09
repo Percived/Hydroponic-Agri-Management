@@ -3,29 +3,41 @@ package nutrient
 // ---------- NutrientTank ----------
 
 type CreateNutrientTankRequest struct {
-	GrowingZoneID      uint64   `json:"growing_zone_id" binding:"required"`
-	Code               string   `json:"code" binding:"required,min=1,max=32"`
-	TotalVolumeLiter   float64  `json:"total_volume_liter" binding:"required,gt=0"`
-	CurrentVolumeLiter *float64 `json:"current_volume_liter"`
-	Status             string   `json:"status"`
+	GrowingZoneID        uint64   `json:"growing_zone_id" binding:"required"`
+	Code                 string   `json:"code" binding:"required,min=1,max=32"`
+	TotalVolumeLiter     float64  `json:"total_volume_liter" binding:"required,gt=0"`
+	CurrentVolumeLiter   *float64 `json:"current_volume_liter"`
+	Status               string   `json:"status"`
+	ECSensorChannelID    *uint64  `json:"ec_sensor_channel_id"`
+	PHSensorChannelID    *uint64  `json:"ph_sensor_channel_id"`
+	LevelSensorChannelID *uint64  `json:"level_sensor_channel_id"`
+	TempSensorChannelID  *uint64  `json:"temp_sensor_channel_id"`
 }
 
 type UpdateNutrientTankRequest struct {
-	Code               *string  `json:"code" binding:"omitempty,min=1,max=32"`
-	TotalVolumeLiter   *float64 `json:"total_volume_liter" binding:"omitempty,gt=0"`
-	CurrentVolumeLiter *float64 `json:"current_volume_liter"`
-	Status             *string  `json:"status" binding:"omitempty,oneof=ACTIVE INACTIVE EMPTY"`
+	Code                 *string  `json:"code" binding:"omitempty,min=1,max=32"`
+	TotalVolumeLiter     *float64 `json:"total_volume_liter" binding:"omitempty,gt=0"`
+	CurrentVolumeLiter   *float64 `json:"current_volume_liter"`
+	Status               *string  `json:"status" binding:"omitempty,oneof=ACTIVE INACTIVE EMPTY"`
+	ECSensorChannelID    *uint64  `json:"ec_sensor_channel_id"`
+	PHSensorChannelID    *uint64  `json:"ph_sensor_channel_id"`
+	LevelSensorChannelID *uint64  `json:"level_sensor_channel_id"`
+	TempSensorChannelID  *uint64  `json:"temp_sensor_channel_id"`
 }
 
 type NutrientTankResponse struct {
-	ID                 uint64   `json:"id"`
-	GrowingZoneID      uint64   `json:"growing_zone_id"`
-	Code               string   `json:"code"`
-	TotalVolumeLiter   float64  `json:"total_volume_liter"`
-	CurrentVolumeLiter *float64 `json:"current_volume_liter"`
-	Status             string   `json:"status"`
-	CreatedAt          string   `json:"created_at"`
-	UpdatedAt          string   `json:"updated_at"`
+	ID                   uint64   `json:"id"`
+	GrowingZoneID        uint64   `json:"growing_zone_id"`
+	Code                 string   `json:"code"`
+	TotalVolumeLiter     float64  `json:"total_volume_liter"`
+	CurrentVolumeLiter   *float64 `json:"current_volume_liter"`
+	Status               string   `json:"status"`
+	ECSensorChannelID    *uint64  `json:"ec_sensor_channel_id,omitempty"`
+	PHSensorChannelID    *uint64  `json:"ph_sensor_channel_id,omitempty"`
+	LevelSensorChannelID *uint64  `json:"level_sensor_channel_id,omitempty"`
+	TempSensorChannelID  *uint64  `json:"temp_sensor_channel_id,omitempty"`
+	CreatedAt            string   `json:"created_at"`
+	UpdatedAt            string   `json:"updated_at"`
 }
 
 // ---------- SolutionChangeEvent ----------

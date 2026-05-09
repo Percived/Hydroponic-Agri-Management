@@ -35,6 +35,19 @@ func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
 	batches.DELETE("/:id", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin), h.DeleteBatch)
 	batches.POST("/:id/transition", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.TransitionBatchStatus)
 
+	// BatchDevice routes (device binding)
+	batches.POST("/:id/devices", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.BindDevice)
+	batches.GET("/:id/devices", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.ListBatchDevices)
+	batches.DELETE("/:id/devices/:deviceId", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.UnbindDevice)
+	batches.GET("/:id/stage-progress", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetBatchStageProgress)
+	batches.GET("/:id/dashboard", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetBatchDashboard)
+
+	// PlantingRecord routes
+	planting := r.Group("/planting-records")
+	planting.POST("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.CreatePlantingRecord)
+	planting.GET("/:batchId", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetPlantingRecord)
+	planting.PUT("/:batchId", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.UpdatePlantingRecord)
+
 	// BatchStagePlan routes
 	stagePlans := r.Group("/batch-stage-plans")
 	stagePlans.GET("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.ListStagePlans)

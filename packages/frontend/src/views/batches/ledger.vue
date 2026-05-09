@@ -55,17 +55,18 @@
         <el-table-column prop="status" label="状态" width="130">
           <template #default="{ row }">
             <el-select
-              v-if="canControlDevice()"
-              v-model="row.status"
+              v-if="canControlDevice() && getLegalTransitions(row.status).length > 0"
+              :model-value="row.status"
               size="small"
               style="width: 120px"
               @change="onStatusChange(row.id, $event)"
             >
-              <el-option label="PLANNED" value="PLANNED" />
-              <el-option label="RUNNING" value="RUNNING" />
-              <el-option label="HARVESTING" value="HARVESTING" />
-              <el-option label="COMPLETED" value="COMPLETED" />
-              <el-option label="ABORTED" value="ABORTED" />
+              <el-option
+                v-for="s in getLegalTransitions(row.status)"
+                :key="s"
+                :label="s"
+                :value="s"
+              />
             </el-select>
             <el-tag v-else size="small">{{ row.status }}</el-tag>
           </template>
@@ -84,8 +85,9 @@
         <el-table-column prop="ended_at" label="结束时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.ended_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="80" fixed="right">
+        <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" size="small" link @click="goDetail(row.id)">详情</el-button>
             <el-button type="danger" size="small" link @click="removeBatch(row.id)">删除</el-button>
           </template>
         </el-table-column>
@@ -116,6 +118,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { cropApi, greenhouseApi } from '@/api'
 import BatchForm from '@/components/batch/BatchForm.vue'
@@ -123,7 +126,25 @@ import { formatDateTime } from '@/utils/format'
 import { usePermission } from '@/composables'
 import type { CropBatch, CreateCropBatchRequest, CropVariety, Greenhouse } from '@/types'
 
+const router = useRouter()
 const { canControlDevice } = usePermission()
+
+// Legal state transitions map
+const LEGAL_TRANSITIONS: Record<string, string[]> = {
+  PLANNED: ['RUNNING', 'ABORTED'],
+  RUNNING: ['HARVESTING', 'ABORTED'],
+  HARVESTING: ['COMPLETED', 'ABORTED'],
+  COMPLETED: [],
+  ABORTED: []
+}
+
+function getLegalTransitions(status: string): string[] {
+  return LEGAL_TRANSITIONS[status] || []
+}
+
+function goDetail(id: number) {
+  router.push(`/batches/${id}`)
+}
 
 const loading = ref(false)
 const submitLoading = ref(false)

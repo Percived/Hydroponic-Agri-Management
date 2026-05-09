@@ -7,6 +7,10 @@ export interface NutrientTank {
   total_volume_liter: number
   current_volume_liter?: number
   status: string
+  ec_sensor_channel_id?: number | null
+  ph_sensor_channel_id?: number | null
+  level_sensor_channel_id?: number | null
+  temp_sensor_channel_id?: number | null
   created_at: string
   updated_at: string
 }
@@ -94,6 +98,10 @@ export interface CreateNutrientTankRequest {
   growing_zone_id: number
   code: string
   total_volume_liter: number
+  ec_sensor_channel_id?: number
+  ph_sensor_channel_id?: number
+  level_sensor_channel_id?: number
+  temp_sensor_channel_id?: number
 }
 
 export interface CreateSolutionChangeRequest {

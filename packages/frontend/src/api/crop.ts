@@ -11,7 +11,13 @@ import type {
   BatchStagePlanListResponse,
   CreateBatchStagePlanRequest,
   HarvestRecordListResponse,
-  CreateHarvestRecordRequest
+  CreateHarvestRecordRequest,
+  BatchDevice,
+  BindDeviceRequest,
+  PlantingRecord,
+  CreatePlantingRecordRequest,
+  StageProgress,
+  BatchDashboard
 } from '@/types'
 
 // ===== Crop Varieties =====
@@ -100,3 +106,35 @@ export const getHarvestSummary = (batchId: number) =>
     total_weight_kg: number
     grades: { grade: string; weight_kg: number; count: number }[]
   }>(`/harvests/summary/${batchId}`)
+
+// ===== Batch Devices =====
+
+export const bindDevice = (batchId: number, data: BindDeviceRequest) =>
+  post<{ id: number }>(`/batches/${batchId}/devices`, data)
+
+export const unbindDevice = (batchId: number, deviceId: number, deviceType: string) =>
+  del<void>(`/batches/${batchId}/devices/${deviceId}?device_type=${deviceType}`)
+
+export const getBatchDevices = (batchId: number, deviceType?: string) =>
+  get<{ items: BatchDevice[] }>(`/batches/${batchId}/devices${deviceType ? `?device_type=${deviceType}` : ''}`)
+
+// ===== Planting Records =====
+
+export const createPlantingRecord = (data: CreatePlantingRecordRequest) =>
+  post<{ id: number }>('/planting-records', data)
+
+export const getPlantingRecord = (batchId: number) =>
+  get<PlantingRecord>(`/planting-records/${batchId}`)
+
+export const updatePlantingRecord = (batchId: number, data: Partial<CreatePlantingRecordRequest>) =>
+  put<void>(`/planting-records/${batchId}`, data)
+
+// ===== Stage Progress =====
+
+export const getStageProgress = (batchId: number) =>
+  get<StageProgress>(`/batches/${batchId}/stage-progress`)
+
+// ===== Batch Dashboard =====
+
+export const getBatchDashboard = (batchId: number) =>
+  get<BatchDashboard>(`/batches/${batchId}/dashboard`)

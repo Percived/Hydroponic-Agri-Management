@@ -102,6 +102,12 @@ func (h *Handler) ListAlerts(c *gin.Context) {
 			query = query.Where("actuator_channel_id = ?", id)
 		}
 	}
+	if v := c.Query("batch_id"); v != "" {
+		id, err := strconv.ParseUint(v, 10, 64)
+		if err == nil {
+			query = query.Where("batch_id = ?", id)
+		}
+	}
 	if from := c.Query("triggered_from"); from != "" {
 		t, err := time.Parse(time.RFC3339, from)
 		if err == nil {
@@ -394,6 +400,7 @@ func alertToItem(a Alert, timelineCount int64) gin.H {
 		"metric_code":         a.MetricCode,
 		"sensor_channel_id":   a.SensorChannelID,
 		"actuator_channel_id": a.ActuatorChannelID,
+		"batch_id":            a.BatchID,
 		"trigger_value":       a.TriggerValue,
 		"message":             a.Message,
 		"status":              a.Status,

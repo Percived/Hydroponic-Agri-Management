@@ -22,6 +22,7 @@ func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
 	reviews.GET("", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.ListSnapshots)
 	reviews.GET("/:id", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetSnapshot)
 
-	// Batch-scoped snapshots
+	// Batch-scoped
 	reviews.GET("/batches/:batchId", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetSnapshotsByBatch)
+	reviews.GET("/batches/:batchId/review", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.GetBatchReview)
 }

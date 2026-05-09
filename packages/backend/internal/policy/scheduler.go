@@ -94,7 +94,7 @@ func (s *Scheduler) evaluateThresholdPolicies(triggerMetric string, triggerValue
 	err := s.db.
 		Preload("Conditions", "enabled = true").
 		Preload("Targets", "enabled = true").
-		Where("enabled = true AND policy_type = ?", "THRESHOLD").
+		Where("control_policies.enabled = true AND policy_type = ?", "THRESHOLD").
 		Where("(effective_from IS NULL OR effective_from <= ?)", now).
 		Where("(effective_to IS NULL OR effective_to >= ?)", now).
 		Joins("JOIN policy_conditions pc ON pc.policy_id = control_policies.id AND pc.enabled = true AND pc.metric_code = ?", triggerMetric).
@@ -118,7 +118,7 @@ func (s *Scheduler) evaluateScheduledPolicies() {
 	err := s.db.
 		Preload("Conditions", "enabled = true").
 		Preload("Targets", "enabled = true").
-		Where("enabled = true AND policy_type = ?", "SCHEDULE").
+		Where("control_policies.enabled = true AND policy_type = ?", "SCHEDULE").
 		Where("(effective_from IS NULL OR effective_from <= ?)", now).
 		Where("(effective_to IS NULL OR effective_to >= ?)", now).
 		Order("priority ASC").

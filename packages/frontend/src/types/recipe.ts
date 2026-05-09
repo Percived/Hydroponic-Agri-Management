@@ -30,7 +30,7 @@ export interface RecipeStageTarget {
   target_max?: number | null
   tolerance?: number | null
   unit?: string
-  enabled: number
+  enabled: boolean
   created_at: string
   updated_at: string
 }
@@ -42,7 +42,7 @@ export interface RecipeIonTarget {
   ion_code: string
   target_min_mg_l?: number | null
   target_max_mg_l?: number | null
-  enabled: number
+  enabled: boolean
   created_at: string
   updated_at: string
 }
@@ -84,21 +84,23 @@ export interface CreateRecipeParams {
 }
 
 export interface CreateStageTargetParams {
+  id?: number
   growth_stage_id?: number | null
   metric_code: string
   target_min?: number | null
   target_max?: number | null
   tolerance?: number | null
   unit?: string
-  enabled?: number
+  enabled?: boolean
 }
 
 export interface CreateIonTargetParams {
+  id?: number
   growth_stage_id?: number | null
   ion_code: string
   target_min_mg_l?: number | null
   target_max_mg_l?: number | null
-  enabled?: number
+  enabled?: boolean
 }
 
 export interface UpdateRecipeTargetsRequest {

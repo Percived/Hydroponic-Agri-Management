@@ -141,7 +141,23 @@ func (h *Handler) QueryTelemetry(c *gin.Context) {
 	}
 
 	if v := strings.TrimSpace(c.Query("metric_code")); v != "" {
-		q = q.Where("metric_code = ?", v)
+		parts := strings.Split(v, ",")
+		if len(parts) == 1 {
+			q = q.Where("metric_code = ?", strings.TrimSpace(parts[0]))
+		} else {
+			if len(parts) > 20 {
+				response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "too_many_metric_codes", gin.H{"max": 20})
+				return
+			}
+			codes := make([]string, 0, len(parts))
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					codes = append(codes, p)
+				}
+			}
+			q = q.Where("metric_code IN ?", codes)
+		}
 	}
 
 	if v := strings.TrimSpace(c.Query("start_time")); v != "" {

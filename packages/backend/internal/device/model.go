@@ -12,15 +12,27 @@ const (
 	StatusFault   = "FAULT"
 	ProtocolMQTT  = "MQTT"
 
-	ActuatorTypePump    = "PUMP"
-	ActuatorTypeAerator = "AERATOR"
-	ActuatorTypeFan     = "FAN"
-	ActuatorTypeValve   = "VALVE"
-	ActuatorTypeShade   = "SHADE"
-	ActuatorTypeLED     = "LED"
-	ActuatorTypeHeater  = "HEATER"
-	ActuatorTypeCO2Gen  = "CO2_GEN"
-	ActuatorTypeFogger  = "FOGGER"
+	ActuatorTypePump         = "PUMP"
+	ActuatorTypeAerator      = "AERATOR"
+	ActuatorTypeFan          = "FAN"
+	ActuatorTypeValve        = "VALVE"
+	ActuatorTypeShade        = "SHADE"
+	ActuatorTypeLED          = "LED"
+	ActuatorTypeHeater       = "HEATER"
+	ActuatorTypeCO2Gen       = "CO2_GEN"
+	ActuatorTypeFogger       = "FOGGER"
+	ActuatorTypeDosingPump   = "DOSING_PUMP"
+	ActuatorTypeChiller      = "CHILLER"
+	ActuatorTypeStirrer      = "STIRRER"
+	ActuatorTypeDehumidifier = "DEHUMIDIFIER"
+	ActuatorTypeDamper       = "DAMPER"
+	ActuatorTypeUVSterilizer = "UV_STERILIZER"
+	ActuatorTypeOzoneGen     = "OZONE_GENERATOR"
+	ActuatorTypeFilter       = "FILTER"
+	ActuatorTypeROSystem     = "RO_SYSTEM"
+	ActuatorTypeTopUpValve   = "TOP_UP_VALVE"
+	ActuatorTypeAlarm        = "ALARM"
+	ActuatorTypeCalibValve   = "CALIBRATION_VALVE"
 )
 
 type SensorDevice struct {
@@ -103,7 +115,7 @@ type ActuatorChannel struct {
 	ID               uint64    `gorm:"primaryKey;autoIncrement"`
 	ActuatorDeviceID uint64    `gorm:"column:actuator_device_id;not null"`
 	ChannelCode      string    `gorm:"size:64;not null"`
-	ActuatorType     string    `gorm:"column:actuator_type;size:16;not null"`
+	ActuatorType     string    `gorm:"column:actuator_type;size:32;not null"`
 	CurrentState     string    `gorm:"column:current_state;size:16;default:OFF"`
 	RatedPowerWatt   *float64  `gorm:"column:rated_power_watt;type:decimal(10,2)"`
 	Enabled          bool      `gorm:"default:true"`

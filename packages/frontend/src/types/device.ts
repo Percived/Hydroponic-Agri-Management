@@ -123,7 +123,7 @@ export interface UpdateActuatorDeviceRequest {
 export interface ActuatorDeviceListResponse extends PaginatedResponse<ActuatorDevice> {}
 
 // ── Actuator Channels ──
-export type ActuatorType = 'PUMP' | 'AERATOR' | 'FAN' | 'VALVE' | 'SHADE' | 'LED' | 'HEATER' | 'CO2_GEN' | 'FOGGER'
+export type ActuatorType = 'PUMP' | 'AERATOR' | 'FAN' | 'VALVE' | 'SHADE' | 'LED' | 'HEATER' | 'CO2_GEN' | 'FOGGER' | 'DOSING_PUMP' | 'CHILLER' | 'STIRRER' | 'DEHUMIDIFIER' | 'DAMPER' | 'UV_STERILIZER' | 'OZONE_GENERATOR' | 'FILTER' | 'RO_SYSTEM' | 'TOP_UP_VALVE' | 'ALARM' | 'CALIBRATION_VALVE'
 
 export interface ActuatorChannel {
   id: number

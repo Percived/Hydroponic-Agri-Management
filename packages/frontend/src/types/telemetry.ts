@@ -26,7 +26,7 @@ export interface IngestTelemetryRequest {
 }
 
 export interface TelemetryQueryParams {
-  sensor_channel_id?: number
+  sensor_channel_id?: number | string
   metric_code?: string
   start_time?: string
   end_time?: string

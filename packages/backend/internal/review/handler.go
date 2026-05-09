@@ -241,8 +241,8 @@ func (h *Handler) GenerateReview(c *gin.Context) {
 	now := time.Now().UTC()
 
 	// Query telemetry data within the window for the given batch.
-	// The telemetry_data table has: device_id, metric_id, value, collected_at
-	// We use batch_id from a subquery on devices or batch associations.
+	// telemetry_records has: sensor_channel_id, metric_code, value, collected_at
+	// Batch filtering via batch_devices -> sensor_devices -> sensor_channels chain.
 	type telemetryRow struct {
 		MetricCode string  `gorm:"column:metric_code"`
 		MetricName string  `gorm:"column:metric_name"`
@@ -254,26 +254,26 @@ func (h *Handler) GenerateReview(c *gin.Context) {
 	}
 
 	var rows []telemetryRow
-	err := h.db.Table("telemetry_data td").
-		Select("m.code AS metric_code, m.name AS metric_name, m.unit AS unit, AVG(td.value) AS avg_value, MIN(td.value) AS min_value, MAX(td.value) AS max_value, COUNT(*) AS count").
-		Joins("JOIN metrics m ON m.id = td.metric_id").
-		Joins("JOIN devices d ON d.id = td.device_id").
-		Where("d.id IN (SELECT device_id FROM batch_devices WHERE batch_id = ?)", req.BatchID).
-		Where("td.collected_at >= ? AND td.collected_at <= ?", req.WindowStart, req.WindowEnd).
-		Group("m.code, m.name, m.unit").
+	err := h.db.Table("telemetry_records tr").
+		Select("md.code AS metric_code, md.name AS metric_name, md.unit AS unit, AVG(tr.value) AS avg_value, MIN(tr.value) AS min_value, MAX(tr.value) AS max_value, COUNT(*) AS count").
+		Joins("JOIN metric_definitions md ON md.code = tr.metric_code").
+		Joins("JOIN sensor_channels sc ON sc.id = tr.sensor_channel_id").
+		Joins("JOIN sensor_devices sd ON sd.id = sc.sensor_device_id").
+		Where("sd.id IN (SELECT device_id FROM batch_devices WHERE batch_id = ? AND device_type = 'sensor' AND is_active = 1)", req.BatchID).
+		Where("tr.collected_at >= ? AND tr.collected_at <= ?", req.WindowStart, req.WindowEnd).
+		Group("md.code, md.name, md.unit").
 		Find(&rows).Error
 
 	if err != nil {
-		// Fallback: query without batch device join if batch_devices table doesn't exist
-		err = h.db.Table("telemetry_data td").
-			Select("m.code AS metric_code, m.name AS metric_name, m.unit AS unit, AVG(td.value) AS avg_value, MIN(td.value) AS min_value, MAX(td.value) AS max_value, COUNT(*) AS count").
-			Joins("JOIN metrics m ON m.id = td.metric_id").
-			Where("td.collected_at >= ? AND td.collected_at <= ?", req.WindowStart, req.WindowEnd).
-			Group("m.code, m.name, m.unit").
+		// Fallback: query all telemetry within window (no batch filter)
+		err = h.db.Table("telemetry_records tr").
+			Select("md.code AS metric_code, md.name AS metric_name, md.unit AS unit, AVG(tr.value) AS avg_value, MIN(tr.value) AS min_value, MAX(tr.value) AS max_value, COUNT(*) AS count").
+			Joins("JOIN metric_definitions md ON md.code = tr.metric_code").
+			Where("tr.collected_at >= ? AND tr.collected_at <= ?", req.WindowStart, req.WindowEnd).
+			Group("md.code, md.name, md.unit").
 			Find(&rows).Error
 
 		if err != nil {
-			// If telemetry_data doesn't exist yet, create an empty summary
 			rows = []telemetryRow{}
 		}
 	}
@@ -295,6 +295,7 @@ func (h *Handler) GenerateReview(c *gin.Context) {
 	// Count alerts within the window for this batch
 	var alertCount int64
 	h.db.Table("alerts").
+		Where("batch_id = ?", req.BatchID).
 		Where("triggered_at >= ? AND triggered_at <= ?", req.WindowStart, req.WindowEnd).
 		Count(&alertCount)
 
@@ -305,6 +306,41 @@ func (h *Handler) GenerateReview(c *gin.Context) {
 		"window_end":    timeToStr(req.WindowEnd),
 		"metrics":       metricSummaries,
 		"alert_count":   alertCount,
+	}
+
+	// For FINAL snapshots, include energy and pest statistics
+	if req.SnapshotType == SnapshotFinal {
+		// Energy consumption total
+		var energyTotal float64
+		h.db.Table("energy_consumption_records").
+			Select("COALESCE(SUM(consumption_value), 0)").
+			Where("batch_id = ? AND recorded_at >= ? AND recorded_at <= ?", req.BatchID, req.WindowStart, req.WindowEnd).
+			Scan(&energyTotal)
+		summary["energy_consumption"] = gin.H{
+			"total":            energyTotal,
+			"consumption_unit": "kWh",
+		}
+
+		// Pest observations count
+		var pestCount int64
+		h.db.Table("pest_disease_observations").
+			Where("batch_id = ? AND observed_at >= ? AND observed_at <= ?", req.BatchID, req.WindowStart, req.WindowEnd).
+			Count(&pestCount)
+		summary["pest_observations"] = gin.H{"count": pestCount}
+
+		// Treatment records count
+		var treatmentCount int64
+		h.db.Table("treatment_records").
+			Where("batch_id = ? AND treated_at >= ? AND treated_at <= ?", req.BatchID, req.WindowStart, req.WindowEnd).
+			Count(&treatmentCount)
+		summary["treatment_records"] = gin.H{"count": treatmentCount}
+
+		// Total commands count
+		var commandCount int64
+		h.db.Table("control_commands").
+			Where("batch_id = ? AND created_at >= ? AND created_at <= ?", req.BatchID, req.WindowStart, req.WindowEnd).
+			Count(&commandCount)
+		summary["command_count"] = commandCount
 	}
 
 	summaryJSON, err := json.Marshal(summary)
@@ -330,6 +366,117 @@ func (h *Handler) GenerateReview(c *gin.Context) {
 	response.Success(c, gin.H{
 		"id":      snapshot.ID,
 		"summary": summary,
+	})
+}
+
+// GetBatchReview returns live review data (trends, alerts, controls) for a batch.
+func (h *Handler) GetBatchReview(c *gin.Context) {
+	batchID, err := parseID(c.Param("batchId"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_id", nil)
+		return
+	}
+
+	snapshotType := c.Query("snapshot_type")
+	windowStart := c.Query("from")
+	windowEnd := c.Query("to")
+
+	// Query environment trends via batch_devices chain
+	type trendRow struct {
+		MetricCode string  `json:"metric_code"`
+		Time       string  `json:"time"`
+		Value      float64 `json:"value"`
+	}
+	var trends []trendRow
+	h.db.Table("telemetry_records tr").
+		Select("md.code AS metric_code, tr.collected_at AS time, tr.value").
+		Joins("JOIN metric_definitions md ON md.code = tr.metric_code").
+		Joins("JOIN sensor_channels sc ON sc.id = tr.sensor_channel_id").
+		Joins("JOIN sensor_devices sd ON sd.id = sc.sensor_device_id").
+		Where("sd.id IN (SELECT device_id FROM batch_devices WHERE batch_id = ? AND device_type = 'sensor' AND is_active = 1)", batchID).
+		Where("tr.collected_at >= ? AND tr.collected_at <= ?", windowStart, windowEnd).
+		Order("tr.collected_at ASC").
+		Find(&trends)
+
+	// Query alerts
+	type alertRow struct {
+		TriggeredAt string `json:"triggered_at"`
+		Level       string `json:"level"`
+		Message     string `json:"message"`
+	}
+	var alerts []alertRow
+	h.db.Table("alerts").
+		Select("triggered_at, level, message").
+		Where("batch_id = ? AND triggered_at >= ? AND triggered_at <= ?", batchID, windowStart, windowEnd).
+		Order("triggered_at ASC").
+		Find(&alerts)
+
+	// Query control commands
+	type controlRow struct {
+		CreatedAt   string `json:"created_at"`
+		CommandType string `json:"command_type"`
+		Status      string `json:"status"`
+	}
+	var controls []controlRow
+	h.db.Table("control_commands").
+		Select("created_at, command_type, status").
+		Where("batch_id = ? AND created_at >= ? AND created_at <= ?", batchID, windowStart, windowEnd).
+		Order("created_at ASC").
+		Find(&controls)
+
+	// Query latest matching snapshot
+	type snapshotRow struct {
+		SnapshotType string          `json:"snapshot_type"`
+		AlertCount   int64           `json:"alert_count"`
+		ControlCount int64           `json:"control_count"`
+		FailureCount int64           `json:"failure_count"`
+		Summary      json.RawMessage `json:"summary"`
+	}
+	var snapshots []snapshotRow
+	q := h.db.Table("batch_review_snapshots").
+		Select("snapshot_type, summary").
+		Where("batch_id = ?", batchID)
+	if snapshotType != "" {
+		q = q.Where("snapshot_type = ?", snapshotType)
+	}
+	q.Order("generated_at DESC").Limit(1).Find(&snapshots)
+
+	// Parse summary for alert_count / control_count / failure_count
+	type parsedSnapshot struct {
+		SnapshotType string                 `json:"snapshot_type"`
+		AlertCount   int64                  `json:"alert_count"`
+		ControlCount int64                  `json:"control_count"`
+		FailureCount int64                  `json:"failure_count"`
+		Summary      map[string]interface{} `json:"summary"`
+	}
+	parsedSnapshots := make([]parsedSnapshot, 0, len(snapshots))
+	for _, s := range snapshots {
+		var m map[string]interface{}
+		if err := json.Unmarshal(s.Summary, &m); err != nil {
+			m = map[string]interface{}{}
+		}
+		ps := parsedSnapshot{
+			SnapshotType: s.SnapshotType,
+			Summary:      m,
+		}
+		if ac, ok := m["alert_count"].(float64); ok {
+			ps.AlertCount = int64(ac)
+		}
+		if cc, ok := m["command_count"].(float64); ok {
+			ps.ControlCount = int64(cc)
+		}
+		if fc, ok := m["failure_count"].(float64); ok {
+			ps.FailureCount = int64(fc)
+		}
+		parsedSnapshots = append(parsedSnapshots, ps)
+	}
+
+	response.Success(c, gin.H{
+		"environment_trends": trends,
+		"alerts":             alerts,
+		"controls":           controls,
+		"snapshots":          parsedSnapshots,
+		"summary":            gin.H{},
 	})
 }
 

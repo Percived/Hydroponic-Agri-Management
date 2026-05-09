@@ -26,9 +26,14 @@
         :title="conflictMessage"
         class="conflict-alert"
       />
-      <el-table :data="stages" stripe v-loading="loading">
+      <el-table :data="stages" stripe v-loading="loading" :row-class-name="stageRowClass">
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="growth_stage_id" label="阶段ID" width="100" />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="stageStatusTag(row)" size="small">{{ stageStatusText(row) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="stage_start_at" label="开始时间" min-width="170">
           <template #default="{ row }">{{ formatDateTime(row.stage_start_at) }}</template>
         </el-table-column>
@@ -202,6 +207,33 @@ function toRange(min?: number | null, max?: number | null) {
   return `${min ?? '-'} ~ ${max ?? '-'}`
 }
 
+// Stage status helpers
+const now = new Date()
+
+function stageStatusTag(stage: BatchStagePlan) {
+  const start = new Date(stage.stage_start_at)
+  const end = new Date(stage.stage_end_at)
+  if (now < start) return 'info'
+  if (now > end) return 'success'
+  return ''
+}
+
+function stageStatusText(stage: BatchStagePlan) {
+  const start = new Date(stage.stage_start_at)
+  const end = new Date(stage.stage_end_at)
+  if (now < start) return '未开始'
+  if (now > end) return '已完成'
+  return '进行中'
+}
+
+function stageRowClass({ row }: { row: BatchStagePlan }) {
+  const start = new Date(row.stage_start_at)
+  const end = new Date(row.stage_end_at)
+  if (now < start) return 'stage-pending'
+  if (now > end) return 'stage-completed'
+  return 'stage-active'
+}
+
 onMounted(initBatches)
 </script>
 
@@ -224,6 +256,15 @@ onMounted(initBatches)
   }
   .conflict-alert {
     margin-bottom: 10px;
+  }
+  :deep(.stage-completed) {
+    background-color: rgba(103, 194, 58, 0.06);
+  }
+  :deep(.stage-active) {
+    background-color: rgba(64, 158, 255, 0.06);
+  }
+  :deep(.stage-pending) {
+    background-color: rgba(144, 147, 153, 0.04);
   }
 }
 </style>

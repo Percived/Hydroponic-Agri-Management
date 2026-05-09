@@ -151,7 +151,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { deviceApi, greenhouseApi, telemetryApi, metricApi, cropApi } from '@/api'
 import { LARGE_PAGE_SIZE, EXTRA_LARGE_PAGE_SIZE } from '@/utils/constants'
 import { formatDate, formatNumber, getMetricName, populateMetricNames } from '@/utils/format'
@@ -232,19 +232,35 @@ const pagedTableData = computed(() => {
   return tableData.value.slice(start, start + tablePageSize.value)
 })
 
-// Chart series grouped by metric_code
+// Chart series grouped by channel_id + metric_code (each channel gets its own line)
 const chartSeries = computed(() => {
+  const key = (chId: number, code: string) => `${chId}:${code}`
   const grouped: Record<string, Array<{ time: string; value: number }>> = {}
+  const meta: Record<string, { chId: number; code: string }> = {}
+
   for (const r of rawData.value) {
-    if (!grouped[r.metric_code]) grouped[r.metric_code] = []
-    grouped[r.metric_code].push({ time: r.collected_at, value: r.value })
+    const k = key(r.sensor_channel_id, r.metric_code)
+    if (!grouped[k]) {
+      grouped[k] = []
+      meta[k] = { chId: r.sensor_channel_id, code: r.metric_code }
+    }
+    grouped[k].push({ time: r.collected_at, value: r.value })
   }
-  return selectedMetricCodes.value
-    .filter((code) => grouped[code] && grouped[code].length > 0)
-    .map((code) => ({
-      name: getMetricName(code),
-      data: grouped[code]
-    }))
+
+  return Object.entries(grouped)
+    .filter(([k]) => {
+      const m = meta[k]
+      return m && selectedMetricCodes.value.includes(m.code)
+    })
+    .map(([k, data]) => {
+      const m = meta[k]
+      const ch = channelMap.value.get(m.chId)
+      const dev = ch ? deviceMap.value.get(ch.sensor_device_id) : undefined
+      const label = dev
+        ? `${dev.name} / ${ch!.channel_code} - ${getMetricName(m.code)}`
+        : `CH#${m.chId} - ${getMetricName(m.code)}`
+      return { name: label, data }
+    })
 })
 
 // Stats
@@ -366,16 +382,15 @@ async function onZoneChange() {
 
 async function loadAllChannels() {
   channels.value = []
-  const allCh: SensorChannel[] = []
-  for (const dev of devices.value) {
-    try {
-      const result = await deviceApi.getSensorChannels({
+  const results = await Promise.all(
+    devices.value.map((dev) =>
+      deviceApi.getSensorChannels({
         sensor_device_id: dev.id,
         page_size: LARGE_PAGE_SIZE
-      })
-      allCh.push(...result.items)
-    } catch { /* ignore */ }
-  }
+      }).catch(() => ({ items: [] as SensorChannel[] }))
+    )
+  )
+  const allCh = results.flatMap((r) => r.items)
   channels.value = allCh
   channelMap.value = new Map(allCh.map((c) => [c.id, c]))
 }
@@ -397,25 +412,23 @@ async function doQuery() {
   tablePage.value = 1
 
   const { start, end } = getTimeRange()
-  const idsStr = selectedChannelIds.value.join(',')
 
   try {
-    const results = await Promise.all(
-      selectedMetricCodes.value.map((code) =>
-        telemetryApi.queryTelemetry({
-          sensor_channel_id: idsStr as any,
-          metric_code: code,
-          start_time: start,
-          end_time: end,
-          batch_id: selectedBatchId.value || undefined,
-          quality_flag: qualityFilter.value || undefined,
-          page: 1,
-          page_size: EXTRA_LARGE_PAGE_SIZE
-        })
-      )
-    )
+    const result = await telemetryApi.queryTelemetry({
+      sensor_channel_id: selectedChannelIds.value.join(','),
+      metric_code: selectedMetricCodes.value.join(','),
+      start_time: start,
+      end_time: end,
+      batch_id: selectedBatchId.value || undefined,
+      quality_flag: qualityFilter.value || undefined,
+      page: 1,
+      page_size: EXTRA_LARGE_PAGE_SIZE
+    })
 
-    rawData.value = results.flatMap((r) => r.items)
+    // Sort by time ascending for correct chart rendering
+    rawData.value = result.items.sort((a, b) =>
+      new Date(a.collected_at).getTime() - new Date(b.collected_at).getTime()
+    )
     hasQueried.value = true
   } catch (e: any) {
     queryError.value = e?.message || '查询失败'
@@ -440,6 +453,29 @@ onMounted(() => {
   loadGreenhouses()
   loadMetrics()
   loadBatches()
+})
+
+// When a batch is selected, load its devices and auto-select channels
+watch(selectedBatchId, async (batchId) => {
+  if (!batchId) return
+  try {
+    const { items } = await cropApi.getBatchDevices(batchId, 'sensor')
+    if (items && items.length > 0) {
+      // Find channels for batch sensor devices (parallel)
+      const results = await Promise.all(
+        items.map((bd: any) =>
+          deviceApi.getSensorChannels({
+            sensor_device_id: bd.device_id,
+            page_size: LARGE_PAGE_SIZE
+          }).catch(() => ({ items: [] as SensorChannel[] }))
+        )
+      )
+      const allCh = results.flatMap((r) => r.items)
+      channels.value = allCh
+      channelMap.value = new Map(allCh.map((c) => [c.id, c]))
+      selectedChannelIds.value = allCh.map((c) => c.id)
+    }
+  } catch { /* ignore */ }
 })
 </script>
 
