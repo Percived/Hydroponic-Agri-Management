@@ -48,22 +48,54 @@ func (w *CommandWaiter) listenAcks() {
 			if !ok {
 				return
 			}
-			if data, ok := evt.Data.(map[string]interface{}); ok {
+			switch data := evt.Data.(type) {
+			case event.CommandAckData:
+				if data.CommandID == 0 {
+					continue
+				}
+				w.Notify(data.CommandID, CommandReceipt{
+					CommandID:  data.CommandID,
+					AckCode:    data.AckCode,
+					AckMessage: data.AckMessage,
+					Timestamp:  time.Now(),
+				})
+			case *event.CommandAckData:
+				if data == nil || data.CommandID == 0 {
+					continue
+				}
+				w.Notify(data.CommandID, CommandReceipt{
+					CommandID:  data.CommandID,
+					AckCode:    data.AckCode,
+					AckMessage: data.AckMessage,
+					Timestamp:  time.Now(),
+				})
+			case map[string]interface{}:
 				cmdID := uint64(0)
-				if v, ok := data["command_id"].(float64); ok {
+				switch v := data["command_id"].(type) {
+				case float64:
 					cmdID = uint64(v)
-				}
-				if cmdID > 0 {
-					ackCode, _ := data["ack_code"].(string)
-					ackMsg, _ := data["ack_message"].(string)
-					receipt := CommandReceipt{
-						CommandID:  cmdID,
-						AckCode:    ackCode,
-						AckMessage: ackMsg,
-						Timestamp:  time.Now(),
+				case uint64:
+					cmdID = v
+				case int:
+					if v > 0 {
+						cmdID = uint64(v)
 					}
-					w.Notify(cmdID, receipt)
+				case int64:
+					if v > 0 {
+						cmdID = uint64(v)
+					}
 				}
+				if cmdID == 0 {
+					continue
+				}
+				ackCode, _ := data["ack_code"].(string)
+				ackMsg, _ := data["ack_message"].(string)
+				w.Notify(cmdID, CommandReceipt{
+					CommandID:  cmdID,
+					AckCode:    ackCode,
+					AckMessage: ackMsg,
+					Timestamp:  time.Now(),
+				})
 			}
 		}
 	}

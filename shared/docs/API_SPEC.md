@@ -1740,6 +1740,48 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 响应：分页列表，items 为 AlertResponse[]
 
+**GET /api/alerts/subscribe**
+
+鉴权：ADMIN / OPERATOR / VIEWER
+
+说明：SSE 订阅告警实时事件（事件类型：`new_alert`），用于顶部通知与告警中心实时刷新。支持按级别与设备过滤。
+
+查询参数：
+
+| 字段         | 类型   | 必填 | 说明                                                                                         |
+| ------------ | ------ | ---- | -------------------------------------------------------------------------------------------- |
+| token        | string | 否   | JWT（仅用于 EventSource 场景无法自定义 Header 时）；也可使用 `Authorization: Bearer <token>` |
+| level        | string | 否   | 告警级别过滤，支持逗号分隔，如 `"CRITICAL,WARN"`                                             |
+| device_codes | string | 否   | 逗号分隔设备编码，如 `"SENSOR-001,ACT-001"`（也兼容 `device_code` 单值）                     |
+
+推送数据（SSE `data:` 行 JSON）：
+
+```json
+{
+  "type": "new_alert",
+  "data": {
+    "schema_version": 1,
+    "id": 123,
+    "device_code": "SENSOR-001",
+    "type": "DEVICE_OFFLINE",
+    "level": "WARN",
+    "metric_code": "",
+    "sensor_channel_id": null,
+    "actuator_channel_id": null,
+    "batch_id": null,
+    "trigger_value": null,
+    "message": "[SENSOR-001] 设备离线: xxx",
+    "status": "OPEN",
+    "triggered_at": "2026-01-01T12:00:00Z",
+    "resolved_at": null,
+    "resolved_by": null,
+    "timeline_count": 1,
+    "created_at": "2026-01-01T12:00:00Z",
+    "updated_at": "2026-01-01T12:00:00Z"
+  }
+}
+```
+
 **GET /api/alerts/stats**
 
 鉴权：ADMIN / OPERATOR / VIEWER
@@ -1823,7 +1865,7 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 | 字段            | 类型    | 必填 | 规则                          | 示例                            |
 | --------------- | ------- | ---- | ----------------------------- | ------------------------------- |
-| channel_type    | string  | 是   | EMAIL/SMS/WEBHOOK             | "EMAIL"                         |
+| channel_type    | string  | 是   | EMAIL/SMS/WEBHOOK/IN_APP      | "EMAIL"                         |
 | name            | string  | 是   | 1-64 字符                     | "邮件通知"                      |
 | config          | object  | 是   | 渠道配置（JSON）              | {"address":"admin@example.com"} |
 | min_alert_level | string  | 否   | INFO/WARN/CRITICAL，默认 WARN | "WARN"                          |

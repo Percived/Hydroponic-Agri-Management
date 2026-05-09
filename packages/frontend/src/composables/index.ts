@@ -1,6 +1,6 @@
 export { useAuth } from './useAuth'
 export { usePermission } from './usePermission'
 export { useAlertSSE } from './useAlertSSE'
-export type { AlertEvent, UseAlertSSEOptions, UseAlertSSEReturn } from './useAlertSSE'
+export type { UseAlertSSEOptions, UseAlertSSEReturn } from './useAlertSSE'
 export { useTelemetrySSE, requestNotificationPermission } from './useTelemetrySSE'
 export type { TelemetryMetric, TelemetryUpdate, UseTelemetrySSEOptions, UseTelemetrySSEReturn } from './useTelemetrySSE'

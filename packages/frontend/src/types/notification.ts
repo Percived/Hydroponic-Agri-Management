@@ -1,13 +1,15 @@
 export enum ChannelType {
   EMAIL = 'EMAIL',
   SMS = 'SMS',
-  WEBHOOK = 'WEBHOOK'
+  WEBHOOK = 'WEBHOOK',
+  IN_APP = 'IN_APP'
 }
 
 export const ChannelTypeNames: Record<string, string> = {
   EMAIL: '邮件',
   SMS: '短信',
-  WEBHOOK: 'Webhook'
+  WEBHOOK: 'Webhook',
+  IN_APP: '站内通知'
 }
 
 export interface NotificationChannel {

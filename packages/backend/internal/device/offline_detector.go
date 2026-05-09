@@ -143,12 +143,7 @@ func (d *OfflineDetector) markOffline(table string, id uint64, deviceCode, name 
 
 	d.hub.Publish(event.SSEEvent{
 		Type: "alert:created",
-		Data: map[string]interface{}{
-			"alert_id":    a.ID,
-			"device_code": deviceCode,
-			"level":       a.Level,
-			"message":     a.Message,
-		},
+		Data: alert.BuildAlertSSEDataV1(a, deviceCode, 1),
 	})
 
 	d.hub.Publish(event.SSEEvent{

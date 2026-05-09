@@ -104,6 +104,7 @@ func (h *Handler) SendCommand(c *gin.Context) {
 
 	// Dispatch via MQTT
 	if err := h.dispatchMQTT(cmd); err != nil {
+		h.markFailed(cmd.ID, err)
 		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeDeviceOffline, "mqtt_dispatch_failed", nil)
 		return
 	}
@@ -165,6 +166,7 @@ func (h *Handler) DispatchAndWait(c *gin.Context) {
 
 	// Dispatch via MQTT
 	if err := h.dispatchMQTT(cmd); err != nil {
+		h.markFailed(cmd.ID, err)
 		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeDeviceOffline, "mqtt_dispatch_failed", nil)
 		return
 	}
@@ -229,6 +231,7 @@ func (h *Handler) DispatchAsync(c *gin.Context) {
 
 	// Dispatch via MQTT
 	if err := h.dispatchMQTT(cmd); err != nil {
+		h.markFailed(cmd.ID, err)
 		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeDeviceOffline, "mqtt_dispatch_failed", nil)
 		return
 	}
@@ -288,6 +291,27 @@ func (h *Handler) dispatchMQTT(cmd ControlCommand) error {
 		return fmt.Errorf("publish: %w", token.Error())
 	}
 	return nil
+}
+
+func (h *Handler) markFailed(commandID uint64, cause error) {
+	now := time.Now().UTC()
+	_ = h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&ControlCommand{}).Where("id = ?", commandID).Updates(map[string]interface{}{
+			"status": "FAILED",
+		}).Error; err != nil {
+			return err
+		}
+		receipt := ControlCommandReceipt{
+			CommandID:     commandID,
+			ReceiptSeq:    1,
+			ReceiptStatus: "FAILED",
+			AckCode:       "MQTT_DISPATCH_FAILED",
+			AckMessage:    cause.Error(),
+			AckPayload:    "{}",
+			AckAt:         &now,
+		}
+		return tx.Create(&receipt).Error
+	})
 }
 
 // lookupDeviceCode finds the device code for an actuator channel.

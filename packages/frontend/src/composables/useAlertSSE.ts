@@ -1,26 +1,14 @@
 import { ref, type Ref } from 'vue'
-
-export interface AlertEvent {
-  id: number
-  type: string
-  level: string
-  metric_id: number | null
-  device_id: number
-  value: number | null
-  message: string
-  status: string
-  triggered_at: string
-  resolved_at: string | null
-}
+import type { Alert } from '@/types/alert'
 
 export interface UseAlertSSEOptions {
-  deviceId?: number
+  deviceCode?: string
   level?: string
 }
 
 export interface UseAlertSSEReturn {
   connected: Ref<boolean>
-  lastAlert: Ref<AlertEvent | null>
+  lastAlert: Ref<Alert | null>
   alertCount: Ref<number>
   connect: () => void
   disconnect: () => void
@@ -28,7 +16,7 @@ export interface UseAlertSSEReturn {
 
 export function useAlertSSE(options?: UseAlertSSEOptions): UseAlertSSEReturn {
   const connected = ref(false)
-  const lastAlert = ref<AlertEvent | null>(null)
+  const lastAlert = ref<Alert | null>(null)
   const alertCount = ref(0)
 
   let eventSource: EventSource | null = null
@@ -52,7 +40,7 @@ export function useAlertSSE(options?: UseAlertSSEOptions): UseAlertSSEReturn {
 
     const params = new URLSearchParams()
     params.set('token', token)
-    if (options?.deviceId) params.set('device_id', String(options.deviceId))
+    if (options?.deviceCode) params.set('device_codes', options.deviceCode)
     if (options?.level) params.set('level', options.level)
 
     const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
@@ -69,7 +57,7 @@ export function useAlertSSE(options?: UseAlertSSEOptions): UseAlertSSEReturn {
       try {
         const event = JSON.parse(e.data)
         if (event.type === 'new_alert' && event.data) {
-          const alert = event.data as AlertEvent
+          const alert = event.data as Alert
           lastAlert.value = alert
           alertCount.value++
 

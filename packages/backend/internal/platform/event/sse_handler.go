@@ -33,6 +33,8 @@ func SSEHandler(hub *Hub, internalType string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		deviceCodeSet := map[string]struct{}{}
 		metricCodeSet := map[string]struct{}{}
+		alertLevelSet := map[string]struct{}{}
+		alertDeviceCodeSet := map[string]struct{}{}
 		if mapping.internal == "telemetry:received" {
 			for _, v := range strings.Split(c.Query("device_codes"), ",") {
 				v = strings.TrimSpace(v)
@@ -47,6 +49,26 @@ func SSEHandler(hub *Hub, internalType string) gin.HandlerFunc {
 					continue
 				}
 				metricCodeSet[v] = struct{}{}
+			}
+		}
+		if mapping.internal == "alert:created" {
+			for _, v := range strings.Split(c.Query("level"), ",") {
+				v = strings.TrimSpace(v)
+				if v == "" {
+					continue
+				}
+				alertLevelSet[v] = struct{}{}
+			}
+			deviceCodes := c.Query("device_codes")
+			if deviceCodes == "" {
+				deviceCodes = c.Query("device_code")
+			}
+			for _, v := range strings.Split(deviceCodes, ",") {
+				v = strings.TrimSpace(v)
+				if v == "" {
+					continue
+				}
+				alertDeviceCodeSet[v] = struct{}{}
 			}
 		}
 
@@ -97,6 +119,30 @@ func SSEHandler(hub *Hub, internalType string) gin.HandlerFunc {
 							continue
 						} else {
 							if _, ok := metricCodeSet[v]; !ok {
+								continue
+							}
+						}
+					}
+				}
+				if mapping.internal == "alert:created" {
+					dataMap, ok := evt.Data.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					if len(alertLevelSet) > 0 {
+						if v, ok := dataMap["level"].(string); !ok || v == "" {
+							continue
+						} else {
+							if _, ok := alertLevelSet[v]; !ok {
+								continue
+							}
+						}
+					}
+					if len(alertDeviceCodeSet) > 0 {
+						if v, ok := dataMap["device_code"].(string); !ok || v == "" {
+							continue
+						} else {
+							if _, ok := alertDeviceCodeSet[v]; !ok {
 								continue
 							}
 						}

@@ -59,18 +59,7 @@ func (h *Handler) CreateAlert(c *gin.Context) {
 
 	// Publish event for real-time notification
 	if h.eventHub != nil {
-		h.eventHub.Publish(event.SSEEvent{
-			Type: "alert:created",
-			Data: map[string]interface{}{
-				"alert_id":          alert.ID,
-				"type":              alert.Type,
-				"level":             alert.Level,
-				"metric_code":       alert.MetricCode,
-				"sensor_channel_id": alert.SensorChannelID,
-				"message":           alert.Message,
-				"triggered_at":      alert.TriggeredAt.Format(time.RFC3339),
-			},
-		})
+		h.eventHub.Publish(event.SSEEvent{Type: "alert:created", Data: BuildAlertSSEDataV1(alert, "", 1)})
 	}
 
 	response.Success(c, gin.H{"id": alert.ID})

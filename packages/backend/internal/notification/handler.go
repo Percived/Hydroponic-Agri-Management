@@ -168,7 +168,8 @@ func (h *Handler) TestChannel(c *gin.Context) {
 	}
 
 	var channel NotificationChannel
-	if err := h.db.First(&channel, id).Error; err != nil {
+	userID := currentUserID(c)
+	if err := h.db.Where("id = ? AND user_id = ?", id, userID).First(&channel).Error; err != nil {
 		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
 		return
 	}

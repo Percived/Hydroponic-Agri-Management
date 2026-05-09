@@ -36,6 +36,39 @@
 - **文档**
   - `shared/docs/API_SPEC.md`、`shared/docs/openapi.yaml` 补齐 `/api/telemetry/subscribe` 参数说明
 
+### 告警闭环一致性：SSE 过滤生效 + Payload 统一 + 自动恢复补时间线
+
+- **`internal/platform/event/sse_handler.go`**
+  - `/api/alerts/subscribe` 支持 query 过滤：`level`、`device_codes`（或 `device_code`）
+- **告警事件发布方统一 payload**
+  - `internal/alert/handler.go`、`internal/platform/mqtt/ingress.go`、`internal/device/offline_detector.go` 发布 `alert:created` 时统一使用 `schema_version=1` 且字段为 `id/type/level/status/triggered_at/...`（兼容前端消费）
+  - 新增复用方法：`internal/alert/sse_data.go`（BuildAlertSSEDataV1）
+- **自动恢复补审计**
+  - 心跳触发自动解决离线告警时，新增写入 RESOLVED 时间线事件（EventPayload: reason=heartbeat）
+- **测试**
+  - 新增后端单测覆盖：SSE 告警 level 过滤；心跳自动恢复写时间线
+
+### 命令闭环可靠性：ACK 强类型 + MQTT 失败语义收敛为 FAILED
+
+- **`internal/platform/event/types.go`**
+  - 新增 `CommandAckData`，用于 `command:acked` 内部事件的强类型承载
+- **`internal/platform/mqtt/ingress.go`**
+  - `handleAck` 发布 `command:acked` 时使用 `CommandAckData`（避免 waiter 依赖 float64 类型）
+- **`internal/command/waiter.go`**
+  - 支持消费强类型 `CommandAckData`，并对 legacy map 形式做兼容
+- **`internal/command/handler.go`**
+  - `SendCommand/DispatchAndWait/DispatchAsync` 发生 MQTT 下发失败时，命令状态写为 `FAILED` 并写入一条 `FAILED` 回执（避免“PENDING 假滞留”）
+
+### 通知安全：TestChannel 资源级权限校验
+
+- **`internal/notification/handler.go`**
+  - `TestChannel` 按 `id + user_id` 读取渠道，避免越权测试他人渠道
+
+### 设备状态数据质量：status 值强校验
+
+- **`internal/platform/mqtt/ingress.go`**
+  - `handleStatus` 对 status 值做强校验（仅允许 ONLINE/OFFLINE/FAULT），非法值直接丢弃并告警日志
+
 ## 最新变更 (2026-05-08)
 
 ### 采集中心模块改进：遥测批量查询 + 多通道支持

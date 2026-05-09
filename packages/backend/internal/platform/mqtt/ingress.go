@@ -129,14 +129,16 @@ func (s *IngressService) createUnknownDeviceAlert(deviceCode string) {
 		return
 	}
 
+	s.db.Create(&alert.AlertTimelineEvent{
+		AlertID:     a.ID,
+		EventType:   alert.EventTriggered,
+		EventSource: alert.SourceSystem,
+		EventTime:   now,
+	})
+
 	s.hub.Publish(event.SSEEvent{
 		Type: "alert:created",
-		Data: map[string]interface{}{
-			"alert_id":    a.ID,
-			"device_code": deviceCode,
-			"level":       a.Level,
-			"message":     a.Message,
-		},
+		Data: alert.BuildAlertSSEDataV1(a, deviceCode, 1),
 	})
 }
 
@@ -223,7 +225,7 @@ func (s *IngressService) handleTelemetry(deviceCode string, payload []byte) {
 				"sensor_channel_id": rec.SensorChannelID,
 				"metric_code":       rec.MetricCode,
 				"value":             rec.Value,
-					"quality_flag":      rec.QualityFlag,
+				"quality_flag":      rec.QualityFlag,
 				"collected_at":      rec.CollectedAt.Format(time.RFC3339),
 				"device_code":       deviceCode,
 			},
@@ -260,6 +262,12 @@ func (s *IngressService) handleStatus(deviceCode string, payload []byte) {
 	}
 	if err := json.Unmarshal(payload, &status); err != nil {
 		s.log.Error("ingress: invalid status payload", "device", deviceCode, "error", err)
+		return
+	}
+
+	status.Status = strings.ToUpper(strings.TrimSpace(status.Status))
+	if status.Status != device.StatusOnline && status.Status != device.StatusOffline && status.Status != device.StatusFault {
+		s.log.Warn("ingress: invalid status value, discarding", "device_code", deviceCode, "status", status.Status)
 		return
 	}
 
@@ -310,14 +318,42 @@ func (s *IngressService) handleHeartbeat(deviceCode string, payload []byte) {
 			})
 	}
 
-	// Auto-resolve open DEVICE_OFFLINE alerts
-	s.db.Model(&alert.Alert{}).
+	var openOffline []alert.Alert
+	if err := s.db.
 		Where("type = ? AND status = ? AND message LIKE ?",
 			alert.TypeDeviceOffline, alert.StatusOpen, "%["+deviceCode+"]%").
-		Updates(map[string]interface{}{
-			"status":      alert.StatusResolved,
-			"resolved_at": now,
-		})
+		Find(&openOffline).Error; err != nil {
+		return
+	}
+	if len(openOffline) == 0 {
+		return
+	}
+
+	_ = s.db.Transaction(func(tx *gorm.DB) error {
+		for _, a := range openOffline {
+			res := tx.Model(&alert.Alert{}).
+				Where("id = ? AND status = ?", a.ID, alert.StatusOpen).
+				Updates(map[string]interface{}{
+					"status":      alert.StatusResolved,
+					"resolved_at": now,
+				})
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected == 0 {
+				continue
+			}
+			payload := `{"reason":"heartbeat"}`
+			_ = tx.Create(&alert.AlertTimelineEvent{
+				AlertID:      a.ID,
+				EventType:    alert.EventResolved,
+				EventSource:  alert.SourceSystem,
+				EventPayload: payload,
+				EventTime:    now,
+			}).Error
+		}
+		return nil
+	})
 }
 
 // handleErrors processes device error reports and creates alerts
@@ -356,16 +392,14 @@ func (s *IngressService) handleErrors(deviceCode string, payload []byte) {
 		return
 	}
 
-	// Publish alert:created event
-	s.hub.Publish(event.SSEEvent{
-		Type: "alert:created",
-		Data: map[string]interface{}{
-			"alert_id":    a.ID,
-			"device_code": deviceCode,
-			"level":       a.Level,
-			"message":     a.Message,
-		},
+	s.db.Create(&alert.AlertTimelineEvent{
+		AlertID:     a.ID,
+		EventType:   alert.EventTriggered,
+		EventSource: alert.SourceSystem,
+		EventTime:   now,
 	})
+
+	s.hub.Publish(event.SSEEvent{Type: "alert:created", Data: alert.BuildAlertSSEDataV1(a, deviceCode, 1)})
 }
 
 // handleDiagnostics processes diagnostic data (log and store)
@@ -390,12 +424,12 @@ func (s *IngressService) handleAck(deviceCode string, payload []byte) {
 	// Publish event for CommandWaiter to consume
 	s.hub.Publish(event.SSEEvent{
 		Type: "command:acked",
-		Data: map[string]interface{}{
-			"command_id":  ack.CommandID,
-			"device_code": deviceCode,
-			"ack_code":    ack.AckCode,
-			"ack_message": ack.AckMessage,
-			"ack_payload": ack.AckPayload,
+		Data: event.CommandAckData{
+			CommandID:  ack.CommandID,
+			DeviceCode: deviceCode,
+			AckCode:    ack.AckCode,
+			AckMessage: ack.AckMessage,
+			AckPayload: ack.AckPayload,
 		},
 	})
 

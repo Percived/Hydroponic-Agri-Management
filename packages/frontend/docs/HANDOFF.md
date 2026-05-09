@@ -100,6 +100,19 @@
   - 回归覆盖迟到点插入后仍保持时间升序
   - 回归覆盖历史数据归一化时去重与排序
 
+### 告警SSE订阅对齐：过滤参数生效 + 类型统一
+
+- **`src/composables/useAlertSSE.ts`**
+  - 订阅参数使用 `level` + `device_codes`（可选），对齐后端 SSE 过滤
+  - `lastAlert` 类型改为复用 `src/types/alert.ts` 的 `Alert`（移除重复的 AlertEvent 定义）
+- **`src/composables/index.ts`**
+  - 移除 `AlertEvent` 类型导出（改为导出 `UseAlertSSEOptions/UseAlertSSEReturn`）
+
+### 通知渠道类型对齐：补齐 IN_APP 枚举
+
+- **`src/types/notification.ts`**
+  - `ChannelType` 与后端枚举对齐，新增 `IN_APP`；展示名补齐 `站内通知`
+
 ## 最新变更 (2026-05-08)
 
 ### 采集中心模块改进：2页替代3页 + SSE 实时总览 + 多通道趋势分析
