@@ -39,7 +39,7 @@
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="device_code" label="设备编码" width="130" />
           <el-table-column prop="name" label="名称" min-width="150" />
-          <el-table-column v-if="activeDeviceType === 'actuator'" label="执行器通道数" width="120">
+          <el-table-column label="通道数" width="100">
             <template #default="{ row }">{{ channelCountMap[row.id] ?? 0 }}</template>
           </el-table-column>
           <el-table-column label="所属温室" width="120">
@@ -341,6 +341,7 @@ async function fetchData() {
       const data = await deviceApi.getSensorDevices(params)
       devices.value = data.items
       total.value = data.total
+      loadSensorChannelCounts(data.items as SensorDevice[])
     } else {
       const data = await deviceApi.getActuatorDevices(params)
       devices.value = data.items
@@ -363,6 +364,23 @@ async function loadActuatorChannelCounts(actuatorDevices: ActuatorDevice[]) {
     try {
       const chData = await deviceApi.getActuatorChannels({
         actuator_device_id: dev.id,
+        page_size: 1,
+        page: 1
+      })
+      map[dev.id] = chData.total
+    } catch {
+      map[dev.id] = 0
+    }
+  }
+  channelCountMap.value = map
+}
+
+async function loadSensorChannelCounts(sensorDevices: SensorDevice[]) {
+  const map: Record<number, number> = {}
+  for (const dev of sensorDevices) {
+    try {
+      const chData = await deviceApi.getSensorChannels({
+        sensor_device_id: dev.id,
         page_size: 1,
         page: 1
       })

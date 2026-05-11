@@ -1,167 +1,216 @@
 <template>
-    <div class="dashboard-page">
-      <div class="page-header">
-        <h1 class="page-title">系统概览</h1>
-        <span class="current-date">{{ currentDate }}</span>
-      </div>
+  <div class="dashboard-page">
+    <div class="page-header">
+      <h1 class="page-title">系统概览 (Command Center)</h1>
+      <span class="current-date">{{ currentDate }}</span>
+    </div>
 
-      <!-- 关键指标 -->
-      <div class="stats-grid">
-        <div class="stat-card online">
-          <div class="stat-icon">
-            <el-icon size="32"><Monitor /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-value">{{ overview.devices_online }}</div>
-            <div class="stat-label">在线设备</div>
-          </div>
+    <!-- 关键指标 (Quick Stats) -->
+    <div class="stats-grid">
+      <div class="stat-card active-batches">
+        <div class="stat-icon">
+          <el-icon size="32"><Monitor /></el-icon>
         </div>
-        <div class="stat-card offline">
-          <div class="stat-icon">
-            <el-icon size="32"><Warning /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-value">{{ overview.devices_offline }}</div>
-            <div class="stat-label">离线设备</div>
-          </div>
-        </div>
-        <div class="stat-card alert">
-          <div class="stat-icon">
-            <el-icon size="32"><Bell /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-value">
-              {{ overview.alerts_open }}
-              <span v-if="overview.alerts_critical" class="stat-sub">({{ overview.alerts_critical }} 严重)</span>
-            </div>
-            <div class="stat-label">活跃告警</div>
-          </div>
-        </div>
-        <div class="stat-card total">
-          <div class="stat-icon">
-            <el-icon size="32"><DataLine /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-value">{{ overview.devices_total ?? (overview.devices_online + overview.devices_offline) }}</div>
-            <div class="stat-label">设备总数</div>
-          </div>
-        </div>
-        <div class="stat-card today-alerts">
-          <div class="stat-icon">
-            <el-icon size="32"><Clock /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-value">{{ overview.alerts_today ?? 0 }}</div>
-            <div class="stat-label">今日告警</div>
-          </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ overview.stats?.active_batches_count ?? 0 }}</div>
+          <div class="stat-label">活跃批次</div>
         </div>
       </div>
-
-      <!-- 温室概览 -->
-      <div v-if="overview.greenhouse_summary?.length" class="section-card">
-        <div class="section-header">
-          <h2 class="section-title">温室概览</h2>
+      <div class="stat-card alert">
+        <div class="stat-icon">
+          <el-icon size="32"><Bell /></el-icon>
         </div>
-        <div class="greenhouse-grid">
-          <div
-            v-for="gh in overview.greenhouse_summary"
-            :key="gh.greenhouse_id"
-            class="greenhouse-card"
-          >
-            <div class="gh-name">{{ gh.name }}</div>
-            <div class="gh-stats">
-              <div class="gh-stat">
-                <span class="gh-stat-label">设备数</span>
-                <span class="gh-stat-value">{{ gh.sensor_count + gh.actuator_count }}</span>
-              </div>
-              <div class="gh-stat">
-                <span class="gh-stat-label">平均温度</span>
-                <span class="gh-stat-value">{{ gh.avg_temp != null ? gh.avg_temp.toFixed(1) + '°C' : '--' }}</span>
-              </div>
-              <div class="gh-stat">
-                <span class="gh-stat-label">平均湿度</span>
-                <span class="gh-stat-value">{{ gh.avg_humidity != null ? gh.avg_humidity.toFixed(1) + '%' : '--' }}</span>
-              </div>
-            </div>
-          </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ overview.stats?.unresolved_alerts ?? 0 }}</div>
+          <div class="stat-label">活跃告警</div>
         </div>
       </div>
-
-      <!-- 设备分布 + 告警列表 -->
-      <div class="charts-grid">
-        <div class="chart-card">
-          <h2 class="chart-title">设备类型分布</h2>
-          <div ref="typeChartRef" class="chart-container" role="img" aria-label="设备类型分布饼图：显示传感器和执行器的比例"></div>
+      <div class="stat-card online">
+        <div class="stat-icon">
+          <el-icon size="32"><DataLine /></el-icon>
         </div>
-        <div class="section-card" style="margin-bottom: 0">
-          <div class="section-header">
-            <h2 class="section-title">最近命令</h2>
-            <el-button type="primary" link @click="goCommands">查看全部</el-button>
+        <div class="stat-info">
+          <div class="stat-value">
+            {{ overview.stats?.devices_online ?? 0 }}
+            <span class="stat-sub">/ {{ (overview.stats?.devices_online ?? 0) + (overview.stats?.devices_offline ?? 0) }}</span>
           </div>
-          <el-table v-if="overview.recent_commands?.length" :data="overview.recent_commands" stripe size="small">
-            <el-table-column prop="command_type" label="类型" width="100" />
-            <el-table-column prop="device_name" label="设备" width="140" />
-            <el-table-column prop="status" label="状态" width="100">
-              <template #default="{ row }">
-                <el-tag :type="commandStatusType(row.status)" size="small">
-                  {{ row.status }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="created_at" label="时间" min-width="160">
-              <template #default="{ row }">
-                {{ formatDateTime(row.created_at) }}
-              </template>
-            </el-table-column>
-          </el-table>
-          <div v-else class="empty-alert">暂无命令记录</div>
+          <div class="stat-label">在线设备</div>
+        </div>
+      </div>
+      <div class="stat-card energy">
+        <div class="stat-icon">
+          <el-icon size="32"><Clock /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ overview.stats?.energy_kwh_today ?? 0 }} <span class="stat-sub">kWh</span></div>
+          <div class="stat-label">今日能耗</div>
         </div>
       </div>
     </div>
+
+    <div class="main-content-grid">
+      <!-- 左侧：温室环境与水培核心参数 -->
+      <div class="left-column">
+        <div class="section-header">
+          <h2 class="section-title">温室实时监控</h2>
+        </div>
+        <div class="greenhouse-list">
+          <div v-for="gh in overview.greenhouses" :key="gh.id" class="greenhouse-card">
+            <div class="gh-header">
+              <span class="gh-name">{{ gh.name }}</span>
+              <el-tag :type="gh.health_score === 'good' ? 'success' : 'warning'" size="small">
+                {{ gh.health_score === 'good' ? '健康 🟢' : '异常 🔴' }}
+              </el-tag>
+            </div>
+            <div class="gh-metrics-grid">
+              <div class="metric-item">
+                <div class="metric-label">温度</div>
+                <div class="metric-value">{{ gh.metrics.temperature.toFixed(1) }} °C</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">湿度</div>
+                <div class="metric-value">{{ gh.metrics.humidity.toFixed(1) }} %</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">EC值</div>
+                <div class="metric-value highlight">{{ gh.metrics.ec.toFixed(2) }}</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">pH值</div>
+                <div class="metric-value highlight">{{ gh.metrics.ph.toFixed(2) }}</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">溶氧量</div>
+                <div class="metric-value">{{ gh.metrics.do.toFixed(1) }} mg/L</div>
+              </div>
+              <div class="metric-item">
+                <div class="metric-label">光照度</div>
+                <div class="metric-value">{{ gh.metrics.lux.toFixed(0) }} Lux</div>
+              </div>
+            </div>
+            <div class="gh-footer">
+              <span class="strategy-label">运行策略：</span>
+              <span class="strategy-val">{{ gh.active_strategies?.join(', ') || '暂无' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧：业务趋势与策略调度 -->
+      <div class="right-column">
+        <!-- 24小时趋势图 -->
+        <div class="chart-card">
+          <h2 class="chart-title">24小时水质趋势 (EC / pH)</h2>
+          <div ref="trendChartRef" class="chart-container" role="img"></div>
+        </div>
+
+        <!-- 当前活跃批次 -->
+        <div class="section-card">
+          <div class="section-header">
+            <h2 class="section-title">活跃批次进度</h2>
+          </div>
+          <el-table :data="overview.active_batches" stripe size="small" style="width: 100%">
+            <el-table-column prop="batch_id" label="批次" width="80" />
+            <el-table-column prop="crop_name" label="作物" />
+            <el-table-column prop="stage" label="阶段" width="100" />
+            <el-table-column label="已运行" width="80">
+              <template #default="{ row }">{{ row.day }} 天</template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部：快捷操作与设备交互 -->
+    <div class="bottom-grid">
+      <!-- 最近未处理告警 -->
+      <div class="section-card">
+        <div class="section-header">
+          <h2 class="section-title">最近未处理告警</h2>
+          <el-button type="primary" link @click="router.push('/alerts/overview')">查看全部</el-button>
+        </div>
+        <el-table :data="overview.recent_alerts" stripe size="small" style="width: 100%">
+          <el-table-column prop="timestamp" label="时间" width="160">
+            <template #default="{ row }">{{ formatDateTime(row.timestamp) }}</template>
+          </el-table-column>
+          <el-table-column prop="greenhouse_name" label="温室" width="120" />
+          <el-table-column prop="severity" label="级别" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.severity === 'CRITICAL' ? 'danger' : 'warning'" size="small">
+                {{ row.severity }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="message" label="内容" />
+          <el-table-column label="操作" width="100">
+            <template #default="{ row }">
+              <el-button type="primary" link size="small" @click="handleAck(row.alert_id)">确认</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <!-- 最近下发指令 -->
+      <div class="section-card">
+        <div class="section-header">
+          <h2 class="section-title">最近下发指令</h2>
+          <el-button type="primary" link @click="router.push('/controls/commands')">查看全部</el-button>
+        </div>
+        <el-table :data="overview.recent_commands" stripe size="small" style="width: 100%">
+          <el-table-column prop="created_at" label="时间" width="160">
+            <template #default="{ row }">{{ formatDateTime(row.created_at) }}</template>
+          </el-table-column>
+          <el-table-column prop="device_name" label="设备" width="140" />
+          <el-table-column prop="command_type" label="类型" />
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="commandStatusType(row.status)" size="small">
+                {{ row.status }}
+              </el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, shallowRef } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import { Monitor, Warning, Bell, DataLine, Clock } from '@element-plus/icons-vue'
+import { Monitor, Bell, DataLine, Clock } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { dashboardApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
-import type { DashboardOverview } from '@/types'
+import type { DashboardData } from '@/types'
 
 const router = useRouter()
-
-// 数据
 const loading = ref(false)
-const overview = ref<DashboardOverview>({
-  sensors_online: 0,
-  sensors_offline: 0,
-  sensors_total: 0,
-  actuators_online: 0,
-  actuators_offline: 0,
-  actuators_total: 0,
-  devices_online: 0,
-  devices_offline: 0,
-  devices_total: 0,
-  alerts_open: 0,
-  alerts_critical: 0,
-  alerts_today: 0,
-  device_type_distribution: [],
-  greenhouse_summary: [],
+const overview = ref<DashboardData>({
+  stats: {
+    active_batches_count: 0,
+    unresolved_alerts: 0,
+    devices_online: 0,
+    devices_offline: 0,
+    energy_kwh_today: 0,
+    water_l_today: 0
+  },
+  greenhouses: [],
+  trends: { timestamps: [], ec_avg: [], ph_avg: [] },
+  active_batches: [],
+  recent_alerts: [],
   recent_commands: []
 })
 
-// 图表
-const typeChartRef = ref<HTMLElement>()
-const typeChart = shallowRef<echarts.ECharts | null>(null)
+const trendChartRef = ref<HTMLElement>()
+const trendChart = shallowRef<echarts.ECharts | null>(null)
 
-// 当前日期
 const currentDate = computed(() => {
   const now = new Date()
   return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`
 })
 
-// 命令状态标签类型
 function commandStatusType(status: string): string {
   switch (status) {
     case 'EXECUTED': return 'success'
@@ -172,34 +221,17 @@ function commandStatusType(status: string): string {
   }
 }
 
-// 跳转
-function goCommands() {
-  router.push('/controls/commands')
+function handleAck(alertId: string) {
+  ElMessage.success(`已确认告警: ${alertId}`)
+  // TODO: Call API to acknowledge alert
 }
 
-// 获取数据
 async function fetchData() {
   loading.value = true
   try {
     const data = await dashboardApi.getDashboardData()
-    overview.value = {
-      sensors_online: data.sensors_online ?? 0,
-      sensors_offline: data.sensors_offline ?? 0,
-      sensors_total: data.sensors_total ?? 0,
-      actuators_online: data.actuators_online ?? 0,
-      actuators_offline: data.actuators_offline ?? 0,
-      actuators_total: data.actuators_total ?? 0,
-      devices_online: data.devices_online ?? 0,
-      devices_offline: data.devices_offline ?? 0,
-      devices_total: data.devices_total ?? 0,
-      alerts_open: data.alerts_open ?? 0,
-      alerts_critical: data.alerts_critical ?? 0,
-      alerts_today: data.alerts_today ?? 0,
-      device_type_distribution: data.device_type_distribution ?? [],
-      greenhouse_summary: data.greenhouse_summary ?? [],
-      recent_commands: data.recent_commands ?? []
-    }
-    updateTypeChart()
+    overview.value = data
+    updateTrendChart()
   } catch (error) {
     console.error('[Dashboard] Failed to fetch data:', error)
   } finally {
@@ -207,70 +239,97 @@ async function fetchData() {
   }
 }
 
-// 初始化图表
 function initCharts() {
-  if (typeChartRef.value) {
-    typeChart.value = echarts.init(typeChartRef.value)
+  if (trendChartRef.value) {
+    trendChart.value = echarts.init(trendChartRef.value)
   }
 }
 
-// 设备类型分布饼图
-function updateTypeChart() {
-  if (!typeChart.value) return
-  const dist = overview.value.device_type_distribution
-  if (dist.length === 0) return
+function updateTrendChart() {
+  if (!trendChart.value) return
+  const trends = overview.value.trends
+  if (!trends || !trends.timestamps || trends.timestamps.length === 0) return
 
-  const typeNames: Record<string, string> = {
-    SENSOR: '传感器',
-    ACTUATOR: '执行器'
-  }
-
-  typeChart.value.setOption({
-    tooltip: {
-      trigger: 'item',
-      formatter: '{b}: {c} ({d}%)'
+  trendChart.value.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['EC值', 'pH值'], bottom: 0 },
+    grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: trends.timestamps
     },
-    legend: {
-      bottom: 0,
-      left: 'center'
-    },
+    yAxis: [
+      { type: 'value', name: 'EC', position: 'left' },
+      { type: 'value', name: 'pH', position: 'right', min: 0, max: 14 }
+    ],
     series: [
       {
-        type: 'pie',
-        radius: ['40%', '70%'],
-        avoidLabelOverlap: false,
-        itemStyle: {
-          borderRadius: 10,
-          borderColor: '#fff',
-          borderWidth: 2
-        },
-        label: { show: false },
-        emphasis: {
-          label: { show: true, fontSize: 14, fontWeight: 'bold' }
-        },
-        data: dist.map((item) => ({
-          name: typeNames[item.type] || item.type,
-          value: item.count
-        }))
+        name: 'EC值',
+        type: 'line',
+        smooth: true,
+        data: trends.ec_avg,
+        itemStyle: { color: '#409EFF' }
+      },
+      {
+        name: 'pH值',
+        type: 'line',
+        smooth: true,
+        yAxisIndex: 1,
+        data: trends.ph_avg,
+        itemStyle: { color: '#67C23A' }
       }
     ]
   })
 }
 
-// 窗口大小变化时重绘图表
 function handleResize() {
-  typeChart.value?.resize()
+  trendChart.value?.resize()
+}
+
+// SSE Integration
+let deviceEventSource: EventSource | null = null
+let commandEventSource: EventSource | null = null
+
+function setupSSE() {
+  // Using direct EventSource for now, could be replaced with robust utility later
+  const token = localStorage.getItem('hydroponic_token') || ''
+  
+  // Connect to devices/subscribe for telemetry updates
+  deviceEventSource = new EventSource(`/api/devices/subscribe?token=${token}`)
+  deviceEventSource.addEventListener('telemetry_update', () => {
+    try {
+      // For simplicity in this demo, we'll just refetch if there's significant change
+      // or implement direct reactivity:
+    } catch (err) {
+      console.error('SSE parsing error', err)
+    }
+  })
+
+  // Listen to new alerts
+  deviceEventSource.addEventListener('new_alert', () => {
+    // A new alert arrives, we might want to reload the dashboard or push it to recent_alerts
+    fetchData()
+  })
+
+  // Connect to commands/subscribe
+  commandEventSource = new EventSource(`/api/commands/subscribe?token=${token}`)
+  commandEventSource.addEventListener('command_dispatched', () => fetchData())
+  commandEventSource.addEventListener('command_acked', () => fetchData())
 }
 
 onMounted(() => {
   fetchData()
   initCharts()
+  setupSSE()
   window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
-  typeChart.value?.dispose()
+  trendChart.value?.dispose()
+  if (deviceEventSource) deviceEventSource.close()
+  if (commandEventSource) commandEventSource.close()
 })
 </script>
 
@@ -287,7 +346,6 @@ onUnmounted(() => {
     font-size: 22px;
     font-weight: 700;
     margin: 0;
-    text-wrap: balance;
   }
 
   .current-date {
@@ -295,152 +353,64 @@ onUnmounted(() => {
     font-size: 14px;
   }
 
-  // 指标卡片
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
     margin-bottom: 20px;
-
-    @media (max-width: 1400px) {
-      grid-template-columns: repeat(3, 1fr);
-    }
-
-    @media (max-width: 992px) {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
-    @media (max-width: 768px) {
-      grid-template-columns: 1fr;
-    }
   }
 
   .stat-card {
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: var(--bg-card);
     border-radius: var(--radius-lg);
     padding: 20px;
     display: flex;
     align-items: center;
     gap: 16px;
     box-shadow: var(--shadow-card);
-    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    transition: transform var(--transition-fast);
 
-    &:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-card-hover);
-    }
+    &:hover { transform: translateY(-2px); }
 
     .stat-icon {
-      width: 64px;
-      height: 64px;
-      border-radius: 14px;
+      width: 56px;
+      height: 56px;
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
       color: #fff;
     }
 
-    .stat-info {
-      flex: 1;
-    }
+    .stat-info { flex: 1; }
 
     .stat-value {
-      font-size: 28px;
+      font-size: 24px;
       font-weight: 600;
-      line-height: 1.2;
-
-      .stat-sub {
-        font-size: 13px;
-        font-weight: normal;
-        color: var(--color-danger);
-      }
+      .stat-sub { font-size: 14px; font-weight: normal; color: var(--color-text-secondary); }
     }
 
     .stat-label {
-      font-size: 14px;
+      font-size: 13px;
       color: var(--color-text-secondary);
       margin-top: 4px;
     }
 
-    &.online .stat-icon {
-      background: linear-gradient(135deg, var(--color-primary), var(--color-primary-lighter));
-    }
-
-    &.offline .stat-icon {
-      background: linear-gradient(135deg, #f56c6c, #fab6b6);
-    }
-
-    &.alert .stat-icon {
-      background: linear-gradient(135deg, #e6a23c, #f3d19e);
-    }
-
-    &.total .stat-icon {
-      background: linear-gradient(135deg, #409eff, #a0cfff);
-    }
-
-    &.today-alerts .stat-icon {
-      background: linear-gradient(135deg, #8b5cf6, #c4b5fd);
-    }
+    &.active-batches .stat-icon { background: linear-gradient(135deg, #67C23A, #95D475); }
+    &.alert .stat-icon { background: linear-gradient(135deg, #F56C6C, #FAB6B6); }
+    &.online .stat-icon { background: linear-gradient(135deg, #409EFF, #A0CFFF); }
+    &.energy .stat-icon { background: linear-gradient(135deg, #E6A23C, #F3D19E); }
   }
 
-  // 温室概览
-  .greenhouse-grid {
+  .main-content-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 16px;
-  }
-
-  .greenhouse-card {
-    background: var(--bg-card);
-    border-radius: var(--radius-md);
-    padding: 16px;
-    border: 1px solid var(--border-color);
-    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-
-    &:hover {
-      border-color: var(--color-primary-light);
-      box-shadow: var(--shadow-card);
-    }
-
-    .gh-name {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--color-text-primary);
-      margin-bottom: 12px;
-    }
-
-    .gh-stats {
-      display: flex;
-      gap: 16px;
-    }
-
-    .gh-stat {
-      text-align: center;
-
-      .gh-stat-label {
-        display: block;
-        font-size: 12px;
-        color: var(--color-text-secondary);
-        margin-bottom: 4px;
-      }
-
-      .gh-stat-value {
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--color-text-primary);
-      }
-    }
-  }
-
-  // 区块卡片
-  .section-card {
-    background: var(--bg-card);
-    border-radius: var(--radius-md);
-    padding: 20px;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
     margin-bottom: 20px;
-    box-shadow: var(--shadow-card);
+
+    @media (max-width: 1200px) {
+      grid-template-columns: 1fr;
+    }
   }
 
   .section-header {
@@ -456,20 +426,48 @@ onUnmounted(() => {
     margin: 0;
   }
 
-  .empty-alert {
-    text-align: center;
-    color: var(--color-text-secondary);
-    padding: 40px 0;
+  .greenhouse-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
 
-  // 图表区域
-  .charts-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
+  .greenhouse-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--border-color);
 
-    @media (max-width: 992px) {
-      grid-template-columns: 1fr;
+    .gh-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      .gh-name { font-weight: 600; font-size: 15px; }
+    }
+
+    .gh-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 12px;
+      background: var(--bg-body);
+      padding: 12px;
+      border-radius: 8px;
+
+      .metric-item {
+        .metric-label { font-size: 12px; color: var(--color-text-secondary); }
+        .metric-value { 
+          font-size: 14px; font-weight: 500; 
+          &.highlight { color: var(--color-primary); font-weight: 600; }
+        }
+      }
+    }
+
+    .gh-footer {
+      font-size: 13px;
+      .strategy-label { color: var(--color-text-secondary); }
+      .strategy-val { color: var(--color-success); font-weight: 500; }
     }
   }
 
@@ -478,21 +476,27 @@ onUnmounted(() => {
     border-radius: var(--radius-md);
     padding: 20px;
     box-shadow: var(--shadow-card);
-    transition: box-shadow var(--transition-normal);
+    margin-bottom: 20px;
 
-    &:hover {
-      box-shadow: var(--shadow-card-hover);
+    .chart-title { font-size: 16px; font-weight: 600; margin: 0 0 16px 0; }
+    .chart-container { height: 260px; }
+  }
+
+  .section-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+
+    @media (max-width: 1200px) {
+      grid-template-columns: 1fr;
     }
-  }
-
-  .chart-title {
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0 0 16px 0;
-  }
-
-  .chart-container {
-    height: 280px;
   }
 }
 </style>

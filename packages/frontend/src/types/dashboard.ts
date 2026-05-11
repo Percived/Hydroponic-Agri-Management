@@ -1,21 +1,52 @@
-// 温室概览
-export interface GreenhouseSummary {
-  greenhouse_id: number
+export interface DashboardStats {
+  active_batches_count: number
+  unresolved_alerts: number
+  devices_online: number
+  devices_offline: number
+  energy_kwh_today: number
+  water_l_today: number
+}
+
+export interface GreenhouseMetrics {
+  temperature: number
+  humidity: number
+  ec: number
+  ph: number
+  do: number
+  co2: number
+  lux: number
+}
+
+export interface DashboardGreenhouse {
+  id: string
   name: string
-  sensor_count: number
-  actuator_count: number
-  zone_count: number
-  avg_temp: number | null
-  avg_humidity: number | null
+  health_score: string
+  metrics: GreenhouseMetrics
+  active_strategies: string[]
 }
 
-// 设备类型分布
-export interface DeviceTypeDistItem {
-  type: string
-  count: number
+export interface DashboardTrends {
+  timestamps: string[]
+  ec_avg: number[]
+  ph_avg: number[]
 }
 
-// 最近控制命令
+export interface DashboardActiveBatch {
+  batch_id: string
+  crop_name: string
+  stage: string
+  day: number
+  greenhouse_id: string
+}
+
+export interface DashboardRecentAlert {
+  alert_id: string
+  severity: string
+  message: string
+  timestamp: string
+  greenhouse_name: string
+}
+
 export interface RecentCommand {
   id: number
   command_type: string
@@ -24,24 +55,11 @@ export interface RecentCommand {
   created_at: string
 }
 
-// 仪表盘概览数据
-export interface DashboardOverview {
-  sensors_online: number
-  sensors_offline: number
-  sensors_total: number
-  actuators_online: number
-  actuators_offline: number
-  actuators_total: number
-  devices_online: number
-  devices_offline: number
-  devices_total: number
-  alerts_open: number
-  alerts_critical: number
-  alerts_today: number
-  device_type_distribution: DeviceTypeDistItem[]
-  greenhouse_summary: GreenhouseSummary[]
+export interface DashboardData {
+  stats: DashboardStats
+  greenhouses: DashboardGreenhouse[]
+  trends: DashboardTrends
+  active_batches: DashboardActiveBatch[]
+  recent_alerts: DashboardRecentAlert[]
   recent_commands: RecentCommand[]
 }
-
-// 仪表盘完整数据（同 DashboardOverview）
-export type DashboardData = DashboardOverview

@@ -108,14 +108,46 @@
                 <span>{{
                   deviceType === "sensor" ? "传感器通道" : "执行器通道"
                 }}</span>
-                <el-button
-                  v-if="canManage"
-                  size="small"
-                  type="primary"
-                  @click="openChannelCreateDialog"
-                >
-                  <el-icon><Plus /></el-icon>添加通道
-                </el-button>
+                <div class="header-actions-group">
+                  <template v-if="canManage && channels.length > 0">
+                    <el-button
+                      size="small"
+                      type="success"
+                      plain
+                      :loading="batchActionLoading"
+                      @click="handleBatchToggleChannels(true)"
+                    >
+                      一键启用
+                    </el-button>
+                    <el-button
+                      size="small"
+                      type="warning"
+                      plain
+                      :loading="batchActionLoading"
+                      @click="handleBatchToggleChannels(false)"
+                    >
+                      一键停用
+                    </el-button>
+                  </template>
+                  <el-button
+                    v-if="canDelete && deviceType === 'actuator' && channels.length > 0"
+                    size="small"
+                    type="danger"
+                    plain
+                    :loading="batchActionLoading"
+                    @click="handleBatchDeleteChannels"
+                  >
+                    一键删除
+                  </el-button>
+                  <el-button
+                    v-if="canManage"
+                    size="small"
+                    type="primary"
+                    @click="openChannelCreateDialog"
+                  >
+                    <el-icon><Plus /></el-icon>添加通道
+                  </el-button>
+                </div>
               </div>
             </template>
             <div v-if="channels.length === 0" class="channels-empty">
@@ -158,10 +190,13 @@
               </template>
               <template v-else>
                 <el-table-column
-                  prop="actuator_type"
                   label="类型"
                   width="100"
-                />
+                >
+                  <template #default="{ row }">
+                    {{ ACTUATOR_TYPE_LABELS[row.actuator_type] || row.actuator_type }}
+                  </template>
+                </el-table-column>
                 <el-table-column
                   prop="current_state"
                   label="当前状态"
@@ -474,7 +509,7 @@ import { ElMessage, ElMessageBox, FormInstance, FormRules } from "element-plus";
 import { deviceApi, telemetryApi, greenhouseApi, metricApi } from "@/api";
 import { usePermission } from "@/composables/usePermission";
 import { formatDate, formatNumber, getMetricName } from "@/utils/format";
-import { actuatorTypeOptions } from "@/utils/device";
+import { actuatorTypeOptions, ACTUATOR_TYPE_LABELS } from "@/utils/device";
 import { LARGE_PAGE_SIZE } from "@/utils/constants";
 import { Role } from "@/types";
 import type {
@@ -548,6 +583,7 @@ const channelDialogVisible = ref(false);
 const isChannelEdit = ref(false);
 const channelFormRef = ref<FormInstance>();
 const channelSubmitLoading = ref(false);
+const batchActionLoading = ref(false);
 const editingChannelId = ref<number | null>(null);
 const metricDefs = ref<MetricDefinition[]>([]);
 
@@ -785,6 +821,72 @@ async function handleChannelSubmit() {
   }
 }
 
+async function handleBatchToggleChannels(enabled: boolean) {
+  if (!canManage.value) {
+    ElMessage.error("没有权限执行此操作");
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定要一键${enabled ? "启用" : "停用"}所有通道吗？`,
+      "提示",
+      {
+        type: "warning",
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+      }
+    );
+    batchActionLoading.value = true;
+    const promises = channels.value.map((ch) => {
+      if (deviceType.value === "sensor") {
+        return deviceApi.updateSensorChannel(ch.id, { enabled });
+      } else {
+        return deviceApi.updateActuatorChannel(ch.id, { enabled });
+      }
+    });
+    await Promise.all(promises);
+    ElMessage.success(`已全部${enabled ? "启用" : "停用"}`);
+    await loadChannels();
+  } catch (e: any) {
+    if (e !== "cancel") {
+      ElMessage.error("操作失败");
+    }
+  } finally {
+    batchActionLoading.value = false;
+  }
+}
+
+async function handleBatchDeleteChannels() {
+  if (!canDelete.value || deviceType.value !== "actuator") {
+    ElMessage.error("没有权限执行此操作");
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      "确定要一键删除所有执行器通道吗？此操作不可撤销。",
+      "警告",
+      {
+        type: "error",
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+      }
+    );
+    batchActionLoading.value = true;
+    const promises = channels.value.map((ch) => {
+      return deviceApi.deleteActuatorChannel(ch.id);
+    });
+    await Promise.all(promises);
+    ElMessage.success("已全部删除");
+    await loadChannels();
+  } catch (e: any) {
+    if (e !== "cancel") {
+      ElMessage.error("删除失败");
+    }
+  } finally {
+    batchActionLoading.value = false;
+  }
+}
+
 async function handleChannelDelete(ch: SensorChannel | ActuatorChannel) {
   if (!canDelete.value) {
     ElMessage.error("没有权限执行此操作");
@@ -829,11 +931,9 @@ async function toggleChannelEnabled(
   channelToggleLoading[ch.id] = true;
   try {
     if (deviceType.value === "sensor") {
-      await deviceApi.updateSensorChannel(ch.id, { enabled: enabled ? 1 : 0 });
+      await deviceApi.updateSensorChannel(ch.id, { enabled });
     } else {
-      await deviceApi.updateActuatorChannel(ch.id, {
-        enabled: enabled ? 1 : 0,
-      });
+      await deviceApi.updateActuatorChannel(ch.id, { enabled });
     }
     ElMessage.success(enabled ? "已启用" : "已停用");
   } catch {
@@ -1011,6 +1111,11 @@ onMounted(() => {
   .channels-card-header {
     display: flex;
     justify-content: space-between;
+    align-items: center;
+  }
+  .header-actions-group {
+    display: flex;
+    gap: 8px;
     align-items: center;
   }
   .channels-empty {

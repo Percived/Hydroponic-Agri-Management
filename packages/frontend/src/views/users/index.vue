@@ -22,7 +22,6 @@
       <!-- 用户列表 -->
       <div class="table-container">
         <el-table :data="users" v-loading="loading" stripe>
-          <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="username" label="用户名" width="120" />
           <el-table-column prop="nickname" label="昵称" width="120">
             <template #default="{ row }">

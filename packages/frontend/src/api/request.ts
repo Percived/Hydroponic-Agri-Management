@@ -65,10 +65,21 @@ instance.interceptors.response.use(
             }
             break
           case 403:
-            ElMessage.error('没有权限访问')
+            if (data?.message === 'user_disabled') {
+              ElMessage.error('账号已被禁用，请联系管理员')
+            } else {
+              ElMessage.error('没有权限访问')
+            }
             break
           case 404:
             ElMessage.error('资源不存在')
+            break
+          case 409:
+            if (data?.message === 'device_has_channels') {
+              ElMessage.error('该设备下仍有关联通道，必须先删除所有通道')
+            } else {
+              ElMessage.error(data?.message || '操作存在冲突')
+            }
             break
           case 429:
             ElMessage.error('请求过于频繁，请稍后再试')

@@ -82,7 +82,7 @@
       </div>
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑离子检测' : '新增离子检测'" width="700px">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑离子检测' : '新增离子检测'" width="800px">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="110px">
         <el-row :gutter="16">
           <!-- 基础信息 -->
@@ -103,15 +103,6 @@
           <el-col :span="12">
             <el-form-item label="样品编号" prop="sample_code">
               <el-input v-model="formData.sample_code" placeholder="请输入编号" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="检测方法">
-              <el-select v-model="formData.test_method" style="width: 100%">
-                <el-option label="实验室" value="LAB" />
-                <el-option label="试纸" value="STRIP" />
-                <el-option label="仪表" value="METER" />
-              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -140,38 +131,38 @@
         <el-divider content-position="left">大量营养元素</el-divider>
         <el-row :gutter="16">
           <el-col :span="8">
-            <el-form-item label="NO3-N">
-              <el-input-number v-model="formData.no3_n" :min="0" :precision="2" style="width: 100%" />
+            <el-form-item label="NO3-N" label-width="70px">
+              <el-input-number v-model="formData.no3_n" :min="0" :precision="2" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="NH4-N">
-              <el-input-number v-model="formData.nh4_n" :min="0" :precision="2" style="width: 100%" />
+            <el-form-item label="NH4-N" label-width="70px">
+              <el-input-number v-model="formData.nh4_n" :min="0" :precision="2" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="P">
-              <el-input-number v-model="formData.p" :min="0" :precision="2" style="width: 100%" />
+            <el-form-item label="P" label-width="70px">
+              <el-input-number v-model="formData.p" :min="0" :precision="2" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="K">
-              <el-input-number v-model="formData.k" :min="0" :precision="2" style="width: 100%" />
+            <el-form-item label="K" label-width="70px">
+              <el-input-number v-model="formData.k" :min="0" :precision="2" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="Ca">
-              <el-input-number v-model="formData.ca" :min="0" :precision="2" style="width: 100%" />
+            <el-form-item label="Ca" label-width="70px">
+              <el-input-number v-model="formData.ca" :min="0" :precision="2" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="Mg">
-              <el-input-number v-model="formData.mg" :min="0" :precision="2" style="width: 100%" />
+            <el-form-item label="Mg" label-width="70px">
+              <el-input-number v-model="formData.mg" :min="0" :precision="2" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="S">
-              <el-input-number v-model="formData.s" :min="0" :precision="2" style="width: 100%" />
+            <el-form-item label="S" label-width="70px">
+              <el-input-number v-model="formData.s" :min="0" :precision="2" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -180,33 +171,33 @@
         <el-divider content-position="left">微量营养元素</el-divider>
         <el-row :gutter="16">
           <el-col :span="8">
-            <el-form-item label="Fe">
-              <el-input-number v-model="formData.fe" :min="0" :precision="3" style="width: 100%" />
+            <el-form-item label="Fe" label-width="70px">
+              <el-input-number v-model="formData.fe" :min="0" :precision="3" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="Mn">
-              <el-input-number v-model="formData.mn" :min="0" :precision="3" style="width: 100%" />
+            <el-form-item label="Mn" label-width="70px">
+              <el-input-number v-model="formData.mn" :min="0" :precision="3" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="Zn">
-              <el-input-number v-model="formData.zn" :min="0" :precision="3" style="width: 100%" />
+            <el-form-item label="Zn" label-width="70px">
+              <el-input-number v-model="formData.zn" :min="0" :precision="3" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="B">
-              <el-input-number v-model="formData.b" :min="0" :precision="3" style="width: 100%" />
+            <el-form-item label="B" label-width="70px">
+              <el-input-number v-model="formData.b" :min="0" :precision="3" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="Cu">
-              <el-input-number v-model="formData.cu" :min="0" :precision="3" style="width: 100%" />
+            <el-form-item label="Cu" label-width="70px">
+              <el-input-number v-model="formData.cu" :min="0" :precision="3" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="Mo">
-              <el-input-number v-model="formData.mo" :min="0" :precision="3" style="width: 100%" />
+            <el-form-item label="Mo" label-width="70px">
+              <el-input-number v-model="formData.mo" :min="0" :precision="3" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -216,20 +207,15 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="采样EC">
-              <el-input-number v-model="formData.ec_at_sample" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number v-model="formData.ec_at_sample" :min="0" :precision="2" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="采样pH">
-              <el-input-number v-model="formData.ph_at_sample" :min="0" :max="14" :precision="2" style="width: 100%" />
+              <el-input-number v-model="formData.ph_at_sample" :min="0" :max="14" :precision="2" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="实验室">
-              <el-input v-model="formData.lab_name" placeholder="实验室名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
+          <el-col :span="24">
             <el-form-item label="报告URL">
               <el-input v-model="formData.report_url" placeholder="报告链接" />
             </el-form-item>
@@ -294,7 +280,6 @@ const emptyForm = () => ({
   sample_code: '',
   sampled_at: '',
   tested_at: '' as string,
-  test_method: 'LAB' as string,
   no3_n: undefined as number | undefined,
   nh4_n: undefined as number | undefined,
   p: undefined as number | undefined,
@@ -310,7 +295,6 @@ const emptyForm = () => ({
   mo: undefined as number | undefined,
   ec_at_sample: undefined as number | undefined,
   ph_at_sample: undefined as number | undefined,
-  lab_name: '' as string,
   report_url: '' as string,
   note: '' as string
 })
@@ -380,7 +364,6 @@ function openEditDialog(test: IonTestRecord) {
     sample_code: test.sample_code,
     sampled_at: test.sampled_at,
     tested_at: test.tested_at || '',
-    test_method: test.test_method,
     no3_n: test.no3_n,
     nh4_n: test.nh4_n,
     p: test.p,
@@ -396,7 +379,6 @@ function openEditDialog(test: IonTestRecord) {
     mo: test.mo,
     ec_at_sample: test.ec_at_sample,
     ph_at_sample: test.ph_at_sample,
-    lab_name: test.lab_name || '',
     report_url: test.report_url || '',
     note: test.note || ''
   })
@@ -418,7 +400,6 @@ async function handleSubmit() {
       batch_id: formData.batch_id || undefined,
       sample_code: formData.sample_code,
       sampled_at: formData.sampled_at,
-      test_method: formData.test_method || undefined,
       tested_at: formData.tested_at || undefined,
       no3_n: formData.no3_n,
       nh4_n: formData.nh4_n,
@@ -435,7 +416,6 @@ async function handleSubmit() {
       mo: formData.mo,
       ec_at_sample: formData.ec_at_sample,
       ph_at_sample: formData.ph_at_sample,
-      lab_name: formData.lab_name || undefined,
       report_url: formData.report_url || undefined,
       note: formData.note || undefined
     }

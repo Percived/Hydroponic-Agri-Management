@@ -77,7 +77,7 @@ export interface UpdateSensorChannelRequest {
   range_min?: number
   range_max?: number
   sampling_interval_sec?: number
-  enabled?: number
+  enabled?: boolean
   metadata?: Record<string, unknown>
 }
 
@@ -136,6 +136,7 @@ export interface ActuatorChannel {
   metadata?: Record<string, unknown>
   created_at: string
   updated_at: string
+  device_name?: string
 }
 
 export interface CreateActuatorChannelRequest {
@@ -150,7 +151,7 @@ export interface UpdateActuatorChannelRequest {
   channel_code?: string
   actuator_type?: ActuatorType
   rated_power_watt?: number
-  enabled?: number
+  enabled?: boolean
   current_state?: string
   metadata?: Record<string, unknown>
 }

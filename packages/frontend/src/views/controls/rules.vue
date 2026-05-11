@@ -50,15 +50,15 @@
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="760px">
       <el-form :model="formData" label-width="120px">
-        <el-form-item label="策略编码">
+        <el-form-item label="策略编码" required>
           <el-input v-model="formData.policy_code" :disabled="isEdit" />
         </el-form-item>
-        <el-form-item label="策略名称">
+        <el-form-item label="策略名称" required>
           <el-input v-model="formData.name" />
         </el-form-item>
         <el-row :gutter="12">
           <el-col :span="12">
-            <el-form-item label="所属温室">
+            <el-form-item label="所属温室" required>
               <el-select v-model="formData.greenhouse_id" placeholder="请选择温室" filterable style="width: 100%" @change="onGreenhouseChange">
                 <el-option v-for="gh in greenhouses" :key="gh.id" :label="gh.name" :value="gh.id" />
               </el-select>
@@ -79,7 +79,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="策略类型">
+            <el-form-item label="策略类型" required>
               <el-select v-model="formData.policy_type" style="width: 100%">
                 <el-option label="阈值 THRESHOLD" value="THRESHOLD" />
                 <el-option label="定时 SCHEDULE" value="SCHEDULE" />
@@ -155,84 +155,187 @@
           </el-divider>
 
           <template v-if="formData.policy_type === 'THRESHOLD' || scheduleUseCondition">
-            <el-form-item label="指标代码">
-              <el-select v-model="conditionForm.metric_code" placeholder="选择指标" style="width: 100%">
-                <el-option v-for="m in metrics" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
-              </el-select>
-            </el-form-item>
-            <el-row :gutter="12">
-              <el-col :span="12">
-                <el-form-item label="运算符">
-                  <el-select v-model="conditionForm.operator" style="width: 100%">
-                    <el-option label="大于 >" value=">" />
-                    <el-option label="大于等于 >=" value=">=" />
-                    <el-option label="小于 <" value="<" />
-                    <el-option label="小于等于 <=" value="<=" />
-                    <el-option label="等于 =" value="=" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="阈值">
-                  <el-input-number v-model="conditionForm.threshold_value" style="width: 100%" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-            <el-row :gutter="12">
-              <el-col :span="6">
-                <el-form-item label="滞后值">
-                  <el-input-number v-model="conditionForm.hysteresis" :min="0" :precision="2" style="width: 100%" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="6">
-                <el-form-item label="窗口(秒)">
-                  <el-input-number v-model="conditionForm.window_sec" :min="0" style="width: 100%" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="6">
-                <el-form-item label="持续(秒)">
-                  <el-input-number v-model="conditionForm.required_duration_sec" :min="0" style="width: 100%" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="6">
-                <el-form-item label="聚合方式">
-                  <el-select v-model="conditionForm.aggregation" placeholder="默认 last" clearable style="width: 100%">
-                    <el-option label="最新 last" value="last" />
-                    <el-option label="平均 avg" value="avg" />
-                    <el-option label="最大 max" value="max" />
-                    <el-option label="最小 min" value="min" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-            </el-row>
+            <div v-for="(cond, index) in conditions" :key="index" class="target-item">
+              <div class="target-item-header">
+                <span class="target-item-title">触发条件 {{ index + 1 }}</span>
+                <el-button
+                  v-if="conditions.length > 1"
+                  type="danger"
+                  size="small"
+                  plain
+                  @click="removeCondition(index)"
+                >
+                  删除
+                </el-button>
+              </div>
+              <el-form-item label="指标代码" required>
+                <el-select v-model="cond.metric_code" placeholder="选择指标" style="width: 100%">
+                  <el-option v-for="m in metrics" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
+                </el-select>
+              </el-form-item>
+              <el-row :gutter="12">
+                <el-col :span="12">
+                  <el-form-item label="运算符" required>
+                    <el-select v-model="cond.operator" style="width: 100%">
+                      <el-option label="大于 >" value=">" />
+                      <el-option label="大于等于 >=" value=">=" />
+                      <el-option label="小于 <" value="<" />
+                      <el-option label="小于等于 <=" value="<=" />
+                      <el-option label="等于 =" value="=" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="阈值" required>
+                    <el-input-number v-model="cond.threshold_value" style="width: 100%" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-row :gutter="12">
+                <el-col :span="12">
+                  <el-form-item label="滞后值">
+                    <el-input-number v-model="cond.hysteresis" :min="0" :precision="2" style="width: 100%" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="窗口(秒)">
+                    <el-input-number v-model="cond.window_sec" :min="0" style="width: 100%" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-row :gutter="12">
+                <el-col :span="12">
+                  <el-form-item label="持续(秒)">
+                    <el-input-number v-model="cond.required_duration_sec" :min="0" style="width: 100%" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="聚合方式">
+                    <el-select v-model="cond.aggregation" placeholder="默认 last" clearable style="width: 100%">
+                      <el-option label="最新 last" value="last" />
+                      <el-option label="平均 avg" value="avg" />
+                      <el-option label="最大 max" value="max" />
+                      <el-option label="最小 min" value="min" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </div>
+            <el-button type="primary" plain @click="addCondition" style="width: 100%; margin-bottom: 16px;">
+              + 添加触发条件 (满足所有条件时触发)
+            </el-button>
           </template>
         </template>
 
         <el-divider>目标动作</el-divider>
-        <el-form-item label="执行器通道">
-          <el-select v-model="targetChannelId" placeholder="选择执行器通道" filterable style="width: 100%">
-            <el-option v-for="ch in actuatorChannels" :key="ch.id" :label="`${ch.channel_code} (${ch.actuator_type})`" :value="ch.id" />
-          </el-select>
-        </el-form-item>
-        <el-row :gutter="12">
-          <el-col :span="12">
-            <el-form-item label="命令类型">
-              <el-select v-model="targetCommandType" style="width: 100%">
-                <el-option label="开关" value="SWITCH" />
-                <el-option label="设置值" value="SET_VALUE" />
-                <el-option label="校准" value="CALIBRATE" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="执行顺序">
-              <el-input-number v-model="targetExecutionOrder" :min="0" :max="99" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="命令负载">
-          <el-input v-model="targetPayloadRaw" type="textarea" :rows="3" placeholder='{"state":"ON"}' />
-        </el-form-item>
+        <div v-for="(t, index) in targets" :key="index" class="target-item">
+          <div class="target-item-header">
+            <span class="target-item-title">目标动作 {{ index + 1 }}</span>
+            <el-button
+              v-if="targets.length > 1"
+              type="danger"
+              size="small"
+              plain
+              @click="removeTarget(index)"
+            >
+              删除
+            </el-button>
+          </div>
+          <el-form-item label="执行器通道" required>
+            <el-select
+              v-model="t.channelId"
+              placeholder="选择执行器通道"
+              filterable
+              style="width: 100%"
+              @change="(val: number | undefined) => onTargetChannelChange(index, val)"
+            >
+              <el-option
+                v-for="ch in actuatorChannels"
+                :key="ch.id"
+                :label="`${ch.channel_code} (${actuatorTypeLabels[ch.actuator_type] || ch.actuator_type}) - ${ch.device_name || ''}`"
+                :value="ch.id"
+              />
+            </el-select>
+            <div v-if="t.channelId && getSelectedActuator(t.channelId)" class="metric-hints">
+              <span class="metric-hints-label">可影响指标：</span>
+              <template v-if="getMetricHints(t.channelId).length">
+                <el-tag
+                  v-for="m in getMetricHints(t.channelId)"
+                  :key="m.code"
+                  size="small"
+                  type="info"
+                  class="metric-hint-tag"
+                >
+                  {{ metricLabelMap[m.code] || m.code }}{{ m.unit ? ` (${m.unit})` : '' }}
+                </el-tag>
+              </template>
+              <span v-else class="metric-hints-none">无明确指标影响</span>
+            </div>
+          </el-form-item>
+          <el-row :gutter="12">
+            <el-col :span="12">
+              <el-form-item label="命令类型" required>
+                <el-select v-model="t.commandType" style="width: 100%" @change="onCommandTypeChange(t)">
+                  <el-option label="开关" value="SWITCH" />
+                  <el-option label="设置值" value="SET_VALUE" />
+                  <el-option label="校准" value="CALIBRATE" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="执行顺序">
+                <el-input-number v-model="t.executionOrder" :min="0" :max="99" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-form-item label="命令负载" required>
+            <!-- SWITCH: ON/OFF select -->
+            <el-select
+              v-if="t.commandType === 'SWITCH'"
+              v-model="t.switchState"
+              style="width: 100%"
+              @change="syncStructuredToPayload(t)"
+            >
+              <el-option label="开启 ON" value="ON" />
+              <el-option label="关闭 OFF" value="OFF" />
+            </el-select>
+            <!-- SET_VALUE: key (with suggestions) + value -->
+            <el-row v-else-if="t.commandType === 'SET_VALUE'" :gutter="8">
+              <el-col :span="8">
+                <el-select
+                  v-model="t.payloadKey"
+                  filterable
+                  allow-create
+                  default-first-option
+                  placeholder="参数名"
+                  style="width: 100%"
+                  @change="syncStructuredToPayload(t)"
+                >
+                  <el-option
+                    v-for="p in getParamSuggestions(index)"
+                    :key="p"
+                    :label="p"
+                    :value="p"
+                  />
+                </el-select>
+              </el-col>
+              <el-col :span="16">
+                <el-input v-model="t.payloadValue" placeholder="参数值" @change="syncStructuredToPayload(t)" />
+              </el-col>
+            </el-row>
+            <!-- CALIBRATE / fallback: raw JSON -->
+            <el-input
+              v-else
+              v-model="t.payloadRaw"
+              type="textarea"
+              :rows="3"
+              placeholder='{"param":"value"}'
+            />
+          </el-form-item>
+        </div>
+        <el-button type="primary" plain @click="addTarget" style="width: 100%">
+          + 添加目标动作
+        </el-button>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -250,6 +353,163 @@ import { deviceApi, policyApi, greenhouseApi, metricApi } from '@/api'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import type { ControlPolicy, ActuatorChannel, Greenhouse, GrowingZone, MetricDefinition } from '@/types'
 import { populateMetricNames } from '@/utils/format'
+
+// ── 执行器类型中文化 ──
+const actuatorTypeLabels: Record<string, string> = {
+  PUMP: '水泵', AERATOR: '曝气器', FAN: '风扇', VALVE: '阀门',
+  SHADE: '遮阳帘', LED: '补光灯', HEATER: '加热器', CO2_GEN: 'CO2发生器',
+  FOGGER: '雾化器', DOSING_PUMP: '计量泵', CHILLER: '冷水机', STIRRER: '搅拌器',
+  DEHUMIDIFIER: '除湿机', DAMPER: '风阀', UV_STERILIZER: '紫外消毒器',
+  OZONE_GENERATOR: '臭氧发生器', FILTER: '过滤器', RO_SYSTEM: '反渗透系统',
+  TOP_UP_VALVE: '补水阀', ALARM: '报警器', CALIBRATION_VALVE: '校准阀'
+}
+
+const metricLabelMap: Record<string, string> = {
+  TEMP: '温度', HUMIDITY: '湿度', CO2: 'CO2', LIGHT: '光照',
+  PH: 'pH', EC: 'EC', DO: '溶氧', LEVEL: '液位',
+  FLOW_RATE: '流量', TDS: 'TDS', TURBIDITY: '浊度', O3: '臭氧'
+}
+
+const actuatorMetricMap: Record<string, { code: string; unit: string }[]> = {
+  FAN:       [{ code: 'TEMP', unit: '°C' }, { code: 'HUMIDITY', unit: '%RH' }, { code: 'CO2', unit: 'ppm' }],
+  HEATER:    [{ code: 'TEMP', unit: '°C' }],
+  CHILLER:   [{ code: 'TEMP', unit: '°C' }],
+  DEHUMIDIFIER: [{ code: 'HUMIDITY', unit: '%RH' }],
+  FOGGER:    [{ code: 'HUMIDITY', unit: '%RH' }, { code: 'TEMP', unit: '°C' }],
+  LED:       [{ code: 'LIGHT', unit: 'lux' }],
+  SHADE:     [{ code: 'LIGHT', unit: 'lux' }, { code: 'TEMP', unit: '°C' }],
+  CO2_GEN:   [{ code: 'CO2', unit: 'ppm' }],
+  DOSING_PUMP: [{ code: 'PH', unit: '' }, { code: 'EC', unit: 'mS/cm' }],
+  PUMP:      [{ code: 'EC', unit: 'mS/cm' }, { code: 'PH', unit: '' }, { code: 'DO', unit: 'mg/L' }, { code: 'LEVEL', unit: 'cm' }],
+  AERATOR:   [{ code: 'DO', unit: 'mg/L' }],
+  VALVE:     [{ code: 'LEVEL', unit: 'cm' }, { code: 'FLOW_RATE', unit: 'L/min' }],
+  TOP_UP_VALVE: [{ code: 'LEVEL', unit: 'cm' }],
+  DAMPER:    [{ code: 'TEMP', unit: '°C' }, { code: 'HUMIDITY', unit: '%RH' }, { code: 'CO2', unit: 'ppm' }],
+  STIRRER:   [{ code: 'EC', unit: 'mS/cm' }, { code: 'PH', unit: '' }, { code: 'TDS', unit: 'ppm' }],
+  UV_STERILIZER: [{ code: 'TURBIDITY', unit: 'NTU' }],
+  OZONE_GENERATOR: [{ code: 'O3', unit: 'ppm' }],
+  FILTER:    [{ code: 'TURBIDITY', unit: 'NTU' }, { code: 'TDS', unit: 'ppm' }],
+  RO_SYSTEM: [{ code: 'TDS', unit: 'ppm' }, { code: 'EC', unit: 'mS/cm' }]
+}
+
+// 执行器类型 → SET_VALUE 参数名建议
+const actuatorParamSuggestions: Record<string, string[]> = {
+  FAN:            ['speed', 'state'],
+  HEATER:         ['target_temp', 'state'],
+  CHILLER:        ['target_temp', 'state'],
+  DEHUMIDIFIER:   ['target_humidity', 'state'],
+  FOGGER:         ['interval_sec', 'duration_sec', 'state'],
+  LED:            ['brightness', 'state', 'spectrum'],
+  SHADE:          ['position', 'state'],
+  CO2_GEN:        ['target_co2', 'state'],
+  DOSING_PUMP:    ['ph_target', 'ec_target', 'dose_ml', 'state'],
+  PUMP:           ['flow_rate', 'state'],
+  AERATOR:        ['power', 'state'],
+  VALVE:          ['position', 'state'],
+  TOP_UP_VALVE:   ['state'],
+  DAMPER:         ['position', 'state'],
+  STIRRER:        ['speed', 'state'],
+  UV_STERILIZER:  ['duration_sec', 'state'],
+  OZONE_GENERATOR: ['target_o3', 'state'],
+  FILTER:         ['state'],
+  RO_SYSTEM:      ['state'],
+  ALARM:          ['message', 'severity'],
+  CALIBRATION_VALVE: ['state']
+}
+
+function getParamSuggestions(index: number): string[] {
+  const t = targets.value[index]
+  if (!t?.channelId) return []
+  const ch = getSelectedActuator(t.channelId)
+  if (!ch) return []
+  return actuatorParamSuggestions[ch.actuator_type] || []
+}
+
+// ── 多目标动作 ──
+interface TargetItem {
+  channelId: number | undefined
+  commandType: string
+  payloadRaw: string
+  executionOrder: number
+  // Structured payload helpers (synced with payloadRaw)
+  switchState: string
+  payloadKey: string
+  payloadValue: string
+}
+
+function defaultTarget(): TargetItem {
+  return {
+    channelId: undefined,
+    commandType: 'SWITCH',
+    payloadRaw: '{"state":"ON"}',
+    executionOrder: 0,
+    switchState: 'ON',
+    payloadKey: '',
+    payloadValue: ''
+  }
+}
+
+// ── 多触发条件 ──
+interface ConditionItem {
+  metric_code: string
+  operator: string
+  threshold_value: number
+  hysteresis?: number
+  window_sec?: number
+  required_duration_sec?: number
+  aggregation?: string
+}
+
+function defaultCondition(): ConditionItem {
+  return {
+    metric_code: 'TEMP',
+    operator: '>',
+    threshold_value: 30,
+    hysteresis: undefined,
+    window_sec: undefined,
+    required_duration_sec: undefined,
+    aggregation: undefined
+  }
+}
+
+// Sync structured fields → payloadRaw based on commandType
+function syncStructuredToPayload(t: TargetItem) {
+  if (t.commandType === 'SWITCH') {
+    t.payloadRaw = JSON.stringify({ state: t.switchState || 'ON' })
+  } else if (t.commandType === 'SET_VALUE') {
+    if (t.payloadKey) {
+      // Try to parse payloadValue as number if possible
+      const num = Number(t.payloadValue)
+      const val: string | number = t.payloadValue !== '' && !isNaN(num) ? num : t.payloadValue
+      t.payloadRaw = JSON.stringify({ [t.payloadKey]: val })
+    } else {
+      t.payloadRaw = '{}'
+    }
+  }
+}
+
+// Parse payloadRaw into structured fields (used when loading existing targets)
+function parseTargetFromPayload(raw: string, commandType: string): Pick<TargetItem, 'payloadRaw' | 'switchState' | 'payloadKey' | 'payloadValue'> {
+  let obj: Record<string, unknown> = {}
+  try { obj = JSON.parse(raw || '{}') } catch { /* ignore */ }
+  if (commandType === 'SWITCH') {
+    return {
+      payloadRaw: raw,
+      switchState: (obj.state as string) || 'ON',
+      payloadKey: '',
+      payloadValue: ''
+    }
+  } else if (commandType === 'SET_VALUE') {
+    const keys = Object.keys(obj)
+    return {
+      payloadRaw: raw,
+      switchState: 'ON',
+      payloadKey: keys[0] || '',
+      payloadValue: keys[0] ? String(obj[keys[0]]) : ''
+    }
+  }
+  return { payloadRaw: raw, switchState: 'ON', payloadKey: '', payloadValue: '' }
+}
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -278,20 +538,9 @@ const formData = reactive({
   effective_to: null as Date | null
 })
 
-const conditionForm = reactive({
-  metric_code: 'TEMP',
-  operator: '>',
-  threshold_value: 30,
-  hysteresis: undefined as number | undefined,
-  window_sec: undefined as number | undefined,
-  required_duration_sec: undefined as number | undefined,
-  aggregation: undefined as string | undefined
-})
+const conditions = ref<ConditionItem[]>([defaultCondition()])
 
-const targetChannelId = ref<number | undefined>()
-const targetCommandType = ref('SWITCH')
-const targetPayloadRaw = ref('{"state":"ON"}')
-const targetExecutionOrder = ref(0)
+const targets = ref<TargetItem[]>([defaultTarget()])
 
 // SCHEDULE 类型: 是否启用条件检查
 const scheduleUseCondition = ref(false)
@@ -305,6 +554,57 @@ const dialogTitle = computed(() => {
 function typeLabel(t: string) {
   const map: Record<string, string> = { THRESHOLD: '阈值', SCHEDULE: '定时', DURATION: '时长' }
   return map[t] || t
+}
+
+// ── 多目标动作 helpers ──
+function addTarget() {
+  const t = defaultTarget()
+  t.executionOrder = targets.value.length
+  targets.value.push(t)
+}
+
+function removeTarget(index: number) {
+  if (targets.value.length <= 1) return
+  targets.value.splice(index, 1)
+}
+
+function addCondition() {
+  conditions.value.push(defaultCondition())
+}
+
+function removeCondition(index: number) {
+  if (conditions.value.length <= 1) return
+  conditions.value.splice(index, 1)
+}
+
+function getSelectedActuator(channelId: number): ActuatorChannel | undefined {
+  return actuatorChannels.value.find(ch => ch.id === channelId)
+}
+
+function getMetricHints(channelId: number): { code: string; unit: string }[] {
+  const ch = getSelectedActuator(channelId)
+  if (!ch) return []
+  return actuatorMetricMap[ch.actuator_type] || []
+}
+
+function onTargetChannelChange(_index: number, _val: number | undefined) {
+  // v-model already updates the target, no extra action needed
+}
+
+function onCommandTypeChange(t: TargetItem) {
+  // Reset structured fields to defaults for the new command type, then sync to payload
+  if (t.commandType === 'SWITCH') {
+    t.switchState = 'ON'
+    t.payloadKey = ''
+    t.payloadValue = ''
+    syncStructuredToPayload(t)
+  } else if (t.commandType === 'SET_VALUE') {
+    t.switchState = 'ON'
+    t.payloadKey = ''
+    t.payloadValue = ''
+    t.payloadRaw = '{}'
+  }
+  // For CALIBRATE, keep existing payloadRaw as-is
 }
 
 
@@ -405,17 +705,8 @@ function openCreateDialog() {
   formData.timeout_sec = 30
   formData.effective_from = null
   formData.effective_to = null
-  conditionForm.metric_code = 'TEMP'
-  conditionForm.operator = '>'
-  conditionForm.threshold_value = 30
-  conditionForm.hysteresis = undefined
-  conditionForm.window_sec = undefined
-  conditionForm.required_duration_sec = undefined
-  conditionForm.aggregation = undefined
-  targetChannelId.value = undefined
-  targetCommandType.value = 'SWITCH'
-  targetPayloadRaw.value = '{"state":"ON"}'
-  targetExecutionOrder.value = 0
+  conditions.value = [defaultCondition()]
+  targets.value = [defaultTarget()]
   scheduleUseCondition.value = false
   growingZones.value = []
   actuatorChannels.value = []
@@ -447,29 +738,42 @@ async function openEditDialog(policy: ControlPolicy) {
   try {
     const condResult = await policyApi.getPolicyConditions(policy.id)
     if (condResult.items && condResult.items.length > 0) {
-      const c = condResult.items[0]
-      conditionForm.metric_code = c.metric_code
-      conditionForm.operator = c.operator
-      conditionForm.threshold_value = c.threshold_value
-      conditionForm.hysteresis = c.hysteresis
-      conditionForm.window_sec = c.window_sec
-      conditionForm.required_duration_sec = c.required_duration_sec
-      conditionForm.aggregation = c.aggregation
+      conditions.value = condResult.items.map((c: any) => ({
+        metric_code: c.metric_code,
+        operator: c.operator,
+        threshold_value: c.threshold_value,
+        hysteresis: c.hysteresis,
+        window_sec: c.window_sec,
+        required_duration_sec: c.required_duration_sec,
+        aggregation: c.aggregation
+      }))
       if (policy.policy_type === 'SCHEDULE') scheduleUseCondition.value = true
+    } else {
+      conditions.value = [defaultCondition()]
     }
-  } catch { /* ignore */ }
+  } catch {
+    conditions.value = [defaultCondition()]
+  }
 
   // Load targets
   try {
     const tgtResult = await policyApi.getPolicyTargets(policy.id)
     if (tgtResult.items && tgtResult.items.length > 0) {
-      const t = tgtResult.items[0]
-      targetChannelId.value = t.actuator_channel_id
-      targetCommandType.value = t.command_type
-      targetPayloadRaw.value = JSON.stringify(t.command_payload)
-      targetExecutionOrder.value = t.execution_order
+      targets.value = tgtResult.items.map(t => {
+        const raw = JSON.stringify(t.command_payload)
+        return {
+          channelId: t.actuator_channel_id,
+          commandType: t.command_type,
+          executionOrder: t.execution_order,
+          ...parseTargetFromPayload(raw, t.command_type)
+        }
+      })
+    } else {
+      targets.value = [defaultTarget()]
     }
-  } catch { /* ignore */ }
+  } catch {
+    targets.value = [defaultTarget()]
+  }
 
   if (policy.greenhouse_id) {
     loadGrowingZones(policy.greenhouse_id)
@@ -498,7 +802,12 @@ async function handleSubmit() {
 
   submitLoading.value = true
   try {
+    const useCond = formData.policy_type === 'THRESHOLD' || scheduleUseCondition.value
+    const finalConditions = useCond ? conditions.value : []
+    const finalTargets = targets.value.filter(t => t.channelId)
+
     if (isEdit.value && editingPolicyId.value) {
+      const pid = editingPolicyId.value
       const payload: any = {
         name: formData.name,
         policy_type: formData.policy_type,
@@ -512,11 +821,42 @@ async function handleSubmit() {
       // Remove null fields to avoid overwriting with null
       if (payload.effective_from === null) delete payload.effective_from
       if (payload.effective_to === null) delete payload.effective_to
-      await policyApi.updatePolicy(editingPolicyId.value, payload as any)
+      await policyApi.updatePolicy(pid, payload as any)
+
+      // Sync Conditions
+      try {
+        const existingConds = await policyApi.getPolicyConditions(pid).then(res => res.items || [])
+        for (const ec of existingConds) {
+          await policyApi.deletePolicyCondition(pid, ec.id)
+        }
+      } catch { /* ignore */ }
+      for (const c of finalConditions) {
+        await policyApi.createPolicyCondition(pid, c as any)
+      }
+
+      // Sync Targets
+      try {
+        const existingTargets = await policyApi.getPolicyTargets(pid).then(res => res.items || [])
+        for (const et of existingTargets) {
+          await policyApi.deletePolicyTarget(pid, et.id)
+        }
+      } catch { /* ignore */ }
+      for (let i = 0; i < finalTargets.length; i++) {
+        const t = finalTargets[i]
+        await policyApi.createPolicyTarget(pid, {
+          actuator_channel_id: t.channelId!,
+          command_type: t.commandType,
+          command_payload: (() => {
+            try { return JSON.parse(t.payloadRaw || '{}') }
+            catch { return {} }
+          })(),
+          execution_order: t.executionOrder ?? i
+        })
+      }
+
       ElMessage.success('策略更新成功')
     } else {
       // Create new policy
-      const useCond = formData.policy_type === 'THRESHOLD' || scheduleUseCondition.value
       const createPayload = {
         policy_code: formData.policy_code,
         name: formData.name,
@@ -527,27 +867,30 @@ async function handleSubmit() {
         retry_limit: formData.retry_limit,
         timeout_sec: formData.timeout_sec,
         effective_from: formData.effective_from?.toISOString() || undefined,
-        effective_to: formData.effective_to?.toISOString() || undefined,
-        conditions: useCond ? [{
-          metric_code: conditionForm.metric_code,
-          operator: conditionForm.operator,
-          threshold_value: conditionForm.threshold_value,
-          hysteresis: conditionForm.hysteresis,
-          window_sec: conditionForm.window_sec,
-          required_duration_sec: conditionForm.required_duration_sec,
-          aggregation: conditionForm.aggregation
-        }] : [],
-        targets: targetChannelId.value ? [{
-          actuator_channel_id: targetChannelId.value,
-          command_type: targetCommandType.value,
+        effective_to: formData.effective_to?.toISOString() || undefined
+      }
+      const res = await policyApi.createPolicy(createPayload as any)
+      const pid = res.id
+
+      // Create conditions
+      for (const c of finalConditions) {
+        await policyApi.createPolicyCondition(pid, c as any)
+      }
+
+      // Create targets
+      for (let i = 0; i < finalTargets.length; i++) {
+        const t = finalTargets[i]
+        await policyApi.createPolicyTarget(pid, {
+          actuator_channel_id: t.channelId!,
+          command_type: t.commandType,
           command_payload: (() => {
-            try { return JSON.parse(targetPayloadRaw.value || '{}') }
+            try { return JSON.parse(t.payloadRaw || '{}') }
             catch { return {} }
           })(),
-          execution_order: targetExecutionOrder.value
-        }] : []
+          execution_order: t.executionOrder ?? i
+        })
       }
-      await policyApi.createPolicy(createPayload as any)
+
       ElMessage.success('策略创建成功')
     }
     dialogVisible.value = false
@@ -610,6 +953,49 @@ onMounted(() => {
     margin-top: var(--spacing-md);
     padding-top: var(--spacing-md);
     border-top: 1px solid var(--border-color);
+  }
+}
+
+.target-item {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 16px 4px;
+  margin-bottom: 12px;
+  background: var(--bg-subtle, #fafafa);
+
+  .target-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+
+    .target-item-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+  }
+}
+
+.metric-hints {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  .metric-hints-label {
+    font-size: 12px;
+    color: #909399;
+  }
+
+  .metric-hint-tag {
+    margin: 0;
+  }
+
+  .metric-hints-none {
+    font-size: 12px;
+    color: #c0c4cc;
   }
 }
 </style>

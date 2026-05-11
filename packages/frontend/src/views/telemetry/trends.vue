@@ -34,7 +34,7 @@
       </div>
       <div class="filter-row">
         <el-select v-model="selectedMetricCodes" placeholder="指标（可多选）" filterable multiple collapse-tags collapse-tags-tooltip style="width: 200px">
-          <el-option v-for="m in metricList" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
+          <el-option v-for="m in filteredMetricOptions" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
         </el-select>
         <el-select v-model="timeRangePreset" placeholder="时间范围" style="width: 140px" @change="onPresetChange">
           <el-option label="最近1小时" value="1h" />
@@ -219,6 +219,18 @@ const channelOptions = computed(() => {
       label: `${prefix}${ch.channel_code} - ${getMetricName(ch.metric_code)}`
     }
   })
+})
+
+// Only show metrics that selected channels can collect.
+// When no channels selected, show all metrics.
+const filteredMetricOptions = computed(() => {
+  if (selectedChannelIds.value.length === 0) return metricList.value
+  const availableCodes = new Set(
+    selectedChannelIds.value
+      .map((id) => channelMap.value.get(id)?.metric_code)
+      .filter(Boolean) as string[]
+  )
+  return metricList.value.filter((m) => availableCodes.has(m.code))
 })
 
 const tableData = computed<TableRow[]>(() => {
@@ -519,6 +531,19 @@ onMounted(() => {
   loadBatches()
 })
 
+// Remove selected metrics that are no longer available when channels change
+watch(selectedChannelIds, (ids) => {
+  if (ids.length === 0) return
+  const availableCodes = new Set(
+    ids
+      .map((id) => channelMap.value.get(id)?.metric_code)
+      .filter(Boolean) as string[]
+  )
+  selectedMetricCodes.value = selectedMetricCodes.value.filter((code) =>
+    availableCodes.has(code)
+  )
+})
+
 // When a batch is selected, load its devices and auto-select channels
 watch(selectedBatchId, async (batchId) => {
   if (!batchId) return
@@ -538,6 +563,9 @@ watch(selectedBatchId, async (batchId) => {
       channels.value = allCh
       channelMap.value = new Map(allCh.map((c) => [c.id, c]))
       selectedChannelIds.value = allCh.map((c) => c.id)
+      // Auto-select the metrics that these channels collect
+      const codes = [...new Set(allCh.map((c: SensorChannel) => c.metric_code).filter(Boolean))]
+      selectedMetricCodes.value = codes
     }
   } catch { /* ignore */ }
 })
