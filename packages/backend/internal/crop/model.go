@@ -69,6 +69,7 @@ type CropBatch struct {
 	PolicyVersion     string     `gorm:"column:policy_version;size:32"`
 	ActiveRecipeID    *uint64    `gorm:"column:active_recipe_id"`
 	ActivePolicyID    *uint64    `gorm:"column:active_policy_id"`
+	ActiveClimateID   *uint64    `gorm:"column:active_climate_profile_id"`
 	Note              string     `gorm:"size:255"`
 	CreatedBy         *uint64    `gorm:"column:created_by"`
 	CreatedAt         time.Time  `gorm:"autoCreateTime:milli"`
@@ -81,6 +82,9 @@ type BatchStagePlan struct {
 	ID            uint64    `gorm:"primaryKey;autoIncrement"`
 	BatchID       uint64    `gorm:"column:batch_id;not null"`
 	GrowthStageID uint64    `gorm:"column:growth_stage_id;not null"`
+	RecipeID      *uint64   `gorm:"column:recipe_id"`
+	PolicyID      *uint64   `gorm:"column:policy_id"`
+	ClimateID     *uint64   `gorm:"column:climate_profile_id"`
 	StageStartAt  time.Time `gorm:"column:stage_start_at;not null"`
 	StageEndAt    time.Time `gorm:"column:stage_end_at;not null"`
 	TargetECMin   *float64  `gorm:"column:target_ec_min;type:decimal(12,4)"`

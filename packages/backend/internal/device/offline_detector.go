@@ -148,10 +148,12 @@ func (d *OfflineDetector) markOffline(table string, id uint64, deviceCode, name 
 
 	d.hub.Publish(event.SSEEvent{
 		Type: "device:status",
-		Data: map[string]interface{}{
-			"device_code": deviceCode,
-			"status":      StatusOffline,
-			"reason":      "heartbeat_timeout",
+		Data: event.DeviceStatusSSEDataV1{
+			SchemaVersion: 1,
+			DeviceCode:    deviceCode,
+			Status:        StatusOffline,
+			Reason:        "heartbeat_timeout",
+			ReportedAt:    now.Format(time.RFC3339),
 		},
 	})
 

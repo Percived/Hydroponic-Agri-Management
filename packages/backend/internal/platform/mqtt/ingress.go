@@ -221,13 +221,14 @@ func (s *IngressService) handleTelemetry(deviceCode string, payload []byte) {
 	for _, rec := range records {
 		s.hub.Publish(event.SSEEvent{
 			Type: "telemetry:received",
-			Data: map[string]interface{}{
-				"sensor_channel_id": rec.SensorChannelID,
-				"metric_code":       rec.MetricCode,
-				"value":             rec.Value,
-				"quality_flag":      rec.QualityFlag,
-				"collected_at":      rec.CollectedAt.Format(time.RFC3339),
-				"device_code":       deviceCode,
+			Data: event.TelemetrySSEDataV1{
+				SchemaVersion:   1,
+				SensorChannelID: rec.SensorChannelID,
+				MetricCode:      rec.MetricCode,
+				Value:           rec.Value,
+				QualityFlag:     rec.QualityFlag,
+				CollectedAt:     rec.CollectedAt.Format(time.RFC3339),
+				DeviceCode:      deviceCode,
 			},
 		})
 	}
@@ -282,11 +283,14 @@ func (s *IngressService) handleStatus(deviceCode string, payload []byte) {
 		return
 	}
 
+	now := time.Now().UTC()
 	s.hub.Publish(event.SSEEvent{
 		Type: "device:status",
-		Data: map[string]interface{}{
-			"device_code": deviceCode,
-			"status":      status.Status,
+		Data: event.DeviceStatusSSEDataV1{
+			SchemaVersion: 1,
+			DeviceCode:    deviceCode,
+			Status:        status.Status,
+			ReportedAt:    now.Format(time.RFC3339),
 		},
 	})
 }
@@ -410,31 +414,106 @@ func (s *IngressService) handleDiagnostics(deviceCode string, payload []byte) {
 
 // handleAck processes command acknowledgements
 func (s *IngressService) handleAck(deviceCode string, payload []byte) {
-	var ack struct {
-		CommandID  uint64                 `json:"command_id"`
-		AckCode    string                 `json:"ack_code"`
-		AckMessage string                 `json:"ack_message"`
-		AckPayload map[string]interface{} `json:"ack_payload"`
-	}
-	if err := json.Unmarshal(payload, &ack); err != nil {
+	parsed, err := ParseAckPayload(payload)
+	if err != nil {
 		s.log.Error("ingress: invalid ack payload", "device", deviceCode, "error", err)
 		return
 	}
 
-	// Publish event for CommandWaiter to consume
+	now := time.Now().UTC()
+	repo := NewConfigDeliveryRepo(s.db)
+
+	if parsed.Kind == "v1_config" {
+		env := parsed.V1
+		if env == nil || env.MsgID == "" {
+			return
+		}
+		ackedAt := now
+		if env.DeviceTSms > 0 {
+			ackedAt = time.UnixMilli(int64(env.DeviceTSms)).UTC()
+		}
+
+		ackPayloadJSON := "{}"
+		if env.Payload != nil {
+			if b, err := json.Marshal(env.Payload); err == nil {
+				ackPayloadJSON = string(b)
+			}
+		}
+
+		fwVersion := ""
+		appliedHash := ""
+		if env.Payload != nil {
+			fwVersion, _ = env.Payload["fw_version"].(string)
+			appliedHash, _ = env.Payload["applied_hash"].(string)
+		}
+
+		switch env.Result {
+		case "ACKED":
+			_, _ = repo.MarkAckedByMsgID(env.MsgID, ackedAt, ackPayloadJSON, fwVersion, appliedHash)
+		case "REJECTED":
+			_, _ = repo.MarkRejectedByMsgID(env.MsgID, ackedAt, ackPayloadJSON, env.ErrorCode, env.ErrorMessage, fwVersion, appliedHash)
+		default:
+			_, _ = repo.MarkAckFailedByMsgID(env.MsgID, ackedAt, ackPayloadJSON, env.ErrorCode, env.ErrorMessage, fwVersion, appliedHash)
+		}
+		return
+	}
+
+	if parsed.Kind == "v1_command" {
+		env := parsed.V1
+		if env == nil || env.Payload == nil {
+			return
+		}
+		legacy := LegacyCommandAck{}
+		if v, ok := env.Payload["command_id"]; ok {
+			switch n := v.(type) {
+			case float64:
+				legacy.CommandID = uint64(n)
+			case uint64:
+				legacy.CommandID = n
+			case int:
+				if n > 0 {
+					legacy.CommandID = uint64(n)
+				}
+			case int64:
+				if n > 0 {
+					legacy.CommandID = uint64(n)
+				}
+			}
+		}
+		if legacy.CommandID == 0 {
+			return
+		}
+		if v, ok := env.Payload["ack_code"].(string); ok {
+			legacy.AckCode = v
+		}
+		if v, ok := env.Payload["ack_message"].(string); ok {
+			legacy.AckMessage = v
+		}
+		if v, ok := env.Payload["ack_payload"].(map[string]interface{}); ok {
+			legacy.AckPayload = v
+		}
+		parsed = ParsedAck{Kind: "legacy_command", Legacy: &legacy}
+	}
+
+	if parsed.Kind != "legacy_command" || parsed.Legacy == nil {
+		return
+	}
+
+	ack := parsed.Legacy
+
 	s.hub.Publish(event.SSEEvent{
 		Type: "command:acked",
 		Data: event.CommandAckData{
-			CommandID:  ack.CommandID,
-			DeviceCode: deviceCode,
-			AckCode:    ack.AckCode,
-			AckMessage: ack.AckMessage,
-			AckPayload: ack.AckPayload,
+			SchemaVersion: 1,
+			CommandID:     ack.CommandID,
+			DeviceCode:    deviceCode,
+			AckCode:       ack.AckCode,
+			AckMessage:    ack.AckMessage,
+			AckPayload:    ack.AckPayload,
+			AckedAt:       now.Format(time.RFC3339),
 		},
 	})
 
-	// Also update the command status in MySQL directly
-	now := time.Now().UTC()
 	s.db.Model(&struct{ ID uint64 }{}).
 		Table("control_commands").
 		Where("id = ?", ack.CommandID).

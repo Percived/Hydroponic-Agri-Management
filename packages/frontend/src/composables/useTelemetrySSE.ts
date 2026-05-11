@@ -89,8 +89,15 @@ export function useTelemetrySSE(options?: UseTelemetrySSEOptions): UseTelemetryS
       try {
         const event = JSON.parse(e.data)
         if (event.type === 'telemetry_update' && event.data) {
-          // Backend SSE data format: { sensor_channel_id, metric_code, value, collected_at, device_code }
           const sseEvent = event.data as TelemetrySSEEvent
+          if (sseEvent.schema_version !== 1) {
+            connected.value = false
+            status.value = 'error'
+            lastError.value = `不支持的 schema_version: ${String((sseEvent as any).schema_version)}`
+            eventSource?.close()
+            eventSource = null
+            return
+          }
 
           // Update channelValues map by sensor_channel_id for O(1) card matching
           if (sseEvent.sensor_channel_id) {

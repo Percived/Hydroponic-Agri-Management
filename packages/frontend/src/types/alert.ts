@@ -5,12 +5,15 @@ export type AlertLevel = 'INFO' | 'WARN' | 'CRITICAL'
 export type AlertStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED' | 'IGNORED'
 
 export interface Alert {
+  schema_version?: number
   id: number
+  device_code?: string
   type: AlertType
   level: AlertLevel
   metric_code?: string
   sensor_channel_id?: number
   actuator_channel_id?: number
+  batch_id?: number
   trigger_value?: number
   message: string
   status: AlertStatus

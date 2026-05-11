@@ -194,3 +194,11 @@ export interface DeviceSelfResponse {
   device: SensorDevice | ActuatorDevice
   channels: SensorChannel[] | ActuatorChannel[]
 }
+
+export interface DeviceStatusSSEDataV1 {
+  schema_version: number
+  device_code: string
+  status: 'ONLINE' | 'OFFLINE' | 'FAULT'
+  reason?: string
+  reported_at: string
+}

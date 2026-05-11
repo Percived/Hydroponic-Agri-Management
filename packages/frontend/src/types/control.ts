@@ -34,3 +34,24 @@ export interface CreateCommandRequest {
 }
 
 export interface CommandListResponse extends PaginatedResponse<ControlCommand> {}
+
+export interface CommandDispatchedSSEDataV1 {
+  schema_version: number
+  command_id: number
+  device_code: string
+  status: 'SENT' | 'FAILED'
+  dispatched_at: string
+  source_type: 'MANUAL' | 'POLICY' | 'CLIMATE'
+  source_id?: number
+  error_message?: string
+}
+
+export interface CommandAckSSEDataV1 {
+  schema_version: number
+  command_id: number
+  device_code: string
+  ack_code: string
+  ack_message: string
+  ack_payload: Record<string, unknown>
+  acked_at: string
+}

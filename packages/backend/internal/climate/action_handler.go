@@ -172,6 +172,7 @@ func (h *Handler) DeleteAction(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{})
+	h.pushProfileConfig(profileID, "update")
 }
 
 // ListActions lists all actions for a stage.

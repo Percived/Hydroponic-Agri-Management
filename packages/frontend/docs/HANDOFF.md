@@ -1,8 +1,25 @@
 # 交接文档
 
-最后更新: 2026-05-09
+最后更新: 2026-05-10
 当前分支: version2
 当前重点: v0.8.1 — 气候联动触发源单通道化
+
+## 最新变更 (2026-05-10)
+
+### SSE 契约固化：schema_version 校验 + 新 SSE DTO 类型
+
+- **`src/composables/useTelemetrySSE.ts`**
+  - 接收 `telemetry_update` 时校验 `schema_version===1`，不匹配则断开并标记 error
+- **`src/composables/useAlertSSE.ts`**
+  - 接收 `new_alert` 时校验 `schema_version===1`，不匹配则断开
+- **`src/types/telemetry.ts`**
+  - `TelemetrySSEEvent` 增加 `schema_version`
+- **`src/types/alert.ts`**
+  - `Alert` 增加可选 `schema_version/device_code/batch_id` 字段以对齐 SSE data
+- **`src/types/device.ts`**
+  - 新增 `DeviceStatusSSEDataV1`
+- **`src/types/control.ts`**
+  - 新增 `CommandDispatchedSSEDataV1`、`CommandAckSSEDataV1`
 
 ## 最新变更 (2026-05-09)
 

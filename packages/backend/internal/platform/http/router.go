@@ -64,6 +64,8 @@ func NewRouter(cfg config.Config, log *slog.Logger, mysql *gorm.DB, influx influ
 	if err := ingress.Start(); err != nil {
 		log.Warn("mqtt ingress start failed", "error", err)
 	}
+	configRetryWorker := mqtt.NewConfigRetryWorker(mysql, mqttClient, log)
+	configRetryWorker.Start()
 
 	r.GET("/healthz", func(c *gin.Context) {
 		response.Success(c, gin.H{"status": "ok"})
@@ -117,6 +119,12 @@ func NewRouter(cfg config.Config, log *slog.Logger, mysql *gorm.DB, influx influ
 	// SSE real-time subscriptions
 	api.GET("/alerts/subscribe", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), event.SSEHandler(deps.EventHub, "alert:created"))
 	api.GET("/telemetry/subscribe", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), event.SSEHandler(deps.EventHub, "telemetry:received"))
+	api.GET("/devices/subscribe", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), event.SSEHandler(deps.EventHub, "device:status"))
+	api.GET("/commands/subscribe", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), event.SSEHandlerMulti(deps.EventHub, []string{"command:dispatched", "command:acked"}))
+
+	configDeliveryHandler := mqtt.NewConfigDeliveryHandler(deps.MySQL)
+	api.GET("/config-deliveries", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), configDeliveryHandler.List)
+	api.GET("/config-deliveries/:id", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), configDeliveryHandler.Get)
 
 	// Energy consumption
 	energy.RegisterRoutes(api, deps)

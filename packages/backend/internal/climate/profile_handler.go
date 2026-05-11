@@ -290,7 +290,7 @@ func (h *Handler) GetProfile(c *gin.Context) {
 		return
 	}
 
-	resp := toProfileResponse(profile)
+	resp := BuildProfileConfigPayload(profile)
 	response.Success(c, resp)
 }
 
@@ -363,25 +363,7 @@ func (h *Handler) ListByGreenhouse(c *gin.Context) {
 
 // toProfileResponse converts a ClimateProfile with stages to a response struct.
 func toProfileResponse(p ClimateProfile) ClimateProfileResponse {
-	stages := make([]ClimateStageResponse, 0, len(p.Stages))
-	for _, s := range p.Stages {
-		stages = append(stages, toStageResponse(s))
-	}
-
-	return ClimateProfileResponse{
-		ID:                     p.ID,
-		GreenhouseID:           p.GreenhouseID,
-		Code:                   p.Code,
-		Name:                   p.Name,
-		Description:            p.Description,
-		TriggerMetricCode:      p.TriggerMetricCode,
-		TriggerSensorChannelID: p.TriggerSensorChannelID,
-		Enabled:                p.Enabled,
-		StagesCount:            len(p.Stages),
-		CreatedAt:              p.CreatedAt,
-		UpdatedAt:              p.UpdatedAt,
-		Stages:                 stages,
-	}
+	return BuildProfileConfigPayload(p)
 }
 
 // toProfileSummary converts a ClimateProfile to a summary response (without stages).
@@ -475,6 +457,13 @@ func (h *Handler) pushProfileConfig(profileID uint64, action string) {
 		return
 	}
 	go func() {
+		var profile ClimateProfile
+		if err := h.db.Preload("Stages.Actions").First(&profile, profileID).Error; err != nil {
+			h.log.Warn("climate: failed to load profile for config push", "profile_id", profileID, "error", err)
+			return
+		}
+		payload := BuildProfileConfigPayload(profile)
+
 		type channelRow struct {
 			ActuatorChannelID uint64
 		}
@@ -489,7 +478,7 @@ func (h *Handler) pushProfileConfig(profileID uint64, action string) {
 			return
 		}
 		for _, ch := range channels {
-			h.configPusher.PushToActuatorChannel(ch.ActuatorChannelID, "climate_profile", action, profileID, nil)
+			_ = h.configPusher.PushToActuatorChannel(ch.ActuatorChannelID, "climate_profile", action, profileID, payload)
 		}
 	}()
 }

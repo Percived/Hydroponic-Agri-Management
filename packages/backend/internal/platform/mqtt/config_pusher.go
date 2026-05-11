@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	mqttlib "github.com/eclipse/paho.mqtt.golang"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -33,34 +35,95 @@ type ConfigPushPayload struct {
 	Payload    interface{} `json:"payload"`
 }
 
+type ConfigPushPayloadV1 struct {
+	SchemaVersion int         `json:"schema_version"`
+	MsgID         string      `json:"msg_id"`
+	TraceID       string      `json:"trace_id"`
+	ConfigType    string      `json:"config_type"`
+	Action        string      `json:"action"`
+	EntityID      uint64      `json:"entity_id"`
+	EntityRev     uint64      `json:"entity_rev"`
+	IssuedAtMS    uint64      `json:"issued_at_ms"`
+	TTLsec        int         `json:"ttl_sec"`
+	RequireAck    bool        `json:"require_ack"`
+	Payload       interface{} `json:"payload"`
+}
+
 // PushToDevice sends a config update to a specific device via MQTT.
 func (p *ConfigPusher) PushToDevice(deviceCode string, cfgType string, action string, entityID uint64, payload interface{}) error {
-	if p.client == nil || !p.client.IsConnected() {
-		p.log.Warn("config pusher: mqtt not connected, skipping push",
-			"device", deviceCode, "type", cfgType, "action", action)
-		return nil
-	}
+	now := time.Now().UTC()
+	issuedAtMS := uint64(now.UnixMilli())
+	msgID := uuid.NewString()
+	traceID := uuid.NewString()
+	ttlSec := 600
 
-	msg := ConfigPushPayload{
-		ConfigType: cfgType,
-		Action:     action,
-		EntityID:   entityID,
-		Payload:    payload,
-	}
+	repo := NewConfigDeliveryRepo(p.db)
+	var delivery ConfigDelivery
+	var data []byte
+	if err := p.db.Transaction(func(tx *gorm.DB) error {
+		rev, err := repo.AllocateNextRev(tx, deviceCode, cfgType, entityID)
+		if err != nil {
+			return err
+		}
 
-	data, err := json.Marshal(msg)
-	if err != nil {
-		return fmt.Errorf("marshal config push: %w", err)
+		msg := ConfigPushPayloadV1{
+			SchemaVersion: 1,
+			MsgID:         msgID,
+			TraceID:       traceID,
+			ConfigType:    cfgType,
+			Action:        action,
+			EntityID:      entityID,
+			EntityRev:     rev,
+			IssuedAtMS:    issuedAtMS,
+			TTLsec:        ttlSec,
+			RequireAck:    true,
+			Payload:       payload,
+		}
+
+		out, err := json.Marshal(msg)
+		if err != nil {
+			return fmt.Errorf("marshal config push v1: %w", err)
+		}
+		data = out
+
+		delivery = ConfigDelivery{
+			MsgID:          msgID,
+			TraceID:        traceID,
+			DeviceCode:     deviceCode,
+			ConfigType:     cfgType,
+			Action:         action,
+			EntityID:       entityID,
+			EntityRev:      rev,
+			SchemaVersion:  1,
+			IssuedAtMS:     issuedAtMS,
+			TTLsec:         ttlSec,
+			RequireAck:     true,
+			RequestPayload: string(out),
+			Status:         ConfigDeliveryStatusPending,
+		}
+		return repo.Create(tx, &delivery)
+	}); err != nil {
+		return err
 	}
 
 	topic := fmt.Sprintf("%s/%s/%s/%s", TopicPrefix, deviceCode, TopicCmdPrefix, ConfigPushTopic)
+	if p.client == nil || !p.client.IsConnected() {
+		next := now.Add(5 * time.Second)
+		_ = repo.MarkFailed(delivery.ID, "MQTT_NOT_CONNECTED", "mqtt not connected", &next)
+		return fmt.Errorf("mqtt not connected")
+	}
+
 	token := p.client.Publish(topic, 1, false, data)
 	if token.Wait() && token.Error() != nil {
+		next := now.Add(5 * time.Second)
+		_ = repo.MarkFailed(delivery.ID, "MQTT_PUBLISH_FAILED", token.Error().Error(), &next)
 		return fmt.Errorf("publish config push: %w", token.Error())
 	}
 
+	_ = repo.MarkSent(delivery.ID, now)
+
 	p.log.Info("config pusher: pushed to device",
-		"device", deviceCode, "type", cfgType, "action", action, "entity_id", entityID)
+		"device", deviceCode, "type", cfgType, "action", action, "entity_id", entityID, "msg_id", msgID)
 	return nil
 }
 
@@ -68,9 +131,7 @@ func (p *ConfigPusher) PushToDevice(deviceCode string, cfgType string, action st
 func (p *ConfigPusher) PushToActuatorChannel(actuatorChannelID uint64, cfgType string, action string, entityID uint64, payload interface{}) error {
 	deviceCode, err := p.lookupActuatorDeviceCode(actuatorChannelID)
 	if err != nil {
-		p.log.Warn("config pusher: cannot find device for actuator channel",
-			"channel_id", actuatorChannelID, "error", err)
-		return nil
+		return fmt.Errorf("lookup actuator device: %w", err)
 	}
 	return p.PushToDevice(deviceCode, cfgType, action, entityID, payload)
 }

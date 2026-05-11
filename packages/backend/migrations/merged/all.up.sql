@@ -315,6 +315,9 @@ CREATE TABLE `crop_batches` (
   `expected_harvest_at` DATETIME(3) DEFAULT NULL,
   `recipe_version` VARCHAR(32) DEFAULT NULL,
   `policy_version` VARCHAR(32) DEFAULT NULL,
+  `active_recipe_id` BIGINT UNSIGNED DEFAULT NULL,
+  `active_policy_id` BIGINT UNSIGNED DEFAULT NULL,
+  `active_climate_profile_id` BIGINT UNSIGNED DEFAULT NULL,
   `note` VARCHAR(255) DEFAULT NULL,
   `created_by` BIGINT UNSIGNED DEFAULT NULL,
   `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -323,6 +326,9 @@ CREATE TABLE `crop_batches` (
   UNIQUE KEY `uk_crop_batches_no` (`batch_no`),
   KEY `idx_crop_batches_greenhouse_status` (`greenhouse_id`, `status`, `started_at`),
   KEY `idx_crop_batches_zone` (`growing_zone_id`),
+  KEY `idx_crop_batches_recipe` (`active_recipe_id`),
+  KEY `idx_crop_batches_policy` (`active_policy_id`),
+  KEY `idx_crop_batches_climate_profile` (`active_climate_profile_id`),
   CONSTRAINT `fk_batches_greenhouse` FOREIGN KEY (`greenhouse_id`) REFERENCES `greenhouses` (`id`),
   CONSTRAINT `fk_batches_zone` FOREIGN KEY (`growing_zone_id`) REFERENCES `growing_zones` (`id`),
   CONSTRAINT `fk_batches_variety` FOREIGN KEY (`crop_variety_id`) REFERENCES `crop_varieties` (`id`),
@@ -333,6 +339,9 @@ CREATE TABLE `batch_stage_plans` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `batch_id` BIGINT UNSIGNED NOT NULL,
   `growth_stage_id` BIGINT UNSIGNED NOT NULL,
+  `recipe_id` BIGINT UNSIGNED DEFAULT NULL,
+  `policy_id` BIGINT UNSIGNED DEFAULT NULL,
+  `climate_profile_id` BIGINT UNSIGNED DEFAULT NULL,
   `stage_start_at` DATETIME(3) NOT NULL,
   `stage_end_at` DATETIME(3) NOT NULL,
   `target_ec_min` DECIMAL(12,4) DEFAULT NULL,
@@ -345,6 +354,19 @@ CREATE TABLE `batch_stage_plans` (
   UNIQUE KEY `uk_batch_stage_plans` (`batch_id`, `growth_stage_id`, `stage_start_at`),
   CONSTRAINT `fk_stage_plan_batch` FOREIGN KEY (`batch_id`) REFERENCES `crop_batches` (`id`),
   CONSTRAINT `fk_stage_plan_stage` FOREIGN KEY (`growth_stage_id`) REFERENCES `growth_stages` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `batch_stage_runtime` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `batch_id` BIGINT UNSIGNED NOT NULL,
+  `current_stage_plan_id` BIGINT UNSIGNED DEFAULT NULL,
+  `current_growth_stage_id` BIGINT UNSIGNED DEFAULT NULL,
+  `last_switched_at` DATETIME(3) DEFAULT NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_batch_stage_runtime_batch_id` (`batch_id`),
+  KEY `idx_batch_stage_runtime_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE `harvest_records` (
@@ -548,6 +570,39 @@ CREATE TABLE `control_command_receipts` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_command_receipts_seq` (`command_id`, `receipt_seq`),
   CONSTRAINT `fk_receipt_command` FOREIGN KEY (`command_id`) REFERENCES `control_commands` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `config_deliveries` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `msg_id` VARCHAR(64) NOT NULL,
+  `trace_id` VARCHAR(64) NOT NULL DEFAULT '',
+  `device_code` VARCHAR(64) NOT NULL,
+  `config_type` VARCHAR(64) NOT NULL,
+  `action` VARCHAR(16) NOT NULL,
+  `entity_id` BIGINT UNSIGNED NOT NULL,
+  `entity_rev` BIGINT UNSIGNED NOT NULL,
+  `schema_version` INT NOT NULL DEFAULT 1,
+  `issued_at_ms` BIGINT UNSIGNED NOT NULL,
+  `ttl_sec` INT NOT NULL DEFAULT 600,
+  `require_ack` TINYINT(1) NOT NULL DEFAULT 1,
+  `request_payload` JSON NOT NULL,
+  `status` VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+  `retry_count` INT NOT NULL DEFAULT 0,
+  `next_retry_at` DATETIME(3) DEFAULT NULL,
+  `sent_at` DATETIME(3) DEFAULT NULL,
+  `acked_at` DATETIME(3) DEFAULT NULL,
+  `last_error_code` VARCHAR(64) NOT NULL DEFAULT '',
+  `last_error_message` VARCHAR(255) NOT NULL DEFAULT '',
+  `ack_payload` JSON DEFAULT NULL,
+  `applied_hash` VARCHAR(128) NOT NULL DEFAULT '',
+  `device_fw_version` VARCHAR(64) NOT NULL DEFAULT '',
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_config_deliveries_msg_id` (`msg_id`),
+  UNIQUE KEY `uk_config_deliveries_entity_rev` (`device_code`, `config_type`, `entity_id`, `entity_rev`),
+  KEY `idx_config_deliveries_status_retry` (`status`, `next_retry_at`),
+  KEY `idx_config_deliveries_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================

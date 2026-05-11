@@ -66,6 +66,7 @@ export interface ChannelSnapshot {
 }
 
 export interface TelemetrySSEEvent {
+  schema_version: number
   sensor_channel_id: number
   metric_code: string
   value: number

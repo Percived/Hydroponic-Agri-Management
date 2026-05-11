@@ -211,32 +211,47 @@ func (s *ProfileScheduler) executeAction(action ClimateStageAction) (uint64, err
 		return 0, fmt.Errorf("create command: %w", err)
 	}
 
+	deviceCode, _ := s.lookupActuatorDeviceCode(action.ActuatorChannelID)
+	now := time.Now().UTC()
+
 	if s.mqttClient == nil || !s.mqttClient.IsConnected() {
 		s.db.Model(&cmd).Update("status", "FAILED")
 		s.hub.Publish(event.SSEEvent{
 			Type: "command:dispatched",
-			Data: map[string]interface{}{
-				"command_id": cmd.ID,
-				"status":     "FAILED",
-				"profile_id": action.StageID,
+			Data: event.CommandDispatchedSSEDataV1{
+				SchemaVersion: 1,
+				CommandID:     cmd.ID,
+				DeviceCode:    deviceCode,
+				Status:        "FAILED",
+				DispatchedAt:  now.Format(time.RFC3339),
+				SourceType:    "CLIMATE",
+				SourceID:      action.StageID,
+				ErrorMessage:  "mqtt offline",
 			},
 		})
 		return cmd.ID, fmt.Errorf("mqtt offline")
-	}
-
-	deviceCode, err := s.lookupActuatorDeviceCode(action.ActuatorChannelID)
-	if err != nil {
-		return cmd.ID, fmt.Errorf("device lookup: %w", err)
 	}
 
 	topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, deviceCode, mqttpkg.TopicCmdPrefix, action.CommandType)
 	token := s.mqttClient.Publish(topic, 1, false, action.CommandPayload)
 	if token.Wait() && token.Error() != nil {
 		s.db.Model(&cmd).Update("status", "FAILED")
+		s.hub.Publish(event.SSEEvent{
+			Type: "command:dispatched",
+			Data: event.CommandDispatchedSSEDataV1{
+				SchemaVersion: 1,
+				CommandID:     cmd.ID,
+				DeviceCode:    deviceCode,
+				Status:        "FAILED",
+				DispatchedAt:  now.Format(time.RFC3339),
+				SourceType:    "CLIMATE",
+				SourceID:      action.StageID,
+				ErrorMessage:  token.Error().Error(),
+			},
+		})
 		return cmd.ID, fmt.Errorf("mqtt publish: %w", token.Error())
 	}
 
-	now := time.Now().UTC()
 	s.db.Model(&cmd).Updates(map[string]interface{}{
 		"status":  "SENT",
 		"sent_at": now,
@@ -244,10 +259,14 @@ func (s *ProfileScheduler) executeAction(action ClimateStageAction) (uint64, err
 
 	s.hub.Publish(event.SSEEvent{
 		Type: "command:dispatched",
-		Data: map[string]interface{}{
-			"command_id": cmd.ID,
-			"status":     "SENT",
-			"profile_id": action.StageID,
+		Data: event.CommandDispatchedSSEDataV1{
+			SchemaVersion: 1,
+			CommandID:     cmd.ID,
+			DeviceCode:    deviceCode,
+			Status:        "SENT",
+			DispatchedAt:  now.Format(time.RFC3339),
+			SourceType:    "CLIMATE",
+			SourceID:      action.StageID,
 		},
 	})
 

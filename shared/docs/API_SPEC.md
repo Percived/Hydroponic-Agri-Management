@@ -487,43 +487,49 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 #### CropBatch
 
-| 字段                | 类型         | 说明                                               | 示例                   |
-| ------------------- | ------------ | -------------------------------------------------- | ---------------------- |
-| id                  | number       | 批次 ID                                            | 1                      |
-| batch_no            | string       | 批次号（唯一）                                     | "BATCH-2026-001"       |
-| greenhouse_id       | number       | 温室 ID                                            | 1                      |
-| growing_zone_id     | number\|null | 种植区 ID                                          | 1                      |
-| crop_variety_id     | number       | 品种 ID                                            | 1                      |
-| variety_code        | string       | 品种编码（关联）                                   | "LETTUCE-ICE"          |
-| variety_name        | string       | 品种名称（关联）                                   | "冰菜"                 |
-| status              | string       | 状态：PLANNED/RUNNING/HARVESTING/COMPLETED/ABORTED | "RUNNING"              |
-| planting_density    | number\|null | 种植密度                                           | 25.00                  |
-| total_plants        | number\|null | 总株数                                             | 1000                   |
-| started_at          | string\|null | 开始时间                                           | "2026-01-01T00:00:00Z" |
-| ended_at            | string\|null | 结束时间                                           | null                   |
-| expected_harvest_at | string\|null | 预计收获时间                                       | "2026-02-15T00:00:00Z" |
-| recipe_version      | string       | 配方版本                                           | "v1"                   |
-| policy_version      | string       | 策略版本                                           | "v1"                   |
-| note                | string       | 备注                                               | ""                     |
-| created_by          | number\|null | 创建者                                             | 1                      |
-| created_at          | string       | 创建时间                                           | "2026-01-01T00:00:00Z" |
-| updated_at          | string       | 更新时间                                           | "2026-01-01T00:00:00Z" |
+| 字段                      | 类型         | 说明                                               | 示例                   |
+| ------------------------- | ------------ | -------------------------------------------------- | ---------------------- |
+| id                        | number       | 批次 ID                                            | 1                      |
+| batch_no                  | string       | 批次号（唯一）                                     | "BATCH-2026-001"       |
+| greenhouse_id             | number       | 温室 ID                                            | 1                      |
+| growing_zone_id           | number\|null | 种植区 ID                                          | 1                      |
+| crop_variety_id           | number       | 品种 ID                                            | 1                      |
+| variety_code              | string       | 品种编码（关联）                                   | "LETTUCE-ICE"          |
+| variety_name              | string       | 品种名称（关联）                                   | "冰菜"                 |
+| status                    | string       | 状态：PLANNED/RUNNING/HARVESTING/COMPLETED/ABORTED | "RUNNING"              |
+| planting_density          | number\|null | 种植密度                                           | 25.00                  |
+| total_plants              | number\|null | 总株数                                             | 1000                   |
+| started_at                | string\|null | 开始时间                                           | "2026-01-01T00:00:00Z" |
+| ended_at                  | string\|null | 结束时间                                           | null                   |
+| expected_harvest_at       | string\|null | 预计收获时间                                       | "2026-02-15T00:00:00Z" |
+| recipe_version            | string       | 配方版本                                           | "v1"                   |
+| policy_version            | string       | 策略版本                                           | "v1"                   |
+| active_recipe_id          | number\|null | 当前生效配方 ID（自动联动写入）                    | 10                     |
+| active_policy_id          | number\|null | 当前生效策略 ID（自动联动写入）                    | 20                     |
+| active_climate_profile_id | number\|null | 当前生效气候 Profile ID（自动联动写入）            | 30                     |
+| note                      | string       | 备注                                               | ""                     |
+| created_by                | number\|null | 创建者                                             | 1                      |
+| created_at                | string       | 创建时间                                           | "2026-01-01T00:00:00Z" |
+| updated_at                | string       | 更新时间                                           | "2026-01-01T00:00:00Z" |
 
 #### BatchStagePlan
 
-| 字段            | 类型         | 说明         | 示例                   |
-| --------------- | ------------ | ------------ | ---------------------- |
-| id              | number       | 计划 ID      | 1                      |
-| batch_id        | number       | 批次 ID      | 1                      |
-| growth_stage_id | number       | 生长阶段 ID  | 1                      |
-| stage_start_at  | string       | 阶段开始时间 | "2026-01-01T00:00:00Z" |
-| stage_end_at    | string       | 阶段结束时间 | "2026-01-14T00:00:00Z" |
-| target_ec_min   | number\|null | 目标 EC 下限 | 1.2                    |
-| target_ec_max   | number\|null | 目标 EC 上限 | 1.8                    |
-| target_ph_min   | number\|null | 目标 pH 下限 | 5.5                    |
-| target_ph_max   | number\|null | 目标 pH 上限 | 6.5                    |
-| created_at      | string       | 创建时间     | "2026-01-01T00:00:00Z" |
-| updated_at      | string       | 更新时间     | "2026-01-01T00:00:00Z" |
+| 字段               | 类型         | 说明                | 示例                   |
+| ------------------ | ------------ | ------------------- | ---------------------- |
+| id                 | number       | 计划 ID             | 1                      |
+| batch_id           | number       | 批次 ID             | 1                      |
+| growth_stage_id    | number       | 生长阶段 ID         | 1                      |
+| recipe_id          | number\|null | 阶段配方 ID         | 10                     |
+| policy_id          | number\|null | 阶段策略 ID         | 20                     |
+| climate_profile_id | number\|null | 阶段气候 Profile ID | 30                     |
+| stage_start_at     | string       | 阶段开始时间        | "2026-01-01T00:00:00Z" |
+| stage_end_at       | string       | 阶段结束时间        | "2026-01-14T00:00:00Z" |
+| target_ec_min      | number\|null | 目标 EC 下限        | 1.2                    |
+| target_ec_max      | number\|null | 目标 EC 上限        | 1.8                    |
+| target_ph_min      | number\|null | 目标 pH 下限        | 5.5                    |
+| target_ph_max      | number\|null | 目标 pH 上限        | 6.5                    |
+| created_at         | string       | 创建时间            | "2026-01-01T00:00:00Z" |
+| updated_at         | string       | 更新时间            | "2026-01-01T00:00:00Z" |
 
 #### HarvestRecord
 
@@ -1370,6 +1376,7 @@ ID 类型：`BIGINT`，响应中以数字返回
 {
   "type": "telemetry_update",
   "data": {
+    "schema_version": 1,
     "sensor_channel_id": 1,
     "metric_code": "TEMP",
     "value": 25.5,
@@ -1516,6 +1523,36 @@ ID 类型：`BIGINT`，响应中以数字返回
 鉴权：ADMIN / OPERATOR / VIEWER
 
 响应：CommandReceiptResponse
+
+### 3.12.1 配置投递 (Config Deliveries)
+
+**GET /api/config-deliveries**
+
+鉴权：ADMIN / OPERATOR
+
+说明：查询设备配置投递记录（用于排障与验收可靠投递/回执/重试闭环）。
+
+查询参数：
+
+| 字段        | 类型   | 必填 | 说明                                         |
+| ----------- | ------ | ---- | -------------------------------------------- |
+| page        | number | 否   | 页码，默认 1                                 |
+| page_size   | number | 否   | 每页条数，默认 20，上限 200                  |
+| device_code | string | 否   | 设备编码过滤                                 |
+| config_type | string | 否   | 配置类型过滤                                 |
+| status      | string | 否   | 状态过滤：PENDING/SENT/ACKED/REJECTED/FAILED |
+| msg_id      | string | 否   | 消息 ID 过滤                                 |
+| entity_id   | string | 否   | 实体 ID 过滤                                 |
+
+响应：分页列表，items 为 ConfigDeliveryResponse（不含 request_payload/ack_payload）
+
+**GET /api/config-deliveries/:id**
+
+鉴权：ADMIN / OPERATOR
+
+说明：获取单条投递详情（含 request_payload/ack_payload）。
+
+响应：ConfigDeliveryResponse
 
 ### 3.13 控制策略 (Policies)
 
@@ -1778,6 +1815,79 @@ ID 类型：`BIGINT`，响应中以数字返回
     "timeline_count": 1,
     "created_at": "2026-01-01T12:00:00Z",
     "updated_at": "2026-01-01T12:00:00Z"
+  }
+}
+```
+
+**GET /api/devices/subscribe**
+
+鉴权：ADMIN / OPERATOR / VIEWER
+
+说明：SSE 订阅设备状态事件（事件类型：`device_status`），用于实时在线状态展示。支持按设备过滤。
+
+查询参数：
+
+| 字段         | 类型   | 必填 | 说明                                                                                         |
+| ------------ | ------ | ---- | -------------------------------------------------------------------------------------------- |
+| token        | string | 否   | JWT（仅用于 EventSource 场景无法自定义 Header 时）；也可使用 `Authorization: Bearer <token>` |
+| device_codes | string | 否   | 逗号分隔设备编码，如 `"SENSOR-001,ACT-001"`                                                  |
+
+推送数据（SSE `data:` 行 JSON）：
+
+```json
+{
+  "type": "device_status",
+  "data": {
+    "schema_version": 1,
+    "device_code": "SENSOR-001",
+    "status": "OFFLINE",
+    "reason": "heartbeat_timeout",
+    "reported_at": "2026-01-01T12:00:00Z"
+  }
+}
+```
+
+**GET /api/commands/subscribe**
+
+鉴权：ADMIN / OPERATOR
+
+说明：SSE 订阅命令下发/回执事件（事件类型：`command_dispatched`、`command_acked`），用于策略控制页实时回显。支持按设备过滤。
+
+查询参数：
+
+| 字段         | 类型   | 必填 | 说明                                                                                         |
+| ------------ | ------ | ---- | -------------------------------------------------------------------------------------------- |
+| token        | string | 否   | JWT（仅用于 EventSource 场景无法自定义 Header 时）；也可使用 `Authorization: Bearer <token>` |
+| device_codes | string | 否   | 逗号分隔设备编码，如 `"ACT-001,ACT-002"`                                                     |
+
+推送数据（SSE `data:` 行 JSON）：
+
+```json
+{
+  "type": "command_dispatched",
+  "data": {
+    "schema_version": 1,
+    "command_id": 10,
+    "device_code": "ACT-001",
+    "status": "SENT",
+    "dispatched_at": "2026-01-01T12:00:00Z",
+    "source_type": "MANUAL",
+    "source_id": 0
+  }
+}
+```
+
+```json
+{
+  "type": "command_acked",
+  "data": {
+    "schema_version": 1,
+    "command_id": 10,
+    "device_code": "ACT-001",
+    "ack_code": "OK",
+    "ack_message": "ok",
+    "ack_payload": {},
+    "acked_at": "2026-01-01T12:00:01Z"
   }
 }
 ```
@@ -2105,6 +2215,9 @@ ID 类型：`BIGINT`，响应中以数字返回
 | --------------- | ------------ | ---- | ------------ | ---------------------- |
 | batch_id        | number       | 是   | 批次 ID      | 1                      |
 | growth_stage_id | number       | 是   | 生长阶段 ID  | 1                      |
+| recipe_id       | number\|null | 否   | 阶段配方 ID  | 10                     |
+| policy_id       | number\|null | 否   | 阶段策略 ID  | 20                     |
+| climate_profile_id | number\|null | 否 | 阶段气候 Profile ID | 30               |
 | stage_start_at  | string       | 是   | 阶段开始时间 | "2026-01-01T00:00:00Z" |
 | stage_end_at    | string       | 是   | 阶段结束时间 | "2026-01-14T00:00:00Z" |
 | target_ec_min   | number\|null | 否   | 目标 EC 下限 | 1.2                    |
@@ -2122,7 +2235,7 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 鉴权：ADMIN / OPERATOR
 
-请求体：同创建但所有字段可选
+请求体：同创建但所有字段可选（`recipe_id/policy_id/climate_profile_id` 支持显式传 null 清空）
 
 **DELETE /api/batch-stage-plans/:id**
 

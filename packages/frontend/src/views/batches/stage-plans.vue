@@ -31,6 +31,15 @@
         <el-table-column label="生长阶段" width="160">
           <template #default="{ row }">{{ growthStageName(row.growth_stage_id) }}</template>
         </el-table-column>
+        <el-table-column label="配方" min-width="180">
+          <template #default="{ row }">{{ recipeName(row.recipe_id) }}</template>
+        </el-table-column>
+        <el-table-column label="策略" min-width="180">
+          <template #default="{ row }">{{ policyName(row.policy_id) }}</template>
+        </el-table-column>
+        <el-table-column label="气候Profile" min-width="200">
+          <template #default="{ row }">{{ climateProfileName(row.climate_profile_id) }}</template>
+        </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="stageStatusTag(row)" size="small">{{ stageStatusText(row) }}</el-tag>
@@ -70,11 +79,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { cropApi } from '@/api'
+import { climateApi, cropApi, policyApi, recipeApi } from '@/api'
 import StagePlanEditor from '@/components/batch/StagePlanEditor.vue'
 import { formatDateTime } from '@/utils/format'
 import { buildIdLabelMap, fallbackIdLabel, growthStageLabel } from '@/utils/labels'
-import type { BatchStagePlan, CreateBatchStagePlanRequest, CropBatch, GrowthStage } from '@/types'
+import type { BatchStagePlan, ClimateProfile, ControlPolicy, CreateBatchStagePlanRequest, CropBatch, GrowthStage, NutrientRecipe } from '@/types'
 
 const loading = ref(false)
 const submitLoading = ref(false)
@@ -82,6 +91,9 @@ const batches = ref<CropBatch[]>([])
 const selectedBatchId = ref<number>()
 const stages = ref<BatchStagePlan[]>([])
 const growthStages = ref<GrowthStage[]>([])
+const recipes = ref<NutrientRecipe[]>([])
+const policies = ref<ControlPolicy[]>([])
+const climateProfiles = ref<ClimateProfile[]>([])
 
 const growthStageLabelById = computed(() =>
   buildIdLabelMap(growthStages.value, s => s.id, growthStageLabel, '阶段')
@@ -90,6 +102,33 @@ const growthStageLabelById = computed(() =>
 function growthStageName(stageId?: number | null) {
   if (!stageId) return '-'
   return growthStageLabelById.value[stageId] || fallbackIdLabel('阶段', stageId)
+}
+
+const recipeLabelById = computed(() =>
+  buildIdLabelMap(recipes.value, r => r.id, r => `${r.name} (${r.recipe_code})`, '配方')
+)
+
+function recipeName(recipeId?: number | null) {
+  if (!recipeId) return '-'
+  return recipeLabelById.value[recipeId] || fallbackIdLabel('配方', recipeId)
+}
+
+const policyLabelById = computed(() =>
+  buildIdLabelMap(policies.value, p => p.id, p => `${p.name} (${p.policy_code})`, '策略')
+)
+
+function policyName(policyId?: number | null) {
+  if (!policyId) return '-'
+  return policyLabelById.value[policyId] || fallbackIdLabel('策略', policyId)
+}
+
+const climateProfileLabelById = computed(() =>
+  buildIdLabelMap(climateProfiles.value, p => p.id, p => `${p.name} (${p.code})`, 'Profile')
+)
+
+function climateProfileName(profileId?: number | null) {
+  if (!profileId) return '-'
+  return climateProfileLabelById.value[profileId] || fallbackIdLabel('Profile', profileId)
 }
 
 const editorVisible = ref(false)
@@ -102,7 +141,10 @@ const editorData = ref<CreateBatchStagePlanRequest>({
   target_ec_min: 1,
   target_ec_max: 2,
   target_ph_min: 5.5,
-  target_ph_max: 6.5
+  target_ph_max: 6.5,
+  recipe_id: undefined,
+  policy_id: undefined,
+  climate_profile_id: undefined
 })
 
 const conflictMessage = computed(() => {
@@ -135,6 +177,33 @@ async function loadGrowthStages() {
   }
 }
 
+async function loadRecipes() {
+  try {
+    const res = await recipeApi.getRecipes({ page: 1, page_size: 200 })
+    recipes.value = res.items
+  } catch {
+    recipes.value = []
+  }
+}
+
+async function loadPolicies() {
+  try {
+    const res = await policyApi.getPolicies({ page: 1, page_size: 200 })
+    policies.value = res.items
+  } catch {
+    policies.value = []
+  }
+}
+
+async function loadClimateProfiles() {
+  try {
+    const res = await climateApi.getClimateProfiles({ page: 1, page_size: 200 })
+    climateProfiles.value = res.items
+  } catch {
+    climateProfiles.value = []
+  }
+}
+
 async function loadStages() {
   if (!selectedBatchId.value) return
   loading.value = true
@@ -158,7 +227,10 @@ function openCreateDialog() {
     target_ec_min: 1,
     target_ec_max: 2,
     target_ph_min: 5.5,
-    target_ph_max: 6.5
+    target_ph_max: 6.5,
+    recipe_id: undefined,
+    policy_id: undefined,
+    climate_profile_id: undefined
   }
   editorVisible.value = true
 }
@@ -168,6 +240,9 @@ function openEditDialog(stage: BatchStagePlan) {
   editorData.value = {
     batch_id: stage.batch_id,
     growth_stage_id: stage.growth_stage_id,
+    recipe_id: stage.recipe_id ?? undefined,
+    policy_id: stage.policy_id ?? undefined,
+    climate_profile_id: stage.climate_profile_id ?? undefined,
     stage_start_at: stage.stage_start_at,
     stage_end_at: stage.stage_end_at,
     target_ec_min: stage.target_ec_min ?? undefined,
@@ -259,6 +334,9 @@ function stageRowClass({ row }: { row: BatchStagePlan }) {
 onMounted(() => {
   initBatches()
   loadGrowthStages()
+  loadRecipes()
+  loadPolicies()
+  loadClimateProfiles()
 })
 </script>
 

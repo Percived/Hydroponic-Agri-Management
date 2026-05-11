@@ -171,3 +171,25 @@ type ExecuteClimateProfileRequest struct {
 	FromStageLevel *uint8  `json:"from_stage_level"`
 	ToStageLevel   uint8   `json:"to_stage_level" binding:"required,min=1"`
 }
+
+func BuildProfileConfigPayload(p ClimateProfile) ClimateProfileResponse {
+	stages := make([]ClimateStageResponse, 0, len(p.Stages))
+	for _, s := range p.Stages {
+		stages = append(stages, toStageResponse(s))
+	}
+
+	return ClimateProfileResponse{
+		ID:                     p.ID,
+		GreenhouseID:           p.GreenhouseID,
+		Code:                   p.Code,
+		Name:                   p.Name,
+		Description:            p.Description,
+		TriggerMetricCode:      p.TriggerMetricCode,
+		TriggerSensorChannelID: p.TriggerSensorChannelID,
+		Enabled:                p.Enabled,
+		StagesCount:            len(p.Stages),
+		CreatedAt:              p.CreatedAt,
+		UpdatedAt:              p.UpdatedAt,
+		Stages:                 stages,
+	}
+}

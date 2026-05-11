@@ -58,6 +58,12 @@ export function useAlertSSE(options?: UseAlertSSEOptions): UseAlertSSEReturn {
         const event = JSON.parse(e.data)
         if (event.type === 'new_alert' && event.data) {
           const alert = event.data as Alert
+          if (alert.schema_version !== 1) {
+            connected.value = false
+            eventSource?.close()
+            eventSource = null
+            return
+          }
           lastAlert.value = alert
           alertCount.value++
 

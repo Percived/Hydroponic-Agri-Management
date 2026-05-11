@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>水培农业设备模拟器</title>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@4.3.8/dist/mqtt.min.js"></script>
+<style>
+:root {
+  --bg: #f0f4f0;
+  --card: #ffffff;
+  --border: #d0d9d0;
+  --primary: #2d7d46;
+  --primary-hover: #236836;
+  --danger: #c0392b;
+  --danger-hover: #a93226;
+  --text: #2c3e50;
+  --text-secondary: #6b7d6b;
+  --accent: #3498db;
+  --accent-hover: #2980b9;
+  --log-bg: #1a1f1a;
+  --log-text: #c8d6c8;
+  --success: #27ae60;
+  --warning: #f39c12;
+  --error: #e74c3c;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --radius: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+.header {
+  background: linear-gradient(135deg, #1a3a1a 0%, #2d5a2d 50%, #1a3a1a 100%);
+  color: #fff;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.header h1 { font-size: 1.2rem; font-weight: 600; white-space: nowrap; }
+.header .status-dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px;
+}
+.header .status-dot.online { background: #4eff4e; box-shadow: 0 0 6px #4eff4e; }
+.header .status-dot.offline { background: #ff4e4e; box-shadow: 0 0 6px #ff4e4e; }
+.container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.card-header {
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fafcfa;
+}
+.card-header .icon { font-size: 1.1rem; }
+.card-body { padding: 14px 16px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.row > * { flex: 1; min-width: 120px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); }
+input, select, button, textarea {
+  font-family: inherit; font-size: 0.85rem; padding: 7px 10px;
+  border: 1px solid var(--border); border-radius: 6px;
+  outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--primary); box-shadow: 0 0 0 2px rgba(45,125,70,0.15);
+}
+input[type="number"] { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; }
+button {
+  cursor: pointer; font-weight: 500; border: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+button:active { transform: scale(0.97); }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: var(--danger-hover); }
+.btn-outline { background: #fff; color: var(--text); border: 1px solid var(--border); }
+.btn-outline:hover { background: #f5f7f5; }
+.btn-sm { font-size: 0.78rem; padding: 4px 10px; }
+.btn-xs { font-size: 0.72rem; padding: 2px 8px; }
+.btn-group { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+/* Telemetry Table */
+.telemetry-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.telemetry-table th {
+  text-align: left; padding: 8px 8px; font-weight: 500;
+  color: var(--text-secondary); font-size: 0.78rem;
+  border-bottom: 2px solid var(--border); background: #fafcfa;
+}
+.telemetry-table td { padding: 6px 8px; border-bottom: 1px solid #e8ece8; vertical-align: middle; }
+.telemetry-table select, .telemetry-table input {
+  width: 100%; padding: 5px 7px; font-size: 0.82rem;
+}
+.telemetry-table td.actions { width: 40px; text-align: center; }
+
+/* Log */
+.log-container {
+  background: var(--log-bg); color: var(--log-text);
+  border-radius: 0 0 var(--radius) var(--radius);
+  padding: 10px 14px; max-height: 320px; overflow-y: auto;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.78rem; line-height: 1.7;
+}
+.log-entry { word-break: break-all; }
+.log-entry .topic { color: #6cb4ee; }
+.log-entry .qos { color: #a0a0a0; font-size: 0.7rem; }
+.log-entry .ts { color: #6b7d6b; margin-right: 8px; }
+.log-entry.error { color: #ff6b6b; }
+.log-entry.success { color: #6bff8e; }
+.log-entry.info { color: #ffd93d; }
+
+/* Tabs */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.tab-btn {
+  padding: 8px 16px; border: none; background: none; cursor: pointer;
+  font-size: 0.84rem; color: var(--text-secondary); border-bottom: 2px solid transparent;
+  margin-bottom: -1px; border-radius: 0; transition: color 0.15s, border-color 0.15s;
+}
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+.tab-btn:hover { color: var(--primary); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Quick presets */
+.preset-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.preset-chip {
+  font-size: 0.75rem; padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--border); background: #f5f8f5;
+  cursor: pointer; transition: all 0.15s;
+}
+.preset-chip:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* Command monitor */
+.cmd-list { max-height: 200px; overflow-y: auto; }
+.cmd-item {
+  padding: 8px 10px; border-bottom: 1px solid #e8ece8; font-size: 0.82rem;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+.cmd-item:last-child { border-bottom: none; }
+.empty-hint { color: var(--text-secondary); font-size: 0.82rem; padding: 16px; text-align: center; }
+
+@media (max-width: 640px) {
+  .row { flex-direction: column; }
+  .row > * { min-width: 100%; }
+  .header h1 { font-size: 1rem; }
+  .telemetry-table { font-size: 0.76rem; }
+  .telemetry-table select, .telemetry-table input { padding: 4px 5px; font-size: 0.74rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>水培农业设备模拟器</h1>
+  <div style="display:flex;align-items:center;gap:10px;font-size:0.85rem;">
+    <span id="connStatus">
+      <span class="status-dot offline"></span>未连接
+    </span>
+    <span style="color:rgba(255,255,255,0.6);">|</span>
+    <span id="deviceLabel" style="opacity:0.7;">未设置设备</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ============ 连接配置 ============ -->
+<div class="card">
+  <div class="card-header"><span class="icon">🔌</span> MQTT 连接配置</div>
+  <div class="card-body">
+    <div class="row">
+      <div class="form-group" style="flex:2;min-width:200px;">
+        <label>Broker WebSocket 地址</label>
+        <input id="brokerUrl" value="ws://127.0.0.1:8083/mqtt" placeholder="ws://127.0.0.1:8083/mqtt">
+      </div>
+      <div class="form-group" style="flex:2;min-width:180px;">
+        <label>设备编码 (Device Code)</label>
+        <input id="deviceCode" placeholder="例如: SIM-S-0511-0001">
+      </div>
+      <div class="form-group" style="max-width:110px;">
+        <label>用户名</label>
+        <input id="mqttUser" placeholder="可选">
+      </div>
+      <div class="form-group" style="max-width:110px;">
+        <label>密码</label>
+        <input id="mqttPass" type="password" placeholder="可选">
+      </div>
+      <div class="form-group" style="flex:0;min-width:auto;justify-content:flex-end;">
+        <label>&nbsp;</label>
+        <div class="btn-group">
+          <button id="btnConnect" class="btn-primary" onclick="toggleConnection()">连接</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 主操作区 ============ -->
+<div class="tabs">
+  <button class="tab-btn active" data-tab="telemetry">📊 遥测数据</button>
+  <button class="tab-btn" data-tab="status">📡 状态 & 心跳</button>
+  <button class="tab-btn" data-tab="ack">✅ ACK 回执</button>
+  <button class="tab-btn" data-tab="commands">📥 下行指令 <span id="cmdBadge" style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:1px 6px;font-size:0.7rem;margin-left:4px;">0</span></button>
+</div>
+
+<!-- 遥测面板 -->
+<div id="panel-telemetry" class="tab-panel active">
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">📊</span> 遥测数据发布
+      <span style="margin-left:auto;font-size:0.75rem;color:var(--text-secondary);">
+        通道范围建议: 传感器1-31, 执行器32-63
+      </span>
+    </div>
+    <div class="card-body">
+      <div class="preset-chips">
+        <span style="font-size:0.75rem;color:var(--text-secondary);line-height:2;">快捷预设:</span>
+        <span class="preset-chip" onclick="applyPreset('normal')">正常环境</span>
+        <span class="preset-chip" onclick="applyPreset('hightemp')">高温告警</span>
+        <span class="preset-chip" onclick="applyPreset('lowph')">低pH告警</span>
+        <span class="preset-chip" onclick="applyPreset('highhumidity')">高湿告警</span>
+        <span class="preset-chip" onclick="applyPreset('night')">夜间环境</span>
+        <span class="preset-chip" onclick="applyPreset('clear')">清空</span>
+      </div>
+
+      <table class="telemetry-table">
+        <thead>
+          <tr>
+            <th style="width:26%;">指标代码</th>
+            <th style="width:14%;">通道 ID</th>
+            <th style="width:18%;">数值</th>
+            <th style="width:26%;">质量标记</th>
+            <th style="width:8%;"></th>
+          </tr>
+        </thead>
+        <tbody id="telemetryRows"></tbody>
+      </table>
+
+      <div class="btn-group" style="margin-top:12px;">
+        <button class="btn-outline btn-sm" onclick="addTelemetryRow()">+ 添加指标</button>
+        <button class="btn-primary" onclick="sendTelemetry()" style="margin-left:auto;">📤 发送遥测数据</button>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:6px;">
+        采集时间: <input id="collectedAt" style="width:220px;font-size:0.78rem;padding:4px 7px;" readonly>
+        <button class="btn-outline btn-xs" onclick="setCollectedAtNow()">当前时间</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 状态 & 心跳面板 -->
+<div id="panel-status" class="tab-panel">
+  <div class="row">
+    <div class="card" style="flex:1;min-width:250px;">
+      <div class="card-header"><span class="icon">📡</span> 设备状态</div>
+      <div class="card-body">
+        <div class="form-group" style="margin-bottom:10px;">
+          <label>状态值</label>
+          <select id="statusValue">
+            <option value="ONLINE">ONLINE - 在线</option>
+            <option value="OFFLINE">OFFLINE - 离线</option>
+            <option value="FAULT">FAULT - 故障</option>
+          </select>
+        </div>
+        <button class="btn-accent" onclick="sendStatus()">📤 发送状态</button>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;min-width:250px;">
+      <div class="card-header"><span class="icon">💓</span> 心跳</div>
+      <div class="card-body">
+        <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:8px;">
+          发送心跳包，时间戳自动使用当前时间
+        </p>
+        <div class="btn-group">
+          <button class="btn-accent" onclick="sendHeartbeat()">📤 发送心跳</button>
+          <button class="btn-outline btn-sm" id="btnAutoHeartbeat" onclick="toggleAutoHeartbeat()">
+            ⏱ 自动发送 (30s)
+          </button>
+        </div>
+        <div id="heartbeatStatus" style="font-size:0.75rem;color:var(--text-secondary);margin-top:6px;"></div>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;min-width:250px;">
+      <div class="card-header"><span class="icon">⚡</span> 执行器心跳</div>
+      <div class="card-body">
+        <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:8px;">
+          带通道状态的心跳（执行器设备用）
+        </p>
+        <div class="form-group" style="margin-bottom:8px;">
+          <label>通道状态 JSON</label>
+          <textarea id="actuatorChannels" rows="3" style="font-size:0.78rem;font-family:'SF Mono','Fira Code','Consolas',monospace;">{"1":{"ChannelID":1,"ActuatorType":"HEATER","State":"ON","Value":80}}</textarea>
+        </div>
+        <button class="btn-accent" onclick="sendActuatorHeartbeat()">📤 发送执行器心跳</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ACK 面板 -->
+<div id="panel-ack" class="tab-panel">
+  <div class="card">
+    <div class="card-header"><span class="icon">✅</span> ACK 命令回执</div>
+    <div class="card-body">
+      <div class="row" style="align-items:flex-end;">
+        <div class="form-group" style="max-width:140px;">
+          <label>指令 ID (command_id)</label>
+          <input id="ackCommandId" type="number" placeholder="例如: 42" min="1">
+        </div>
+        <div class="form-group" style="max-width:160px;">
+          <label>ACK 代码</label>
+          <select id="ackCode">
+            <option value="ok">ok - 成功</option>
+            <option value="error">error - 失败</option>
+            <option value="timeout">timeout - 超时</option>
+            <option value="invalid">invalid - 无效指令</option>
+            <option value="busy">busy - 设备忙</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:2;min-width:200px;">
+          <label>消息</label>
+          <input id="ackMessage" placeholder="ACK 描述信息">
+        </div>
+        <div class="form-group" style="flex:0;min-width:auto;justify-content:flex-end;">
+          <label>&nbsp;</label>
+          <button class="btn-primary" onclick="sendAck()">📤 发送 ACK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 下行指令面板 -->
+<div id="panel-commands" class="tab-panel">
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">📥</span> 接收到的下行指令
+      <span style="margin-left:auto;font-size:0.75rem;color:var(--text-secondary);">
+        订阅: hydroponic/{deviceCode}/cmd/#
+      </span>
+    </div>
+    <div class="card-body">
+      <div class="cmd-list" id="cmdList">
+        <div class="empty-hint">暂无收到的指令。连接设备并订阅后，这里将显示收到的下行指令。</div>
+      </div>
+      <div class="btn-group" style="margin-top:8px;">
+        <button class="btn-outline btn-xs" onclick="clearCommands()">清空</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 日志 ============ -->
+<div class="card">
+  <div class="card-header">
+    <span class="icon">📋</span> 操作日志
+    <span style="margin-left:auto;">
+      <button class="btn-outline btn-xs" onclick="clearLogs()">清空</button>
+      <button class="btn-outline btn-xs" onclick="toggleAutoScroll()" id="btnAutoScroll" style="margin-left:4px;">🔒 自动滚动</button>
+    </span>
+  </div>
+  <div class="log-container" id="logContainer"></div>
+</div>
+
+</div><!-- .container -->
+
+<script>
+// ==================== 全局状态 ====================
+let mqttClient = null;
+let connected = false;
+let autoHeartbeatTimer = null;
+let autoScroll = true;
+let cmdCount = 0;
+let cmdSubscribed = false;
+
+const TOPIC_PREFIX = 'hydroponic';
+
+// ==================== DOM 引用 ====================
+const $brokerUrl = document.getElementById('brokerUrl');
+const $deviceCode = document.getElementById('deviceCode');
+const $mqttUser = document.getElementById('mqttUser');
+const $mqttPass = document.getElementById('mqttPass');
+const $btnConnect = document.getElementById('btnConnect');
+const $connStatus = document.getElementById('connStatus');
+const $deviceLabel = document.getElementById('deviceLabel');
+const $collectedAt = document.getElementById('collectedAt');
+const $telemetryRows = document.getElementById('telemetryRows');
+const $logContainer = document.getElementById('logContainer');
+const $cmdList = document.getElementById('cmdList');
+const $cmdBadge = document.getElementById('cmdBadge');
+
+// ==================== 初始化 ====================
+function init() {
+  loadSettings();
+  setCollectedAtNow();
+  addTelemetryRow(); // 默认添加一行
+}
+
+function loadSettings() {
+  const saved = JSON.parse(localStorage.getItem('hamb-simulator') || '{}');
+  if (saved.brokerUrl) $brokerUrl.value = saved.brokerUrl;
+  if (saved.deviceCode) $deviceCode.value = saved.deviceCode;
+  if (saved.mqttUser) $mqttUser.value = saved.mqttUser;
+  if (saved.mqttPass) $mqttPass.value = saved.mqttPass;
+}
+
+function saveSettings() {
+  localStorage.setItem('hamb-simulator', JSON.stringify({
+    brokerUrl: $brokerUrl.value,
+    deviceCode: $deviceCode.value,
+    mqttUser: $mqttUser.value,
+    mqttPass: $mqttPass.value,
+  }));
+}
+
+// ==================== MQTT 连接 ====================
+function toggleConnection() {
+  if (connected) {
+    disconnect();
+  } else {
+    connect();
+  }
+}
+
+function connect() {
+  const brokerUrl = $brokerUrl.value.trim();
+  const deviceCode = $deviceCode.value.trim();
+
+  if (!brokerUrl) { log('❌ 请输入 Broker WebSocket 地址', 'error'); return; }
+  if (!deviceCode) { log('❌ 请输入设备编码', 'error'); return; }
+  if (!brokerUrl.startsWith('ws://') && !brokerUrl.startsWith('wss://')) {
+    log('❌ Broker 地址必须以 ws:// 或 wss:// 开头', 'error'); return;
+  }
+
+  saveSettings();
+  $deviceLabel.textContent = '设备: ' + deviceCode;
+
+  const opts = {
+    clientId: 'web-sim-' + Date.now(),
+    clean: true,
+    reconnectPeriod: 3000,
+    connectTimeout: 8000,
+  };
+  const user = $mqttUser.value.trim();
+  const pass = $mqttPass.value.trim();
+  if (user) opts.username = user;
+  if (pass) opts.password = pass;
+
+  log(`🔌 正在连接 ${brokerUrl} ...`, 'info');
+
+  mqttClient = mqtt.connect(brokerUrl, opts);
+
+  mqttClient.on('connect', () => {
+    connected = true;
+    $btnConnect.textContent = '断开';
+    $btnConnect.classList.remove('btn-primary');
+    $btnConnect.classList.add('btn-danger');
+    $connStatus.innerHTML = '<span class="status-dot online"></span>已连接';
+    log('✅ MQTT 连接成功', 'success');
+
+    subscribeCommands();
+  });
+
+  mqttClient.on('error', (err) => {
+    log(`❌ MQTT 错误: ${err.message || err}`, 'error');
+  });
+
+  mqttClient.on('close', () => {
+    if (connected) {
+      connected = false;
+      updateUIForDisconnect();
+      log('⚠️ MQTT 连接已断开', 'info');
+    }
+  });
+
+  mqttClient.on('reconnect', () => {
+    log('🔄 正在重连...', 'info');
+  });
+
+  mqttClient.on('message', (topic, message) => {
+    handleIncomingMessage(topic, message.toString());
+  });
+}
+
+function disconnect() {
+  stopAutoHeartbeat();
+  if (mqttClient) {
+    mqttClient.end(true);
+    mqttClient = null;
+  }
+  connected = false;
+  cmdSubscribed = false;
+  updateUIForDisconnect();
+  log('🔌 已断开连接', 'info');
+}
+
+function updateUIForDisconnect() {
+  $btnConnect.textContent = '连接';
+  $btnConnect.classList.remove('btn-danger');
+  $btnConnect.classList.add('btn-primary');
+  $connStatus.innerHTML = '<span class="status-dot offline"></span>未连接';
+}
+
+// ==================== 指令订阅 ====================
+function subscribeCommands() {
+  if (!mqttClient || !connected) return;
+  const deviceCode = $deviceCode.value.trim();
+  if (!deviceCode) return;
+
+  const cmdTopic = `${TOPIC_PREFIX}/${deviceCode}/cmd/#`;
+  mqttClient.subscribe(cmdTopic, { qos: 1 }, (err) => {
+    if (err) {
+      log(`❌ 订阅指令失败: ${err.message || err}`, 'error');
+    } else {
+      cmdSubscribed = true;
+      log(`📥 已订阅指令主题: ${cmdTopic}`, 'success');
+    }
+  });
+}
+
+function handleIncomingMessage(topic, payload) {
+  const deviceCode = $deviceCode.value.trim();
+  const cmdPrefix = `${TOPIC_PREFIX}/${deviceCode}/cmd/`;
+  if (topic.startsWith(cmdPrefix)) {
+    cmdCount++;
+    updateCmdBadge();
+    log(`📥 收到指令 [${topic}]: ${payload}`, 'info');
+    addCmdToList(topic, payload);
+  }
+}
+
+function updateCmdBadge() {
+  if (cmdCount > 0) {
+    $cmdBadge.style.display = 'inline';
+    $cmdBadge.textContent = cmdCount;
+  } else {
+    $cmdBadge.style.display = 'none';
+  }
+}
+
+function addCmdToList(topic, payload) {
+  const emptyHint = $cmdList.querySelector('.empty-hint');
+  if (emptyHint) emptyHint.remove();
+
+  let parsed;
+  try { parsed = JSON.stringify(JSON.parse(payload), null, 2); }
+  catch { parsed = payload; }
+
+  const div = document.createElement('div');
+  div.className = 'cmd-item';
+  const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  div.innerHTML = `<div style="color:#6cb4ee;margin-bottom:2px;">${time} | ${escapeHtml(topic)}</div><pre style="margin:0;white-space:pre-wrap;">${escapeHtml(parsed)}</pre>`;
+  $cmdList.prepend(div);
+
+  // 自动填充 ACK command_id
+  try {
+    const obj = JSON.parse(payload);
+    const cid = obj.command_id || obj._command_id;
+    if (cid) document.getElementById('ackCommandId').value = cid;
+  } catch {}
+}
+
+function clearCommands() {
+  $cmdList.innerHTML = '<div class="empty-hint">暂无收到的指令。连接设备并订阅后，这里将显示收到的下行指令。</div>';
+  cmdCount = 0;
+  updateCmdBadge();
+}
+
+// ==================== 遥测 ====================
+const METRICS = [
+  { code: 'TEMP', unit: '°C' },
+  { code: 'HUMIDITY', unit: '%' },
+  { code: 'PH', unit: 'pH' },
+  { code: 'EC', unit: 'mS/cm' },
+  { code: 'CO2', unit: 'ppm' },
+  { code: 'LIGHT', unit: 'lx' },
+  { code: 'WATER_TEMP', unit: '°C' },
+  { code: 'DO', unit: 'mg/L' },
+  { code: 'LEVEL', unit: 'cm' },
+  { code: 'ORP', unit: 'mV' },
+  { code: 'TDS', unit: 'ppm' },
+  { code: 'O3', unit: 'ppb' },
+  { code: 'TURBIDITY', unit: 'NTU' },
+  { code: 'FLOW_RATE', unit: 'L/min' },
+];
+
+const QUALITY_FLAGS = ['normal', 'out_of_range', 'calibration_needed', 'sensor_fault'];
+
+const PRESETS = {
+  normal: [
+    { code: 'TEMP', ch: 1, val: 25.0 },
+    { code: 'HUMIDITY', ch: 2, val: 70.0 },
+    { code: 'PH', ch: 3, val: 6.0 },
+    { code: 'EC', ch: 4, val: 2.0 },
+    { code: 'CO2', ch: 5, val: 800 },
+    { code: 'LIGHT', ch: 6, val: 35000 },
+    { code: 'WATER_TEMP', ch: 7, val: 22.0 },
+  ],
+  hightemp: [
+    { code: 'TEMP', ch: 1, val: 38.5, qf: 'out_of_range' },
+    { code: 'HUMIDITY', ch: 2, val: 45.0 },
+    { code: 'PH', ch: 3, val: 6.2 },
+    { code: 'EC', ch: 4, val: 2.3 },
+    { code: 'CO2', ch: 5, val: 650 },
+  ],
+  lowph: [
+    { code: 'TEMP', ch: 1, val: 25.0 },
+    { code: 'HUMIDITY', ch: 2, val: 68.0 },
+    { code: 'PH', ch: 3, val: 3.8, qf: 'out_of_range' },
+    { code: 'EC', ch: 4, val: 3.5 },
+    { code: 'DO', ch: 8, val: 4.0 },
+  ],
+  highhumidity: [
+    { code: 'TEMP', ch: 1, val: 28.0 },
+    { code: 'HUMIDITY', ch: 2, val: 95.0, qf: 'out_of_range' },
+    { code: 'PH', ch: 3, val: 6.0 },
+    { code: 'EC', ch: 4, val: 2.0 },
+    { code: 'CO2', ch: 5, val: 900 },
+  ],
+  night: [
+    { code: 'TEMP', ch: 1, val: 18.0 },
+    { code: 'HUMIDITY', ch: 2, val: 75.0 },
+    { code: 'PH', ch: 3, val: 5.8 },
+    { code: 'EC', ch: 4, val: 1.8 },
+    { code: 'LIGHT', ch: 6, val: 500 },
+    { code: 'WATER_TEMP', ch: 7, val: 20.0 },
+    { code: 'DO', ch: 8, val: 5.5 },
+  ],
+};
+
+function applyPreset(name) {
+  if (name === 'clear') {
+    $telemetryRows.innerHTML = '';
+    addTelemetryRow();
+    return;
+  }
+  const preset = PRESETS[name];
+  if (!preset) return;
+  $telemetryRows.innerHTML = '';
+  preset.forEach((m, i) => {
+    addTelemetryRow(m.code, m.ch, m.val, m.qf || 'normal');
+  });
+  setCollectedAtNow();
+  log(`📋 已应用预设: ${name}`, 'info');
+}
+
+function addTelemetryRow(metricCode, channelId, value, qualityFlag) {
+  const row = document.createElement('tr');
+
+  // 指标代码
+  const tdMetric = document.createElement('td');
+  const selMetric = document.createElement('select');
+  selMetric.setAttribute('data-field', 'metric_code');
+  METRICS.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.code;
+    opt.textContent = `${m.code} (${m.unit})`;
+    if (m.code === (metricCode || 'TEMP')) opt.selected = true;
+    selMetric.appendChild(opt);
+  });
+  tdMetric.appendChild(selMetric);
+
+  // 通道 ID
+  const tdCh = document.createElement('td');
+  const inpCh = document.createElement('input');
+  inpCh.type = 'number'; inpCh.min = '1'; inpCh.setAttribute('data-field', 'channel_id');
+  inpCh.value = channelId != null ? channelId : ($telemetryRows.children.length + 1);
+  tdCh.appendChild(inpCh);
+
+  // 数值
+  const tdVal = document.createElement('td');
+  const inpVal = document.createElement('input');
+  inpVal.type = 'number'; inpVal.step = 'any'; inpVal.setAttribute('data-field', 'value');
+  inpVal.value = value != null ? value : '';
+  inpVal.placeholder = '0.0';
+  tdVal.appendChild(inpVal);
+
+  // 质量标记
+  const tdQf = document.createElement('td');
+  const selQf = document.createElement('select');
+  selQf.setAttribute('data-field', 'quality_flag');
+  QUALITY_FLAGS.forEach(q => {
+    const opt = document.createElement('option');
+    opt.value = q;
+    opt.textContent = q;
+    if (q === (qualityFlag || 'normal')) opt.selected = true;
+    selQf.appendChild(opt);
+  });
+  tdQf.appendChild(selQf);
+
+  // 删除
+  const tdAct = document.createElement('td');
+  tdAct.className = 'actions';
+  const btnDel = document.createElement('button');
+  btnDel.className = 'btn-danger btn-xs';
+  btnDel.textContent = '✕';
+  btnDel.onclick = () => {
+    row.remove();
+    if ($telemetryRows.children.length === 0) addTelemetryRow();
+  };
+  tdAct.appendChild(btnDel);
+
+  row.appendChild(tdMetric);
+  row.appendChild(tdCh);
+  row.appendChild(tdVal);
+  row.appendChild(tdQf);
+  row.appendChild(tdAct);
+
+  $telemetryRows.appendChild(row);
+}
+
+function collectTelemetryRows() {
+  const items = [];
+  const rows = $telemetryRows.querySelectorAll('tr');
+  rows.forEach(row => {
+    const metricCode = row.querySelector('[data-field="metric_code"]')?.value;
+    const channelId = parseInt(row.querySelector('[data-field="channel_id"]')?.value);
+    const value = parseFloat(row.querySelector('[data-field="value"]')?.value);
+    const qualityFlag = row.querySelector('[data-field="quality_flag"]')?.value || 'normal';
+
+    if (!metricCode || isNaN(channelId) || isNaN(value)) return;
+
+    items.push({
+      sensor_channel_id: channelId,
+      metric_code: metricCode,
+      value: value,
+      quality_flag: qualityFlag,
+      collected_at: $collectedAt.value,
+    });
+  });
+  return items;
+}
+
+function sendTelemetry() {
+  if (!connected || !mqttClient) { log('❌ 请先连接 MQTT', 'error'); return; }
+
+  const items = collectTelemetryRows();
+  if (items.length === 0) { log('❌ 没有有效的遥测数据', 'error'); return; }
+
+  const deviceCode = $deviceCode.value.trim();
+  const topic = `${TOPIC_PREFIX}/${deviceCode}/telemetry`;
+  const payload = JSON.stringify(items);
+
+  mqttClient.publish(topic, payload, { qos: 1 }, (err) => {
+    if (err) {
+      log(`❌ 发送失败: ${err.message || err}`, 'error');
+    } else {
+      log(`📤 已发送遥测 (${items.length} 条)`, 'success');
+      log(`   Topic: <span class="topic">${topic}</span> <span class="qos">QoS 1</span>`, 'info');
+      log(`   Payload: ${payload}`, 'info');
+    }
+  });
+}
+
+function setCollectedAtNow() {
+  $collectedAt.value = new Date().toISOString();
+}
+
+// ==================== 状态 & 心跳 ====================
+function sendStatus() {
+  if (!connected || !mqttClient) { log('❌ 请先连接 MQTT', 'error'); return; }
+
+  const deviceCode = $deviceCode.value.trim();
+  const status = document.getElementById('statusValue').value;
+  const topic = `${TOPIC_PREFIX}/${deviceCode}/status`;
+  const payload = JSON.stringify({ status: status });
+
+  mqttClient.publish(topic, payload, { qos: 1 }, (err) => {
+    if (err) {
+      log(`❌ 发送状态失败: ${err.message || err}`, 'error');
+    } else {
+      log(`📡 已发送状态: <strong>${status}</strong> → <span class="topic">${topic}</span>`, 'success');
+    }
+  });
+}
+
+function sendHeartbeat() {
+  if (!connected || !mqttClient) { log('❌ 请先连接 MQTT', 'error'); return; }
+
+  const deviceCode = $deviceCode.value.trim();
+  const topic = `${TOPIC_PREFIX}/${deviceCode}/heartbeat`;
+  const payload = JSON.stringify({ ts: new Date().toISOString() });
+
+  mqttClient.publish(topic, payload, { qos: 0 }, (err) => {
+    if (err) {
+      log(`❌ 发送心跳失败: ${err.message || err}`, 'error');
+    } else {
+      log(`💓 已发送心跳 → <span class="topic">${topic}</span>`, 'success');
+    }
+  });
+}
+
+function sendActuatorHeartbeat() {
+  if (!connected || !mqttClient) { log('❌ 请先连接 MQTT', 'error'); return; }
+
+  const deviceCode = $deviceCode.value.trim();
+  const topic = `${TOPIC_PREFIX}/${deviceCode}/heartbeat`;
+
+  let channels;
+  try {
+    channels = JSON.parse(document.getElementById('actuatorChannels').value);
+  } catch {
+    log('❌ 通道状态 JSON 格式错误', 'error'); return;
+  }
+
+  const payload = JSON.stringify({ ts: new Date().toISOString(), channels: channels });
+
+  mqttClient.publish(topic, payload, { qos: 0 }, (err) => {
+    if (err) {
+      log(`❌ 发送执行器心跳失败: ${err.message || err}`, 'error');
+    } else {
+      log(`💓⚡ 已发送执行器心跳 → <span class="topic">${topic}</span>`, 'success');
+      log(`   Payload: ${payload}`, 'info');
+    }
+  });
+}
+
+function toggleAutoHeartbeat() {
+  if (autoHeartbeatTimer) {
+    stopAutoHeartbeat();
+  } else {
+    startAutoHeartbeat();
+  }
+}
+
+function startAutoHeartbeat() {
+  const btn = document.getElementById('btnAutoHeartbeat');
+  btn.textContent = '⏸ 停止自动发送';
+  btn.classList.add('btn-danger');
+  btn.classList.remove('btn-outline');
+  document.getElementById('heartbeatStatus').textContent = '🟢 自动发送中 (每30秒)...';
+  sendHeartbeat(); // 立即发送一次
+  autoHeartbeatTimer = setInterval(sendHeartbeat, 30000);
+}
+
+function stopAutoHeartbeat() {
+  if (autoHeartbeatTimer) { clearInterval(autoHeartbeatTimer); autoHeartbeatTimer = null; }
+  const btn = document.getElementById('btnAutoHeartbeat');
+  btn.textContent = '⏱ 自动发送 (30s)';
+  btn.classList.remove('btn-danger');
+  btn.classList.add('btn-outline');
+  document.getElementById('heartbeatStatus').textContent = '';
+}
+
+// ==================== ACK ====================
+function sendAck() {
+  if (!connected || !mqttClient) { log('❌ 请先连接 MQTT', 'error'); return; }
+
+  const deviceCode = $deviceCode.value.trim();
+  const cmdId = parseInt(document.getElementById('ackCommandId').value);
+  const ackCode = document.getElementById('ackCode').value;
+  const ackMsg = document.getElementById('ackMessage').value;
+
+  if (isNaN(cmdId)) { log('❌ 请输入有效的指令 ID', 'error'); return; }
+
+  const topic = `${TOPIC_PREFIX}/${deviceCode}/ack`;
+  const payload = JSON.stringify({
+    command_id: cmdId,
+    ack_code: ackCode,
+    ack_message: ackMsg || `simulated ack for cmd ${cmdId}`,
+  });
+
+  mqttClient.publish(topic, payload, { qos: 1 }, (err) => {
+    if (err) {
+      log(`❌ 发送 ACK 失败: ${err.message || err}`, 'error');
+    } else {
+      log(`✅ 已发送 ACK (cmd=${cmdId}, ${ackCode}) → <span class="topic">${topic}</span>`, 'success');
+    }
+  });
+}
+
+// ==================== 日志 ====================
+function log(msg, level) {
+  const div = document.createElement('div');
+  div.className = `log-entry ${level || ''}`;
+  const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  div.innerHTML = `<span class="ts">${ts}</span>${msg}`;
+  $logContainer.appendChild(div);
+
+  if (autoScroll) {
+    $logContainer.scrollTop = $logContainer.scrollHeight;
+  }
+}
+
+function clearLogs() {
+  $logContainer.innerHTML = '';
+}
+
+function toggleAutoScroll() {
+  autoScroll = !autoScroll;
+  const btn = document.getElementById('btnAutoScroll');
+  btn.textContent = autoScroll ? '🔒 自动滚动' : '🔓 手动滚动';
+}
+
+// ==================== Tab 切换 ====================
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ==================== 键盘快捷键 ====================
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault();
+    sendTelemetry();
+  }
+});
+
+// ==================== 工具函数 ====================
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ==================== 启动 ====================
+init();
+log('🚀 水培农业设备模拟器已就绪', 'info');
+log('💡 提示: 填入设备编码 → 连接 MQTT → 配置遥测数据 → 发送', 'info');
+log('💡 快捷键: Ctrl+Enter 发送遥测数据', 'info');
+</script>
+</body>
+</html>

@@ -1,8 +1,51 @@
 # 交接文档
 
-最后更新: 2026-05-09
+最后更新: 2026-05-10
 当前分支: version2
 当前重点: v2.3.2 气候联动触发源单通道化
+
+## 最新变更 (2026-05-10)
+
+### SSE 契约固化：DTO v1 + Devices/Commands 订阅端点
+
+- **DTO v1（schema_version=1）**
+  - `telemetry_update`：SSE data 增加 `schema_version`
+  - `device_status`：新增 DTO v1（含 `reported_at`、可选 `reason`）
+  - `command_dispatched` / `command_acked`：新增 DTO v1（含 `source_type/source_id`、`acked_at`）
+- **新 SSE 端点**
+  - `GET /api/devices/subscribe`（支持 `device_codes` 过滤）
+  - `GET /api/commands/subscribe`（支持 `device_codes` 过滤；一条 SSE 输出 `command_dispatched` + `command_acked`）
+- **Producer 统一发布**
+  - MQTT ingress、offline detector、command handler、policy scheduler、climate scheduler 统一发布 DTO v1（避免 map 字段漂移）
+  - policy/climate 的 MQTT publish 失败也会发布 `FAILED` 的 `command_dispatched` 事件用于可观测性
+- **SSE handler 增强**
+  - 支持 struct/map 的字段抽取与过滤；支持 multi-type subscribe
+
+### 配置可靠投递：config_deliveries + ack_type=config + 重试
+
+- **Schema**
+  - 新增 `config_deliveries`：记录 `msg_id/trace_id/entity_rev/request_payload/status/retry/ack` 等投递权威字段
+- **ConfigPusher**
+  - `hydroponic/{deviceCode}/cmd/config` 推送改为 v1 payload（含 `schema_version/msg_id/trace_id/entity_rev/ttl_sec/require_ack/payload`）
+  - MQTT 不连/发布失败不再静默跳过：会落库为 FAILED 并进入重试
+- **Ingress ACK**
+  - `/ack` 支持解析 `schema_version` + `ack_type=config`，按 `msg_id` 回写 `config_deliveries` 状态
+  - legacy command ack 行为保持兼容
+- **Retry Worker**
+  - 周期扫描：SENT 超时转 FAILED(ACK_TIMEOUT)；FAILED 到点重发并递增 retry_count
+- **Observability**
+  - 新增查询 API：`GET /api/config-deliveries`、`GET /api/config-deliveries/:id`
+
+### 批次阶段自动联动：crop_batch_stage 配置下发 + 定时调度
+
+- **Schema**
+  - `batch_stage_plans` 新增：`recipe_id` / `policy_id` / `climate_profile_id`（阶段级权威配置引用）
+  - `crop_batches` 新增：`active_climate_profile_id`（与 existing active_recipe_id/active_policy_id 一致）
+  - 新增 `batch_stage_runtime`：记录每个批次上次已应用的 `current_stage_plan_id`，用于去重与审计
+- **BatchStageScheduler**
+  - 周期扫描 RUNNING 批次，按 `stage_start_at <= now < stage_end_at` 判定当前阶段
+  - 当检测到阶段切换时：更新 runtime + 更新 crop_batches.active_* + 对 batch 绑定的 actuator 设备推送 `config_type=crop_batch_stage`
+  - 若 stage_plan 绑定了 `climate_profile_id`，会额外推送一次 `config_type=climate_profile`（profile 快照）
 
 ## 最新变更 (2026-05-09)
 

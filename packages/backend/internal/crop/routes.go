@@ -3,12 +3,15 @@ package crop
 import (
 	"hydroponic-backend/internal/auth"
 	"hydroponic-backend/internal/platform/di"
+	"hydroponic-backend/internal/platform/mqtt"
 
 	"github.com/gin-gonic/gin"
 )
 
 func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
 	h := NewHandler(deps.MySQL)
+	configPusher := mqtt.NewConfigPusher(deps.MySQL, deps.MQTT, deps.Log)
+	NewBatchStageScheduler(deps.MySQL, deps.Log, configPusher).Start()
 
 	// CropVariety routes
 	varieties := r.Group("/crop-varieties")

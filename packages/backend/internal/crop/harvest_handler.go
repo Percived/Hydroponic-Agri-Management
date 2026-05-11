@@ -43,6 +43,9 @@ func (h *Handler) CreateStagePlan(c *gin.Context) {
 	plan := BatchStagePlan{
 		BatchID:       req.BatchID,
 		GrowthStageID: req.GrowthStageID,
+		RecipeID:      req.RecipeID,
+		PolicyID:      req.PolicyID,
+		ClimateID:     req.ClimateID,
 		StageStartAt:  startAt.UTC(),
 		StageEndAt:    endAt.UTC(),
 		TargetECMin:   req.TargetECMin,
@@ -93,6 +96,27 @@ func (h *Handler) UpdateStagePlan(c *gin.Context) {
 	}
 
 	updates := map[string]interface{}{}
+	if req.RecipeID.Set {
+		if req.RecipeID.Value == nil {
+			updates["recipe_id"] = nil
+		} else {
+			updates["recipe_id"] = *req.RecipeID.Value
+		}
+	}
+	if req.PolicyID.Set {
+		if req.PolicyID.Value == nil {
+			updates["policy_id"] = nil
+		} else {
+			updates["policy_id"] = *req.PolicyID.Value
+		}
+	}
+	if req.ClimateID.Set {
+		if req.ClimateID.Value == nil {
+			updates["climate_profile_id"] = nil
+		} else {
+			updates["climate_profile_id"] = *req.ClimateID.Value
+		}
+	}
 	if req.StageStartAt != nil {
 		updates["stage_start_at"] = parseTimePtr(req.StageStartAt)
 	}

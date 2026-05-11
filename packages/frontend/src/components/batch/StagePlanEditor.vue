@@ -23,20 +23,47 @@
     <el-form-item label="目标pH上限">
       <el-input-number v-model="editorData.target_ph_max" :min="0" :max="14" :precision="4" />
     </el-form-item>
+    <el-form-item label="营养配方">
+      <el-select v-model="editorData.recipe_id" filterable clearable placeholder="可选" style="width: 100%">
+        <el-option v-for="r in recipes" :key="r.id" :label="`${r.name} (${r.recipe_code})`" :value="r.id" />
+      </el-select>
+    </el-form-item>
+    <el-form-item label="控制策略">
+      <el-select v-model="editorData.policy_id" filterable clearable placeholder="可选" style="width: 100%">
+        <el-option v-for="p in policies" :key="p.id" :label="`${p.name} (${p.policy_code})`" :value="p.id" />
+      </el-select>
+    </el-form-item>
+    <el-form-item label="气候Profile">
+      <el-select v-model="editorData.climate_profile_id" filterable clearable placeholder="可选" style="width: 100%">
+        <el-option v-for="p in profiles" :key="p.id" :label="`${p.name} (${p.code})`" :value="p.id" />
+      </el-select>
+    </el-form-item>
   </el-form>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { cropApi } from '@/api'
-import type { CreateBatchStagePlanRequest, GrowthStage } from '@/types'
+import { climateApi, cropApi, policyApi, recipeApi } from '@/api'
+import type { ClimateProfile, ControlPolicy, CreateBatchStagePlanRequest, GrowthStage, NutrientRecipe } from '@/types'
 
 const editorData = defineModel<CreateBatchStagePlanRequest>({ required: true })
 
 const stages = ref<GrowthStage[]>([])
+const recipes = ref<NutrientRecipe[]>([])
+const policies = ref<ControlPolicy[]>([])
+const profiles = ref<ClimateProfile[]>([])
 
 onMounted(async () => {
   const res = await cropApi.getGrowthStages({ page_size: 200 })
   stages.value = res.items
+
+  const [recipeRes, policyRes, climateRes] = await Promise.all([
+    recipeApi.getRecipes({ page: 1, page_size: 200 }),
+    policyApi.getPolicies({ page: 1, page_size: 200 }),
+    climateApi.getClimateProfiles({ page: 1, page_size: 200 })
+  ])
+  recipes.value = recipeRes.items
+  policies.value = policyRes.items
+  profiles.value = climateRes.items
 })
 </script>

@@ -59,7 +59,29 @@ func (h *Handler) CreateAlert(c *gin.Context) {
 
 	// Publish event for real-time notification
 	if h.eventHub != nil {
-		h.eventHub.Publish(event.SSEEvent{Type: "alert:created", Data: BuildAlertSSEDataV1(alert, "", 1)})
+		deviceCode := ""
+		if req.SensorChannelID != nil {
+			var row struct {
+				DeviceCode string
+			}
+			_ = h.db.Table("sensor_channels").
+				Select("sensor_devices.device_code as device_code").
+				Joins("JOIN sensor_devices ON sensor_devices.id = sensor_channels.sensor_device_id").
+				Where("sensor_channels.id = ?", *req.SensorChannelID).
+				Scan(&row).Error
+			deviceCode = row.DeviceCode
+		} else if req.ActuatorChannelID != nil {
+			var row struct {
+				DeviceCode string
+			}
+			_ = h.db.Table("actuator_channels").
+				Select("actuator_devices.device_code as device_code").
+				Joins("JOIN actuator_devices ON actuator_devices.id = actuator_channels.actuator_device_id").
+				Where("actuator_channels.id = ?", *req.ActuatorChannelID).
+				Scan(&row).Error
+			deviceCode = row.DeviceCode
+		}
+		h.eventHub.Publish(event.SSEEvent{Type: "alert:created", Data: BuildAlertSSEDataV1(alert, deviceCode, 1)})
 	}
 
 	response.Success(c, gin.H{"id": alert.ID})

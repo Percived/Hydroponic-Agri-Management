@@ -103,8 +103,9 @@ func (h *Handler) SendCommand(c *gin.Context) {
 	now := time.Now().UTC()
 
 	// Dispatch via MQTT
-	if err := h.dispatchMQTT(cmd); err != nil {
-		h.markFailed(cmd.ID, err)
+	deviceCode, err := h.dispatchMQTT(cmd)
+	if err != nil {
+		h.markFailed(cmd.ID, deviceCode, err)
 		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeDeviceOffline, "mqtt_dispatch_failed", nil)
 		return
 	}
@@ -123,6 +124,18 @@ func (h *Handler) SendCommand(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "send_failed", nil)
 		return
 	}
+
+	h.eventHub.Publish(event.SSEEvent{
+		Type: "command:dispatched",
+		Data: event.CommandDispatchedSSEDataV1{
+			SchemaVersion: 1,
+			CommandID:     cmd.ID,
+			DeviceCode:    deviceCode,
+			Status:        "SENT",
+			DispatchedAt:  now.Format(time.RFC3339),
+			SourceType:    "MANUAL",
+		},
+	})
 
 	response.Success(c, gin.H{
 		"id":      id,
@@ -165,8 +178,9 @@ func (h *Handler) DispatchAndWait(c *gin.Context) {
 	h.waiter.Register(cmd.ID)
 
 	// Dispatch via MQTT
-	if err := h.dispatchMQTT(cmd); err != nil {
-		h.markFailed(cmd.ID, err)
+	deviceCode, err := h.dispatchMQTT(cmd)
+	if err != nil {
+		h.markFailed(cmd.ID, deviceCode, err)
 		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeDeviceOffline, "mqtt_dispatch_failed", nil)
 		return
 	}
@@ -176,6 +190,18 @@ func (h *Handler) DispatchAndWait(c *gin.Context) {
 	h.db.Model(&ControlCommand{}).Where("id = ?", cmd.ID).Updates(map[string]interface{}{
 		"status":  "SENT",
 		"sent_at": now,
+	})
+
+	h.eventHub.Publish(event.SSEEvent{
+		Type: "command:dispatched",
+		Data: event.CommandDispatchedSSEDataV1{
+			SchemaVersion: 1,
+			CommandID:     cmd.ID,
+			DeviceCode:    deviceCode,
+			Status:        "SENT",
+			DispatchedAt:  now.Format(time.RFC3339),
+			SourceType:    "MANUAL",
+		},
 	})
 
 	// Wait for ack with 10s timeout
@@ -230,8 +256,9 @@ func (h *Handler) DispatchAsync(c *gin.Context) {
 	}
 
 	// Dispatch via MQTT
-	if err := h.dispatchMQTT(cmd); err != nil {
-		h.markFailed(cmd.ID, err)
+	deviceCode, err := h.dispatchMQTT(cmd)
+	if err != nil {
+		h.markFailed(cmd.ID, deviceCode, err)
 		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeDeviceOffline, "mqtt_dispatch_failed", nil)
 		return
 	}
@@ -246,9 +273,13 @@ func (h *Handler) DispatchAsync(c *gin.Context) {
 	// Publish event for async status tracking
 	h.eventHub.Publish(event.SSEEvent{
 		Type: "command:dispatched",
-		Data: map[string]interface{}{
-			"command_id": cmd.ID,
-			"status":     "SENT",
+		Data: event.CommandDispatchedSSEDataV1{
+			SchemaVersion: 1,
+			CommandID:     cmd.ID,
+			DeviceCode:    deviceCode,
+			Status:        "SENT",
+			DispatchedAt:  now.Format(time.RFC3339),
+			SourceType:    "MANUAL",
 		},
 	})
 
@@ -260,14 +291,13 @@ func (h *Handler) DispatchAsync(c *gin.Context) {
 }
 
 // dispatchMQTT publishes a command to the device's MQTT command topic.
-func (h *Handler) dispatchMQTT(cmd ControlCommand) error {
-	if h.mqttClient == nil || !h.mqttClient.IsConnected() {
-		return fmt.Errorf("mqtt not connected")
-	}
-
+func (h *Handler) dispatchMQTT(cmd ControlCommand) (string, error) {
 	deviceCode, err := h.lookupDeviceCode(cmd.ActuatorChannelID)
 	if err != nil {
-		return fmt.Errorf("device lookup: %w", err)
+		return "", fmt.Errorf("device lookup: %w", err)
+	}
+	if h.mqttClient == nil || !h.mqttClient.IsConnected() {
+		return deviceCode, fmt.Errorf("mqtt not connected")
 	}
 
 	// Merge command_id and command_type into payload for backward-compatible device ACK
@@ -277,9 +307,9 @@ func (h *Handler) dispatchMQTT(cmd ControlCommand) error {
 		topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, deviceCode, mqttpkg.TopicCmdPrefix, cmd.CommandType)
 		token := h.mqttClient.Publish(topic, 1, false, cmd.Payload)
 		if token.Wait() && token.Error() != nil {
-			return fmt.Errorf("publish: %w", token.Error())
+			return deviceCode, fmt.Errorf("publish: %w", token.Error())
 		}
-		return nil
+		return deviceCode, nil
 	}
 	payloadMap["_command_id"] = cmd.ID
 	payloadMap["_command_type"] = cmd.CommandType
@@ -288,12 +318,12 @@ func (h *Handler) dispatchMQTT(cmd ControlCommand) error {
 	topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, deviceCode, mqttpkg.TopicCmdPrefix, cmd.CommandType)
 	token := h.mqttClient.Publish(topic, 1, false, wrappedPayload)
 	if token.Wait() && token.Error() != nil {
-		return fmt.Errorf("publish: %w", token.Error())
+		return deviceCode, fmt.Errorf("publish: %w", token.Error())
 	}
-	return nil
+	return deviceCode, nil
 }
 
-func (h *Handler) markFailed(commandID uint64, cause error) {
+func (h *Handler) markFailed(commandID uint64, deviceCode string, cause error) {
 	now := time.Now().UTC()
 	_ = h.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&ControlCommand{}).Where("id = ?", commandID).Updates(map[string]interface{}{
@@ -311,6 +341,19 @@ func (h *Handler) markFailed(commandID uint64, cause error) {
 			AckAt:         &now,
 		}
 		return tx.Create(&receipt).Error
+	})
+
+	h.eventHub.Publish(event.SSEEvent{
+		Type: "command:dispatched",
+		Data: event.CommandDispatchedSSEDataV1{
+			SchemaVersion: 1,
+			CommandID:     commandID,
+			DeviceCode:    deviceCode,
+			Status:        "FAILED",
+			DispatchedAt:  now.Format(time.RFC3339),
+			SourceType:    "MANUAL",
+			ErrorMessage:  cause.Error(),
+		},
 	})
 }
 

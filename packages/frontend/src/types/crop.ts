@@ -36,6 +36,9 @@ export interface CropBatch {
   expected_harvest_at?: string
   recipe_version?: string
   policy_version?: string
+  active_recipe_id?: number
+  active_policy_id?: number
+  active_climate_profile_id?: number
   note?: string
   created_by?: number
   created_at: string
@@ -46,6 +49,9 @@ export interface BatchStagePlan {
   id: number
   batch_id: number
   growth_stage_id: number
+  recipe_id?: number
+  policy_id?: number
+  climate_profile_id?: number
   stage_start_at: string
   stage_end_at: string
   target_ec_min?: number
@@ -86,6 +92,9 @@ export interface CreateCropBatchRequest {
 export interface CreateBatchStagePlanRequest {
   batch_id: number
   growth_stage_id: number
+  recipe_id?: number
+  policy_id?: number
+  climate_profile_id?: number
   stage_start_at: string
   stage_end_at: string
   target_ec_min?: number

@@ -1,5 +1,7 @@
 package crop
 
+import "encoding/json"
+
 // ---------- CropVariety ----------
 
 type CreateCropVarietyRequest struct {
@@ -104,6 +106,9 @@ type CropBatchResponse struct {
 	ExpectedHarvestAt *string  `json:"expected_harvest_at"`
 	RecipeVersion     string   `json:"recipe_version"`
 	PolicyVersion     string   `json:"policy_version"`
+	ActiveRecipeID    *uint64  `json:"active_recipe_id"`
+	ActivePolicyID    *uint64  `json:"active_policy_id"`
+	ActiveClimateID   *uint64  `json:"active_climate_profile_id"`
 	Note              string   `json:"note"`
 	CreatedBy         *uint64  `json:"created_by"`
 	CreatedAt         string   `json:"created_at"`
@@ -115,6 +120,9 @@ type CropBatchResponse struct {
 type CreateBatchStagePlanRequest struct {
 	BatchID       uint64   `json:"batch_id" binding:"required"`
 	GrowthStageID uint64   `json:"growth_stage_id" binding:"required"`
+	RecipeID      *uint64  `json:"recipe_id"`
+	PolicyID      *uint64  `json:"policy_id"`
+	ClimateID     *uint64  `json:"climate_profile_id"`
 	StageStartAt  string   `json:"stage_start_at" binding:"required"`
 	StageEndAt    string   `json:"stage_end_at" binding:"required"`
 	TargetECMin   *float64 `json:"target_ec_min"`
@@ -123,19 +131,44 @@ type CreateBatchStagePlanRequest struct {
 	TargetPHMax   *float64 `json:"target_ph_max"`
 }
 
+type NullableUint64 struct {
+	Set   bool
+	Value *uint64
+}
+
+func (n *NullableUint64) UnmarshalJSON(b []byte) error {
+	n.Set = true
+	if string(b) == "null" {
+		n.Value = nil
+		return nil
+	}
+	var v uint64
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	n.Value = &v
+	return nil
+}
+
 type UpdateBatchStagePlanRequest struct {
-	StageStartAt *string  `json:"stage_start_at"`
-	StageEndAt   *string  `json:"stage_end_at"`
-	TargetECMin  *float64 `json:"target_ec_min"`
-	TargetECMax  *float64 `json:"target_ec_max"`
-	TargetPHMin  *float64 `json:"target_ph_min"`
-	TargetPHMax  *float64 `json:"target_ph_max"`
+	RecipeID     NullableUint64 `json:"recipe_id"`
+	PolicyID     NullableUint64 `json:"policy_id"`
+	ClimateID    NullableUint64 `json:"climate_profile_id"`
+	StageStartAt *string        `json:"stage_start_at"`
+	StageEndAt   *string        `json:"stage_end_at"`
+	TargetECMin  *float64       `json:"target_ec_min"`
+	TargetECMax  *float64       `json:"target_ec_max"`
+	TargetPHMin  *float64       `json:"target_ph_min"`
+	TargetPHMax  *float64       `json:"target_ph_max"`
 }
 
 type BatchStagePlanResponse struct {
 	ID            uint64   `json:"id"`
 	BatchID       uint64   `json:"batch_id"`
 	GrowthStageID uint64   `json:"growth_stage_id"`
+	RecipeID      *uint64  `json:"recipe_id"`
+	PolicyID      *uint64  `json:"policy_id"`
+	ClimateID     *uint64  `json:"climate_profile_id"`
 	StageStartAt  string   `json:"stage_start_at"`
 	StageEndAt    string   `json:"stage_end_at"`
 	TargetECMin   *float64 `json:"target_ec_min"`
