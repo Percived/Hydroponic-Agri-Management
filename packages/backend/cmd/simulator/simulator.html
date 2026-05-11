@@ -202,6 +202,8 @@ button:active { transform: scale(0.97); }
 .toggle-arrow.open { transform: rotate(90deg); }
 .api-fields { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
 .api-fields.open { display: block; }
+.ov-cur-val { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size:0.82rem; text-align:right; color:var(--text-secondary); padding:4px 8px; }
+.btn-override-active { background:var(--accent); color:#fff; border-color:var(--accent); }
 </style>
 </head>
 <body>
@@ -477,6 +479,34 @@ button:active { transform: scale(0.97); }
         <button id="btnLinkedStop" class="btn-danger" onclick="linkedStop()" disabled>⏹ 停止</button>
         <span style="margin-left:12px;font-size:0.84rem;">状态: <strong id="linkedRunStatus">未运行</strong></span>
         <span id="linkedUptime" style="margin-left:8px;font-size:0.8rem;color:var(--text-secondary);display:none;"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 手动遥测触发 -->
+  <div class="card">
+    <div class="card-header"><span class="icon">🎯</span> 手动遥测触发</div>
+    <div class="card-body">
+      <div class="btn-group">
+        <button id="btnLinkedTrigger" class="btn-accent" onclick="linkedTriggerTelemetry()" disabled>📤 手动上报遥测</button>
+        <button id="btnLinkedToggleOverrides" class="btn-outline btn-sm" onclick="linkedToggleOverrides()">⚙️ 通道覆写</button>
+      </div>
+      <div id="linkedOverridesWrap" style="display:none;margin-top:10px;">
+        <table class="telemetry-table">
+          <thead>
+            <tr>
+              <th>通道 ID</th>
+              <th>指标代码</th>
+              <th>单位</th>
+              <th>当前环境值</th>
+              <th>覆写值</th>
+            </tr>
+          </thead>
+          <tbody id="linkedOverrideRows"></tbody>
+        </table>
+        <div class="btn-group" style="margin-top:8px;">
+          <button class="btn-outline btn-xs" onclick="linkedClearOverrides()">清空覆写</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1085,6 +1115,7 @@ let linkedEventSource = null;
 let linkedRunning = false;
 let linkedUptimeTimer = null;
 let linkedStartTime = null;
+let linkedSensorChannels = [];
 
 const linkedEnvFields = ['temp','humidity','ph','ec','co2','light','water_temp','do','level','orp','tds','o3','turbidity','flow_rate'];
 const linkedEnvRanges = {
@@ -1092,6 +1123,11 @@ const linkedEnvRanges = {
   co2:{lo:400,hi:2000}, light:{lo:0,hi:70000}, water_temp:{lo:18,hi:28}, do:{lo:4,hi:10},
   level:{lo:20,hi:80}, orp:{lo:200,hi:500}, tds:{lo:300,hi:1500}, o3:{lo:0,hi:50},
   turbidity:{lo:0,hi:20}, flow_rate:{lo:5,hi:20}
+};
+const linkedEnvFieldMap = {
+  TEMP:'temp', HUMIDITY:'humidity', PH:'ph', EC:'ec', CO2:'co2', LIGHT:'light',
+  WATER_TEMP:'water_temp', DO:'do', LEVEL:'level', ORP:'orp', TDS:'tds',
+  O3:'o3', TURBIDITY:'turbidity', FLOW_RATE:'flow_rate'
 };
 
 function linkedLog(msg, cls) {
@@ -1175,6 +1211,7 @@ function linkedSetRunning(running) {
   linkedRunning = running;
   document.getElementById('btnLinkedStart').disabled = running;
   document.getElementById('btnLinkedStop').disabled = !running;
+  document.getElementById('btnLinkedTrigger').disabled = !running;
   document.getElementById('linkedRunStatus').textContent = running?'运行中':'未运行';
   document.getElementById('linkedRunStatus').style.color = running?'var(--success)':'';
   if (running) {
@@ -1185,9 +1222,11 @@ function linkedSetRunning(running) {
       el.style.display = '';
       el.textContent = `运行: ${Math.floor(sec/3600)}h ${Math.floor(sec/60)%60}m ${sec%60}s`;
     }, 1000);
+    setTimeout(() => linkedPollStatus(), 500);
   } else {
     clearInterval(linkedUptimeTimer);
     linkedUptimeTimer = null; linkedStartTime = null;
+    linkedSensorChannels = [];
     document.getElementById('linkedUptime').style.display = 'none';
     document.getElementById('linkedEnvTS').textContent = '';
     document.querySelectorAll('#linkedEnvGrid .env-card').forEach(c => {
@@ -1195,6 +1234,9 @@ function linkedSetRunning(running) {
       c.querySelector('.env-value').textContent = '--';
     });
     document.getElementById('linkedActuators').innerHTML = '<div class="empty-hint">未运行或无执行器</div>';
+    document.getElementById('linkedOverrideRows').innerHTML = '';
+    document.getElementById('linkedOverridesWrap').style.display = 'none';
+    document.getElementById('btnLinkedToggleOverrides').textContent = '⚙️ 通道覆写';
   }
 }
 
@@ -1233,6 +1275,96 @@ function linkedUpdateEnv(data) {
     document.getElementById('linkedActuators').innerHTML = html;
   }
   if (data.ts) document.getElementById('linkedEnvTS').textContent = new Date(data.ts).toLocaleTimeString('zh-CN',{hour12:false});
+  // Update override row current values
+  document.querySelectorAll('#linkedOverrideRows .ov-cur-val').forEach(cell => {
+    const metric = cell.dataset.metric;
+    if (metric && env[linkedEnvFieldMap[metric]] !== undefined) {
+      cell.textContent = Number(env[linkedEnvFieldMap[metric]]).toFixed(2);
+    }
+  });
+}
+
+function linkedTriggerTelemetry() {
+  if (!linkedRunning) return;
+  const serverUrl = document.getElementById('linkedServerUrl').value.trim();
+  const anomalyRate = parseFloat(document.getElementById('linkedAnomalyRate').value) || 0;
+
+  const overrides = [];
+  document.querySelectorAll('#linkedOverrideRows tr').forEach(row => {
+    const chIdEl = row.querySelector('[data-field="channel_id"]');
+    const ovEl = row.querySelector('[data-field="override_value"]');
+    if (!chIdEl || !ovEl || ovEl.value.trim() === '') return;
+    const chId = parseInt(chIdEl.value);
+    const ovVal = parseFloat(ovEl.value);
+    if (!isNaN(chId) && !isNaN(ovVal)) {
+      overrides.push({ channel_id: chId, value: ovVal });
+    }
+  });
+
+  const body = { anomaly_rate: anomalyRate };
+  if (overrides.length > 0) body.overrides = overrides;
+
+  linkedLog('📤 手动上报遥测...', 'info');
+  fetch(serverUrl + '/trigger-telemetry', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+  .then(resp => resp.json())
+  .then(data => {
+    if (data.code === 0) {
+      linkedLog(`✅ 上报完成 (${data.data.channel_count} 通道)`, 'success');
+    } else {
+      linkedLog(`❌ 上报失败: ${data.message || 'unknown'}`, 'error');
+    }
+  })
+  .catch(e => linkedLog(`❌ 请求失败: ${e.message}`, 'error'));
+}
+
+async function linkedPollStatus() {
+  const serverUrl = document.getElementById('linkedServerUrl').value.trim();
+  try {
+    const resp = await fetch(serverUrl + '/status');
+    const data = await resp.json();
+    if (data.running && data.sensor_channels) {
+      linkedSensorChannels = data.sensor_channels;
+      linkedRenderOverrideRows();
+      linkedLog(`📡 获取通道列表: ${linkedSensorChannels.length} 个通道`, 'info');
+    }
+  } catch(e) {
+    linkedLog(`⚠️ 获取通道列表失败: ${e.message}`, 'info');
+  }
+}
+
+function linkedToggleOverrides() {
+  const wrap = document.getElementById('linkedOverridesWrap');
+  const btn = document.getElementById('btnLinkedToggleOverrides');
+  const show = wrap.style.display === 'none';
+  wrap.style.display = show ? '' : 'none';
+  btn.textContent = show ? '⚙️ 收起覆写' : '⚙️ 通道覆写';
+  btn.className = show ? 'btn-outline btn-sm btn-override-active' : 'btn-outline btn-sm';
+}
+
+function linkedRenderOverrideRows() {
+  const tbody = document.getElementById('linkedOverrideRows');
+  tbody.innerHTML = '';
+  linkedSensorChannels.forEach(ch => {
+    const row = document.createElement('tr');
+    row.innerHTML =
+      `<td><input type="hidden" data-field="channel_id" value="${ch.channel_id}">${ch.channel_id}</td>` +
+      `<td>${escapeHtml(ch.metric_code)}</td>` +
+      `<td>${escapeHtml(ch.unit || '-')}</td>` +
+      `<td class="ov-cur-val" data-metric="${escapeHtml(ch.metric_code)}">--</td>` +
+      `<td><input type="number" data-field="override_value" step="any" placeholder="留空=环境值" style="width:120px;"></td>`;
+    tbody.appendChild(row);
+  });
+}
+
+function linkedClearOverrides() {
+  document.querySelectorAll('#linkedOverrideRows [data-field="override_value"]').forEach(inp => {
+    inp.value = '';
+  });
+  linkedLog('已清空所有覆写值', 'info');
 }
 
 function toggleLinkedApi() {

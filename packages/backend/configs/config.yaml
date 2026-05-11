@@ -31,7 +31,7 @@ mqtt:
   client_id: "hamb-backend"
 
 log:
-  level: info
+  level: warn
 
 device:
   heartbeat_timeout_sec: 600

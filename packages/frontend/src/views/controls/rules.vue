@@ -442,7 +442,7 @@ function defaultTarget(): TargetItem {
     channelId: undefined,
     commandType: 'SWITCH',
     payloadRaw: '{"state":"ON"}',
-    executionOrder: 0,
+    executionOrder: 1,
     switchState: 'ON',
     payloadKey: '',
     payloadValue: ''
@@ -488,10 +488,18 @@ function syncStructuredToPayload(t: TargetItem) {
   }
 }
 
+// Safely parse payloadRaw to a plain object, handling double-encoded strings
+function safeParsePayload(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw || '{}')
+    if (typeof parsed === 'string') return JSON.parse(parsed)
+    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+  } catch { return {} }
+}
+
 // Parse payloadRaw into structured fields (used when loading existing targets)
 function parseTargetFromPayload(raw: string, commandType: string): Pick<TargetItem, 'payloadRaw' | 'switchState' | 'payloadKey' | 'payloadValue'> {
-  let obj: Record<string, unknown> = {}
-  try { obj = JSON.parse(raw || '{}') } catch { /* ignore */ }
+  const obj = safeParsePayload(raw)
   if (commandType === 'SWITCH') {
     return {
       payloadRaw: raw,
@@ -559,7 +567,7 @@ function typeLabel(t: string) {
 // ── 多目标动作 helpers ──
 function addTarget() {
   const t = defaultTarget()
-  t.executionOrder = targets.value.length
+  t.executionOrder = targets.value.length + 1
   targets.value.push(t)
 }
 
@@ -710,6 +718,7 @@ function openCreateDialog() {
   scheduleUseCondition.value = false
   growingZones.value = []
   actuatorChannels.value = []
+  loadActuatorChannels()
   dialogVisible.value = true
 }
 
@@ -760,7 +769,7 @@ async function openEditDialog(policy: ControlPolicy) {
     const tgtResult = await policyApi.getPolicyTargets(policy.id)
     if (tgtResult.items && tgtResult.items.length > 0) {
       targets.value = tgtResult.items.map(t => {
-        const raw = JSON.stringify(t.command_payload)
+        const raw = typeof t.command_payload === 'string' ? t.command_payload : JSON.stringify(t.command_payload)
         return {
           channelId: t.actuator_channel_id,
           commandType: t.command_type,
@@ -831,7 +840,9 @@ async function handleSubmit() {
         }
       } catch { /* ignore */ }
       for (const c of finalConditions) {
-        await policyApi.createPolicyCondition(pid, c as any)
+        const cond = { ...c }
+        if (!cond.aggregation) delete cond.aggregation
+        await policyApi.createPolicyCondition(pid, cond as any)
       }
 
       // Sync Targets
@@ -846,10 +857,7 @@ async function handleSubmit() {
         await policyApi.createPolicyTarget(pid, {
           actuator_channel_id: t.channelId!,
           command_type: t.commandType,
-          command_payload: (() => {
-            try { return JSON.parse(t.payloadRaw || '{}') }
-            catch { return {} }
-          })(),
+          command_payload: safeParsePayload(t.payloadRaw),
           execution_order: t.executionOrder ?? i
         })
       }
@@ -874,7 +882,9 @@ async function handleSubmit() {
 
       // Create conditions
       for (const c of finalConditions) {
-        await policyApi.createPolicyCondition(pid, c as any)
+        const cond = { ...c }
+        if (!cond.aggregation) delete cond.aggregation
+        await policyApi.createPolicyCondition(pid, cond as any)
       }
 
       // Create targets
@@ -883,10 +893,7 @@ async function handleSubmit() {
         await policyApi.createPolicyTarget(pid, {
           actuator_channel_id: t.channelId!,
           command_type: t.commandType,
-          command_payload: (() => {
-            try { return JSON.parse(t.payloadRaw || '{}') }
-            catch { return {} }
-          })(),
+          command_payload: safeParsePayload(t.payloadRaw),
           execution_order: t.executionOrder ?? i
         })
       }

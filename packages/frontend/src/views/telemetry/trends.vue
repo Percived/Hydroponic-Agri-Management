@@ -91,10 +91,10 @@
     </el-alert>
 
     <!-- No data -->
-    <el-empty v-if="hasQueried && !querying && chartSeries.length === 0 && tableData.length === 0" description="当前筛选条件下暂无数据" />
+    <el-empty v-if="hasQueried && !querying && metricCharts.length === 0 && tableData.length === 0" description="当前筛选条件下暂无数据" />
 
     <!-- Results -->
-    <template v-if="hasQueried && !querying && (chartSeries.length > 0 || tableData.length > 0)">
+    <template v-if="hasQueried && !querying && (metricCharts.length > 0 || tableData.length > 0)">
       <!-- Stats Summary -->
       <el-row :gutter="12" class="stats-row" v-if="statsByMetric.size > 0">
         <el-col v-for="[code, stat] in statsByMetric" :key="code" :span="6">
@@ -109,21 +109,26 @@
         </el-col>
       </el-row>
 
-      <!-- Chart area -->
-      <el-row :gutter="12" class="chart-area">
-        <el-col :span="selectedBatchId ? 16 : 24">
-          <el-card>
-            <template #header><span>多指标对比</span></template>
-            <metric-trend-chart :series="chartSeries" :events="eventPoints" />
+      <!-- Chart grid: one card per metric -->
+      <div class="chart-grid">
+        <div v-for="item in metricCharts" :key="item.metricCode" class="chart-card-item">
+          <el-card shadow="hover">
+            <template #header>
+              <div class="chart-card-header">
+                <span class="chart-card-title">{{ item.metricName }}</span>
+                <el-tag size="small" type="info">{{ item.seriesCount }} 条序列</el-tag>
+              </div>
+            </template>
+            <MetricTrendChart :series="item.series" :events="eventPoints" :y-axis-name="item.unit" />
           </el-card>
-        </el-col>
-        <el-col v-if="selectedBatchId" :span="8">
-          <el-card>
-            <template #header><span>批次事件</span></template>
-            <batch-event-overlay :events="timelineEvents" />
-          </el-card>
-        </el-col>
-      </el-row>
+        </div>
+      </div>
+
+      <!-- Batch events panel -->
+      <el-card v-if="selectedBatchId" class="batch-events-card">
+        <template #header><span>批次事件</span></template>
+        <batch-event-overlay :events="timelineEvents" />
+      </el-card>
 
       <!-- Data table -->
       <el-card class="table-card">
@@ -255,35 +260,51 @@ const pagedTableData = computed(() => {
   return tableData.value.slice(start, start + tablePageSize.value)
 })
 
-// Chart series grouped by channel_id + metric_code (each channel gets its own line)
-const chartSeries = computed(() => {
-  const key = (chId: number, code: string) => `${chId}:${code}`
-  const grouped: Record<string, Array<{ time: string; value: number }>> = {}
-  const meta: Record<string, { chId: number; code: string }> = {}
+interface MetricChartItem {
+  metricCode: string
+  metricName: string
+  seriesCount: number
+  series: Array<{ name: string; data: Array<{ time: string; value: number }> }>
+  unit: string
+}
+
+// Chart series grouped by metric_code (one card per metric, one series per channel)
+const metricCharts = computed<MetricChartItem[]>(() => {
+  // Group rawData by metric_code
+  const metricGroups = new Map<string, Map<number, Array<{ time: string; value: number }>>>()
 
   for (const r of rawData.value) {
-    const k = key(r.sensor_channel_id, r.metric_code)
-    if (!grouped[k]) {
-      grouped[k] = []
-      meta[k] = { chId: r.sensor_channel_id, code: r.metric_code }
+    if (!selectedMetricCodes.value.includes(r.metric_code)) continue
+    if (!metricGroups.has(r.metric_code)) {
+      metricGroups.set(r.metric_code, new Map())
     }
-    grouped[k].push({ time: r.collected_at, value: r.value })
+    const channelGroups = metricGroups.get(r.metric_code)!
+    if (!channelGroups.has(r.sensor_channel_id)) {
+      channelGroups.set(r.sensor_channel_id, [])
+    }
+    channelGroups.get(r.sensor_channel_id)!.push({ time: r.collected_at, value: r.value })
   }
 
-  return Object.entries(grouped)
-    .filter(([k]) => {
-      const m = meta[k]
-      return m && selectedMetricCodes.value.includes(m.code)
-    })
-    .map(([k, data]) => {
-      const m = meta[k]
-      const ch = channelMap.value.get(m.chId)
+  return [...metricGroups.entries()].map(([code, channelGroups]) => {
+    const series = [...channelGroups.entries()].map(([chId, data]) => {
+      const ch = channelMap.value.get(chId)
       const dev = ch ? deviceMap.value.get(ch.sensor_device_id) : undefined
       const label = dev
-        ? `${dev.name} / ${ch!.channel_code} - ${getMetricName(m.code)}`
-        : `CH#${m.chId} - ${getMetricName(m.code)}`
+        ? `${dev.name} / ${ch!.channel_code}`
+        : `CH#${chId}`
       return { name: label, data }
     })
+
+    const firstCh = channels.value.find(c => c.metric_code === code)
+
+    return {
+      metricCode: code,
+      metricName: getMetricName(code),
+      seriesCount: series.length,
+      series,
+      unit: firstCh?.unit || ''
+    }
+  })
 })
 
 // Stats
@@ -626,7 +647,29 @@ watch(selectedBatchId, async (batchId) => {
     }
   }
 
-  .chart-area {
+  .chart-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .chart-card-item {
+    min-width: 0;
+  }
+
+  .chart-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .chart-card-title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .batch-events-card {
     margin-top: 16px;
   }
 

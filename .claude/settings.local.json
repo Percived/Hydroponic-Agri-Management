@@ -35,7 +35,8 @@
       "Bash(__NEW_LINE_3574e22c3420a1bf__ echo:*)",
       "Bash(powershell:*)",
       "Bash(go vet:*)",
-      "Bash(powershell.exe:*)"
+      "Bash(powershell.exe:*)",
+      "Bash(npx vite:*)"
     ]
   }
 }

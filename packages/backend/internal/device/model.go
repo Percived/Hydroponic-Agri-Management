@@ -43,7 +43,7 @@ type SensorDevice struct {
 	Name            string     `gorm:"size:64;not null"`
 	Model           string     `gorm:"size:64"`
 	FirmwareVersion string     `gorm:"column:firmware_version;size:64"`
-	Status          string     `gorm:"size:16;default:ONLINE"`
+	Status          string     `gorm:"size:16;default:OFFLINE"`
 	LastSeenAt      *time.Time `gorm:"column:last_seen_at"`
 	Protocol        string     `gorm:"size:16;default:MQTT"`
 	Metadata        string     `gorm:"type:json"`

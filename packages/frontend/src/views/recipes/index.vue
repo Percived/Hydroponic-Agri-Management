@@ -181,33 +181,74 @@
     </el-dialog>
 
     <!-- 阶段指标新增/编辑弹窗 -->
-    <el-dialog v-model="stageTargetFormVisible" :title="isEditStageTarget ? '编辑阶段指标' : '新增阶段指标'" width="500px">
-      <el-form ref="stageTargetFormRef" :model="stageTargetForm" :rules="stageTargetFormRules" label-width="120px">
+    <el-dialog v-model="stageTargetFormVisible" :title="isEditStageTarget ? '编辑阶段指标' : '新增阶段指标'" width="650px">
+      <el-form ref="stageTargetFormRef" :model="stageTargetForm" :rules="stageTargetFormRules" label-width="90px">
         <el-form-item label="生长阶段" prop="growth_stage_id">
           <el-select v-model="stageTargetForm.growth_stage_id" placeholder="选择生长阶段" filterable style="width: 100%">
             <el-option v-for="s in growthStages" :key="s.id" :label="`${s.name} (${s.code})`" :value="s.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="指标代码" prop="metric_code">
-          <el-select v-model="stageTargetForm.metric_code" placeholder="选择指标" filterable style="width: 100%">
-            <el-option v-for="m in metrics" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="目标最小值">
-          <el-input-number v-model="stageTargetForm.target_min" :precision="2" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="目标最大值">
-          <el-input-number v-model="stageTargetForm.target_max" :precision="2" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="容差">
-          <el-input-number v-model="stageTargetForm.tolerance" :min="0" :precision="2" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="单位">
-          <el-input v-model="stageTargetForm.unit" placeholder="如 ℃, mS/cm" />
-        </el-form-item>
-        <el-form-item label="启用">
-          <el-switch v-model="stageTargetForm.enabled" />
-        </el-form-item>
+
+        <div v-for="(metric, index) in stageTargetForm.metrics" :key="index" class="metric-row-card">
+          <div class="metric-row-header">
+            <span>指标 {{ index + 1 }}</span>
+            <el-button v-if="!isEditStageTarget && stageTargetForm.metrics.length > 1" type="danger" link @click="removeStageTargetMetric(index)">
+              <el-icon><Delete /></el-icon>
+            </el-button>
+          </div>
+          
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item 
+                label="指标代码" 
+                :prop="`metrics.${index}.metric_code`" 
+                :rules="{ required: true, message: '请选择指标', trigger: 'change' }"
+              >
+                <el-select 
+                  v-model="metric.metric_code" 
+                  placeholder="选择指标" 
+                  filterable 
+                  style="width: 100%" 
+                  :disabled="isEditStageTarget"
+                  @change="(val) => handleMetricChange(val, metric)"
+                >
+                  <el-option v-for="m in metrics" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="单位">
+                <el-input v-model="metric.unit" placeholder="自动带出" disabled />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="最小值">
+                <el-input-number v-model="metric.target_min" :precision="2" controls-position="right" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="最大值">
+                <el-input-number v-model="metric.target_max" :precision="2" controls-position="right" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="容差">
+                <el-input-number v-model="metric.tolerance" :min="0" :precision="2" controls-position="right" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="启用">
+                <el-switch v-model="metric.enabled" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </div>
+
+        <div v-if="!isEditStageTarget" class="add-metric-btn-container">
+          <el-button type="primary" plain @click="addStageTargetMetric" style="width: 100%">
+            <el-icon><Plus /></el-icon> 添加另一个指标
+          </el-button>
+        </div>
       </el-form>
       <template #footer>
         <el-button @click="stageTargetFormVisible = false">取消</el-button>
@@ -412,19 +453,46 @@ const stageTargetFormRef = ref<FormInstance>()
 
 const emptyStageTargetForm = () => ({
   growth_stage_id: undefined as number | undefined,
-  metric_code: '',
-  target_min: undefined as number | undefined,
-  target_max: undefined as number | undefined,
-  tolerance: undefined as number | undefined,
-  unit: '' as string,
-  enabled: true as boolean
+  metrics: [
+    {
+      metric_code: '',
+      target_min: undefined as number | undefined,
+      target_max: undefined as number | undefined,
+      tolerance: undefined as number | undefined,
+      unit: '' as string,
+      enabled: true as boolean
+    }
+  ]
 })
 
 const stageTargetForm = reactive(emptyStageTargetForm())
 
 const stageTargetFormRules: FormRules = {
-  growth_stage_id: [{ required: true, message: '请选择生长阶段', trigger: 'change' }],
-  metric_code: [{ required: true, message: '请选择指标代码', trigger: 'change' }]
+  growth_stage_id: [{ required: true, message: '请选择生长阶段', trigger: 'change' }]
+}
+
+function addStageTargetMetric() {
+  stageTargetForm.metrics.push({
+    metric_code: '',
+    target_min: undefined,
+    target_max: undefined,
+    tolerance: undefined,
+    unit: '',
+    enabled: true
+  })
+}
+
+function handleMetricChange(code: string, metricRow: any) {
+  const selectedMetric = metrics.value.find(m => m.code === code)
+  if (selectedMetric) {
+    metricRow.unit = selectedMetric.unit || ''
+  } else {
+    metricRow.unit = ''
+  }
+}
+
+function removeStageTargetMetric(index: number) {
+  stageTargetForm.metrics.splice(index, 1)
 }
 
 // Ion target form
@@ -501,12 +569,16 @@ function openEditStageTarget(target: RecipeStageTarget, index: number) {
   editingStageIndex.value = index
   Object.assign(stageTargetForm, {
     growth_stage_id: target.growth_stage_id,
-    metric_code: target.metric_code,
-    target_min: target.target_min,
-    target_max: target.target_max,
-    tolerance: target.tolerance,
-    unit: target.unit || '',
-    enabled: target.enabled
+    metrics: [
+      {
+        metric_code: target.metric_code,
+        target_min: target.target_min,
+        target_max: target.target_max,
+        tolerance: target.tolerance,
+        unit: target.unit || '',
+        enabled: target.enabled
+      }
+    ]
   })
   stageTargetFormVisible.value = true
 }
@@ -514,22 +586,32 @@ function openEditStageTarget(target: RecipeStageTarget, index: number) {
 function handleStageTargetFormSubmit() {
   if (!stageTargetFormRef.value) return
   stageTargetFormRef.value.validate().then(() => {
-    const item: CreateStageTargetParams & { id?: number } = {
-      growth_stage_id: stageTargetForm.growth_stage_id || null,
-      metric_code: stageTargetForm.metric_code,
-      target_min: stageTargetForm.target_min ?? null,
-      target_max: stageTargetForm.target_max ?? null,
-      tolerance: stageTargetForm.tolerance ?? null,
-      unit: stageTargetForm.unit || undefined,
-      enabled: stageTargetForm.enabled
-    }
     if (isEditStageTarget.value && editingStageIndex.value != null) {
+      const metric = stageTargetForm.metrics[0]
+      const item: CreateStageTargetParams & { id?: number } = {
+        growth_stage_id: stageTargetForm.growth_stage_id || null,
+        metric_code: metric.metric_code,
+        target_min: metric.target_min ?? null,
+        target_max: metric.target_max ?? null,
+        tolerance: metric.tolerance ?? null,
+        unit: metric.unit || undefined,
+        enabled: metric.enabled
+      }
       // Preserve existing id so backend knows it's an update
       const existing = stageTargets.value[editingStageIndex.value]
       if (existing) item.id = existing.id
       stageTargets.value.splice(editingStageIndex.value, 1, item as unknown as RecipeStageTarget)
     } else {
-      stageTargets.value.push(item as unknown as RecipeStageTarget)
+      const newItems = stageTargetForm.metrics.map(metric => ({
+        growth_stage_id: stageTargetForm.growth_stage_id || null,
+        metric_code: metric.metric_code,
+        target_min: metric.target_min ?? null,
+        target_max: metric.target_max ?? null,
+        tolerance: metric.tolerance ?? null,
+        unit: metric.unit || undefined,
+        enabled: metric.enabled
+      }))
+      stageTargets.value.push(...(newItems as unknown as RecipeStageTarget[]))
     }
     stageTargetFormVisible.value = false
   }).catch(() => { /* validation failed */ })
@@ -682,5 +764,28 @@ onMounted(() => {
     font-size: 12px;
     margin-left: 4px;
   }
+}
+
+.metric-row-card {
+  background: var(--bg-page);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+
+  .metric-row-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--color-text-regular);
+  }
+}
+
+.add-metric-btn-container {
+  margin-top: 8px;
+  margin-bottom: 16px;
 }
 </style>

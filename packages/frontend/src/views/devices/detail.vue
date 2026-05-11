@@ -266,43 +266,125 @@
           label="遥测数据"
           name="telemetry"
         >
-          <div v-if="telemetryLoading" class="loading-placeholder">
-            <el-skeleton :rows="3" animated />
+          <!-- 时间范围选择器 -->
+          <div class="telemetry-toolbar">
+            <el-radio-group
+              v-model="timeRangePreset"
+              @change="fetchAllHistories"
+            >
+              <el-radio-button value="1h">1小时</el-radio-button>
+              <el-radio-button value="6h">6小时</el-radio-button>
+              <el-radio-button value="24h">24小时</el-radio-button>
+              <el-radio-button value="3d">3天</el-radio-button>
+              <el-radio-button value="7d">7天</el-radio-button>
+            </el-radio-group>
           </div>
+
+          <!-- 全局首次加载 -->
+          <div v-if="telemetryLoadingGlobal" class="chart-grid">
+            <div v-for="ch in sensorChannels" :key="ch.id" class="chart-card">
+              <el-card shadow="hover">
+                <template #header>
+                  <div class="chart-header">
+                    <span class="chart-title">{{
+                      getMetricName(ch.metric_code)
+                    }}</span>
+                  </div>
+                </template>
+                <div class="chart-placeholder">
+                  <el-skeleton :rows="8" animated />
+                </div>
+              </el-card>
+            </div>
+          </div>
+
+          <!-- 无通道 -->
           <div
-            v-else-if="telemetryByChannel.length === 0"
+            v-else-if="sensorChannels.length === 0"
             class="empty-placeholder"
           >
-            <el-empty description="暂无遥测数据" />
+            <el-empty description="该设备没有传感器通道" />
           </div>
-          <div v-else class="telemetry-grid">
+
+          <!-- 图表网格 -->
+          <div v-else class="chart-grid">
             <div
-              v-for="item in telemetryByChannel"
-              :key="`${item.channel_id}-${item.metric_code}`"
-              class="telemetry-item"
+              v-for="ch in sensorChannels"
+              :key="ch.id"
+              class="chart-card"
             >
-              <div class="metric-name">
-                {{ getMetricName(item.metric_code) }}
-              </div>
-              <div class="metric-value">
-                {{ formatNumber(item.value) }}
-                <span class="metric-unit">{{
-                  getChannelUnit(item.channel_id) || ""
-                }}</span>
-              </div>
-              <div class="metric-meta">
-                <el-tag
-                  :type="item.quality_flag === 'normal' ? 'success' : 'danger'"
-                  size="small"
+              <el-card shadow="hover">
+                <template #header>
+                  <div class="chart-header">
+                    <span class="chart-title">{{
+                      getMetricName(ch.metric_code)
+                    }}</span>
+                    <el-tag
+                      v-if="channelLatestFlags.get(ch.id)"
+                      :type="
+                        channelLatestFlags.get(ch.id) === 'normal'
+                          ? 'success'
+                          : 'danger'
+                      "
+                      size="small"
+                    >
+                      {{
+                        channelLatestFlags.get(ch.id) === "normal"
+                          ? "正常"
+                          : channelLatestFlags.get(ch.id)
+                      }}
+                    </el-tag>
+                  </div>
+                </template>
+                <!-- 单个加载中 -->
+                <div
+                  v-if="channelChartLoading[ch.id]"
+                  class="chart-placeholder"
                 >
-                  {{
-                    item.quality_flag === "normal" ? "正常" : item.quality_flag
-                  }}
-                </el-tag>
-                <span class="metric-time">{{
-                  formatDate(item.collected_at, "HH:mm:ss")
-                }}</span>
-              </div>
+                  <el-skeleton :rows="8" animated />
+                </div>
+                <!-- 加载失败 -->
+                <div
+                  v-else-if="channelChartErrors[ch.id]"
+                  class="chart-placeholder"
+                >
+                  <el-result
+                    icon="error"
+                    title="加载失败"
+                    sub-title="无法获取该通道的历史数据"
+                  >
+                    <template #extra>
+                      <el-button
+                        type="primary"
+                        size="small"
+                        @click="fetchSingleChannelHistory(ch)"
+                        >重试</el-button
+                      >
+                    </template>
+                  </el-result>
+                </div>
+                <!-- 无数据 -->
+                <div
+                  v-else-if="
+                    !channelTimeSeries.has(ch.id) ||
+                    channelTimeSeries.get(ch.id)!.length === 0
+                  "
+                  class="chart-placeholder"
+                >
+                  <el-empty description="该时间段内暂无数据" />
+                </div>
+                <!-- 正常图表 -->
+                <MetricTrendChart
+                  v-else
+                  :series="[
+                    {
+                      name: getMetricName(ch.metric_code),
+                      data: channelTimeSeries.get(ch.id) || [],
+                    },
+                  ]"
+                  :y-axis-name="ch.unit"
+                />
+              </el-card>
             </div>
           </div>
         </el-tab-pane>
@@ -508,16 +590,16 @@ import { ArrowLeft, Edit, Plus } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from "element-plus";
 import { deviceApi, telemetryApi, greenhouseApi, metricApi } from "@/api";
 import { usePermission } from "@/composables/usePermission";
-import { formatDate, formatNumber, getMetricName } from "@/utils/format";
+import { formatDate, getMetricName } from "@/utils/format";
 import { actuatorTypeOptions, ACTUATOR_TYPE_LABELS } from "@/utils/device";
-import { LARGE_PAGE_SIZE } from "@/utils/constants";
+import { LARGE_PAGE_SIZE, EXTRA_LARGE_PAGE_SIZE } from "@/utils/constants";
+import MetricTrendChart from "@/components/charts/MetricTrendChart.vue";
 import { Role } from "@/types";
 import type {
   SensorDevice,
   ActuatorDevice,
   SensorChannel,
   ActuatorChannel,
-  TelemetryRecord,
   Greenhouse,
   GrowingZone,
   MetricDefinition,
@@ -534,8 +616,6 @@ const deviceId = computed(() => Number(route.params.id));
 const loading = ref(false);
 const errorMsg = ref("");
 const activeTab = ref("info");
-const telemetryLoading = ref(false);
-
 // Determine device type (sensor or actuator) from route query or by trial
 const deviceType = ref<"sensor" | "actuator">(
   (route.query.type as "sensor" | "actuator") || "sensor",
@@ -544,10 +624,17 @@ const deviceType = ref<"sensor" | "actuator">(
 type AnyDevice = SensorDevice | ActuatorDevice;
 const device = ref<AnyDevice | null>(null);
 const channels = ref<SensorChannel[] | ActuatorChannel[]>([]);
-const telemetryByChannel = ref<Array<TelemetryRecord & { channel_id: number }>>(
-  [],
-);
 const channelToggleLoading = reactive<Record<number, boolean>>({});
+
+// Telemetry chart state
+const timeRangePreset = ref("24h");
+const telemetryLoadingGlobal = ref(false);
+const channelChartLoading = reactive<Record<number, boolean>>({});
+const channelChartErrors = reactive<Record<number, boolean>>({});
+const channelTimeSeries = ref<
+  Map<number, Array<{ time: string; value: number }>>
+>(new Map());
+const channelLatestFlags = ref<Map<number, string>>(new Map());
 const greenhouses = ref<Greenhouse[]>([]);
 const growingZones = ref<GrowingZone[]>([]);
 const allZones = ref<GrowingZone[]>([]);
@@ -608,19 +695,82 @@ const channelFormRules: FormRules = {
   ],
 };
 
-// Channel unit lookup map
-const channelUnitMap = computed(() => {
-  const map = new Map<number, string>();
-  for (const ch of channels.value) {
-    if ("unit" in ch) {
-      map.set((ch as SensorChannel).id, (ch as SensorChannel).unit);
-    }
-  }
-  return map;
+const sensorChannels = computed(() => {
+  if (deviceType.value !== "sensor") return [];
+  return channels.value as SensorChannel[];
 });
 
-function getChannelUnit(channelId: number): string {
-  return channelUnitMap.value.get(channelId) || "";
+function getTimeRange(): { start: string; end: string } {
+  const now = new Date();
+  const end = now.toISOString();
+  let start: Date;
+  switch (timeRangePreset.value) {
+    case "1h":
+      start = new Date(now.getTime() - 60 * 60 * 1000);
+      break;
+    case "6h":
+      start = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+      break;
+    case "3d":
+      start = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      break;
+    case "7d":
+      start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    default:
+      start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      break;
+  }
+  return { start: start.toISOString(), end };
+}
+
+async function fetchSingleChannelHistory(ch: SensorChannel) {
+  channelChartLoading[ch.id] = true;
+  channelChartErrors[ch.id] = false;
+  try {
+    const { start, end } = getTimeRange();
+    const resp = await telemetryApi.getChannelHistory(ch.id, {
+      start_time: start,
+      end_time: end,
+      page_size: EXTRA_LARGE_PAGE_SIZE,
+    });
+    const data = resp.items
+      .map((item) => ({ time: item.collected_at, value: item.value }))
+      .sort(
+        (a, b) =>
+          new Date(a.time).getTime() - new Date(b.time).getTime(),
+      );
+
+    const newMap = new Map(channelTimeSeries.value);
+    newMap.set(ch.id, data);
+    channelTimeSeries.value = newMap;
+
+    // Update latest quality flag from the most recent record
+    if (resp.items.length > 0) {
+      const latest = resp.items.reduce((a, b) =>
+        new Date(a.collected_at) > new Date(b.collected_at) ? a : b,
+      );
+      const flagsMap = new Map(channelLatestFlags.value);
+      flagsMap.set(ch.id, latest.quality_flag);
+      channelLatestFlags.value = flagsMap;
+    }
+  } catch {
+    channelChartErrors[ch.id] = true;
+  } finally {
+    channelChartLoading[ch.id] = false;
+  }
+}
+
+async function fetchAllHistories() {
+  const chs = sensorChannels.value;
+  if (chs.length === 0) return;
+
+  telemetryLoadingGlobal.value = true;
+  try {
+    await Promise.all(chs.map((ch) => fetchSingleChannelHistory(ch)));
+  } finally {
+    telemetryLoadingGlobal.value = false;
+  }
 }
 
 function getGreenhouseName(id: number): string {
@@ -812,7 +962,7 @@ async function handleChannelSubmit() {
     await loadChannels();
     // Reload telemetry for sensor
     if (deviceType.value === "sensor") {
-      fetchTelemetry();
+      fetchAllHistories();
     }
   } catch {
     /* error handled */
@@ -910,7 +1060,7 @@ async function handleChannelDelete(ch: SensorChannel | ActuatorChannel) {
     ElMessage.success("通道已删除");
     await loadChannels();
     if (deviceType.value === "sensor") {
-      fetchTelemetry();
+      fetchAllHistories();
     }
   } catch (e: any) {
     if (e !== "cancel") {
@@ -1017,9 +1167,9 @@ async function loadData() {
     loadGrowingZones(device.value.greenhouse_id);
   }
 
-  // Load telemetry for sensor channels
+  // Load telemetry history for sensor channels
   if (deviceType.value === "sensor") {
-    fetchTelemetry();
+    fetchAllHistories();
   }
 }
 
@@ -1054,27 +1204,6 @@ async function loadAllZones() {
     allZones.value = data.items;
   } catch {
     /* ignore */
-  }
-}
-
-async function fetchTelemetry() {
-  const sensorChs = channels.value as SensorChannel[];
-  if (sensorChs.length === 0) return;
-
-  telemetryLoading.value = true;
-  try {
-    const results: Array<TelemetryRecord & { channel_id: number }> = [];
-    for (const ch of sensorChs) {
-      try {
-        const record = await telemetryApi.getChannelLatest(ch.id);
-        results.push({ ...record, channel_id: ch.id });
-      } catch {
-        // Skip channels with no data
-      }
-    }
-    telemetryByChannel.value = results;
-  } finally {
-    telemetryLoading.value = false;
   }
 }
 
@@ -1130,41 +1259,34 @@ onMounted(() => {
     text-align: center;
     color: var(--color-text-secondary);
   }
-  .telemetry-grid {
+  .telemetry-toolbar {
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .chart-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 16px;
   }
-  .telemetry-item {
-    padding: 16px;
-    background: var(--color-primary-bg-light);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color-light);
+  .chart-card {
+    min-width: 0;
   }
-  .metric-name {
-    font-size: 14px;
-    color: var(--color-text-regular);
-    margin-bottom: 8px;
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
-  .metric-value {
-    font-size: 24px;
+  .chart-title {
+    font-size: 15px;
     font-weight: 600;
     color: var(--color-text-primary);
-    margin-bottom: 8px;
   }
-  .metric-unit {
-    font-size: 14px;
-    font-weight: normal;
-    color: var(--color-text-secondary);
-  }
-  .metric-meta {
+  .chart-placeholder {
+    min-height: 380px;
     display: flex;
     align-items: center;
-    gap: 8px;
-  }
-  .metric-time {
-    font-size: 12px;
-    color: var(--color-text-secondary);
+    justify-content: center;
   }
 }
 </style>

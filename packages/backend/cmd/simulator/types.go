@@ -232,11 +232,34 @@ type ActuatorStateDTO struct {
 
 // statusResponse is returned by GET /status.
 type statusResponse struct {
-	Running        bool   `json:"running"`
-	SensorDevice   string `json:"sensor_device,omitempty"`
-	ActuatorDevice string `json:"actuator_device,omitempty"`
-	UptimeSec      int64  `json:"uptime_sec"`
-	TelemetryCount int64  `json:"telemetry_count"`
+	Running        bool               `json:"running"`
+	SensorDevice   string             `json:"sensor_device,omitempty"`
+	ActuatorDevice string             `json:"actuator_device,omitempty"`
+	UptimeSec      int64              `json:"uptime_sec"`
+	TelemetryCount int64              `json:"telemetry_count"`
+	SensorChannels []sensorChannelDTO `json:"sensor_channels,omitempty"`
+}
+
+// sensorChannelDTO is a channel summary used in /status.
+type sensorChannelDTO struct {
+	ChannelID  uint64 `json:"channel_id"`
+	MetricCode string `json:"metric_code"`
+	Unit       string `json:"unit"`
+}
+
+// TriggerTelemetryReq is the request body for POST /trigger-telemetry.
+type TriggerTelemetryReq struct {
+	AnomalyRate float64                `json:"anomaly_rate"`
+	Overrides   []telemetryOverrideDTO `json:"overrides,omitempty"`
+}
+
+type telemetryOverrideDTO struct {
+	ChannelID uint64  `json:"channel_id"`
+	Value     float64 `json:"value"`
+}
+
+type triggerTelemetryResp struct {
+	ChannelCount int64 `json:"channel_count"`
 }
 
 // stopResponse is returned by POST /stop.

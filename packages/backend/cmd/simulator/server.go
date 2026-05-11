@@ -74,6 +74,7 @@ func NewSimServer() *SimServer {
 	engine.GET("/status", s.handleStatus)
 	engine.POST("/start", s.handleStart)
 	engine.POST("/stop", s.handleStop)
+	engine.POST("/trigger-telemetry", s.handleTriggerTelemetry)
 	engine.GET("/events", s.handleEvents)
 
 	return s
@@ -105,6 +106,13 @@ func (s *SimServer) handleStatus(c *gin.Context) {
 	}
 	if sim.sensor != nil {
 		resp.SensorDevice = sim.sensor.deviceCode
+		for _, ch := range sim.sensor.channels {
+			resp.SensorChannels = append(resp.SensorChannels, sensorChannelDTO{
+				ChannelID:  ch.ID,
+				MetricCode: ch.MetricCode,
+				Unit:       ch.Unit,
+			})
+		}
 	}
 	if sim.actuator != nil {
 		resp.ActuatorDevice = sim.actuator.deviceCode
@@ -228,6 +236,22 @@ func (s *SimServer) handleStart(c *gin.Context) {
 	var act *actuatorSim
 	if len(actuatorChannels) > 0 {
 		act = newActuatorSim(cfg.ActuatorDeviceCode, actuatorChannels, mqttMgr, env, s.hub)
+
+		// Initialize actuator states from backend data
+		initCount := 0
+		for _, ch := range actuatorChannels {
+			state := ch.CurrentState
+			if state == "" {
+				state = "OFF"
+			}
+			value := 0.0
+			if state == "ON" {
+				value = 100.0
+			}
+			env.UpdateActuatorState(ch.ID, ch.ActuatorType, state, value)
+			initCount++
+		}
+		s.hub.PublishLog("info", fmt.Sprintf("执行器状态已从后端同步: %d 个通道", initCount))
 	}
 
 	// ── Phase 5: Subscribe to commands ──
@@ -356,6 +380,37 @@ func (s *SimServer) handleStop(c *gin.Context) {
 			TelemetryCount: telemetryCount,
 			CmdACKCount:    cmdACKCount,
 		},
+	})
+}
+
+// ──────────────────── POST /trigger-telemetry ────────────────────
+
+func (s *SimServer) handleTriggerTelemetry(c *gin.Context) {
+	s.mu.Lock()
+	sim := s.sim
+	s.mu.Unlock()
+
+	if sim == nil || sim.sensor == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 10001, "message": "模拟器未运行"})
+		return
+	}
+
+	var req TriggerTelemetryReq
+	_ = c.ShouldBindJSON(&req)
+
+	overrides := make(map[uint64]float64, len(req.Overrides))
+	for _, ov := range req.Overrides {
+		overrides[ov.ChannelID] = ov.Value
+	}
+
+	count := sim.sensor.sendTelemetryWithOverrides(req.AnomalyRate, overrides)
+
+	s.hub.PublishLog("info", fmt.Sprintf("手动遥测触发 (%d 通道)", count))
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "ok",
+		"data":    triggerTelemetryResp{ChannelCount: count},
 	})
 }
 

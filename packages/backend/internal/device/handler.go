@@ -44,7 +44,7 @@ func (h *Handler) CreateSensorDevice(c *gin.Context) {
 		GrowingZoneID:   req.GrowingZoneID,
 		Protocol:        req.Protocol,
 		Metadata:        req.Metadata,
-		Status:          StatusOnline,
+		Status:          StatusOffline,
 	}
 	if dev.Protocol == "" {
 		dev.Protocol = ProtocolMQTT
@@ -132,7 +132,7 @@ func (h *Handler) ListSensorDevices(c *gin.Context) {
 
 	var devs []SensorDevice
 	if total > 0 {
-		if err := query.Order("id desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&devs).Error; err != nil {
+		if err := query.Order("CASE WHEN status = 'ONLINE' THEN 1 WHEN status = 'FAULT' THEN 2 ELSE 3 END ASC, last_seen_at DESC").Limit(pageSize).Offset((page - 1) * pageSize).Find(&devs).Error; err != nil {
 			response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
 			return
 		}
@@ -171,6 +171,17 @@ func (h *Handler) DeleteSensorDevice(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_id", nil)
+		return
+	}
+
+	// Check if device has channels
+	var channelCount int64
+	if err := h.db.Model(&SensorChannel{}).Where("sensor_device_id = ?", id).Count(&channelCount).Error; err != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
+		return
+	}
+	if channelCount > 0 {
+		response.Error(c, http.StatusConflict, platformErrors.CodeConflict, "device_has_channels", nil)
 		return
 	}
 
@@ -396,7 +407,7 @@ func (h *Handler) CreateActuatorDevice(c *gin.Context) {
 		GrowingZoneID:   req.GrowingZoneID,
 		Protocol:        req.Protocol,
 		Metadata:        req.Metadata,
-		Status:          StatusOnline,
+		Status:          StatusOffline,
 	}
 	if dev.Protocol == "" {
 		dev.Protocol = ProtocolMQTT
@@ -484,7 +495,7 @@ func (h *Handler) ListActuatorDevices(c *gin.Context) {
 
 	var devs []ActuatorDevice
 	if total > 0 {
-		if err := query.Order("id desc").Limit(pageSize).Offset((page - 1) * pageSize).Find(&devs).Error; err != nil {
+		if err := query.Order("CASE WHEN status = 'ONLINE' THEN 1 WHEN status = 'FAULT' THEN 2 ELSE 3 END ASC, last_seen_at DESC").Limit(pageSize).Offset((page - 1) * pageSize).Find(&devs).Error; err != nil {
 			response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
 			return
 		}
@@ -523,6 +534,17 @@ func (h *Handler) DeleteActuatorDevice(c *gin.Context) {
 	id, err := parseID(c.Param("id"))
 	if err != nil {
 		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, "invalid_id", nil)
+		return
+	}
+
+	// Check if device has channels
+	var channelCount int64
+	if err := h.db.Model(&ActuatorChannel{}).Where("actuator_device_id = ?", id).Count(&channelCount).Error; err != nil {
+		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
+		return
+	}
+	if channelCount > 0 {
+		response.Error(c, http.StatusConflict, platformErrors.CodeConflict, "device_has_channels", nil)
 		return
 	}
 
@@ -756,7 +778,7 @@ func (h *Handler) RegisterDevice(c *gin.Context) {
 				GreenhouseID:    req.GreenhouseID,
 				GrowingZoneID:   req.GrowingZoneID,
 				Protocol:        protocol,
-				Status:          StatusOnline,
+				Status:          StatusOffline,
 			}
 			if err := tx.Create(&dev).Error; err != nil {
 				return err
@@ -793,7 +815,7 @@ func (h *Handler) RegisterDevice(c *gin.Context) {
 				GreenhouseID:    req.GreenhouseID,
 				GrowingZoneID:   req.GrowingZoneID,
 				Protocol:        protocol,
-				Status:          StatusOnline,
+				Status:          StatusOffline,
 			}
 			if err := tx.Create(&dev).Error; err != nil {
 				return err

@@ -41,18 +41,31 @@ func newSensorSim(deviceCode string, channels []sensorChannelDetail, cfgByChan m
 
 // sendTelemetry reads environment state and publishes telemetry via MQTT.
 func (s *sensorSim) sendTelemetry(anomalyRate float64) {
+	s.sendTelemetryWithOverrides(anomalyRate, nil)
+}
+
+// sendTelemetryWithOverrides publishes telemetry for every channel in s.channels.
+// If a channelID is present in overrides, that value is used instead of the
+// environment reading. Returns the number of channels sent.
+func (s *sensorSim) sendTelemetryWithOverrides(anomalyRate float64, overrides map[uint64]float64) int64 {
 	if len(s.channels) == 0 {
-		return
+		return 0
 	}
 
 	emitIfHub(s.hub, func() { s.hub.PublishTelemetry(len(s.channels)) })
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	items := make([]telemetryItem, 0, len(s.channels))
+	sentCount := int64(0)
 
 	for _, ch := range s.channels {
-		// Read from environment model
-		val := s.env.GetSensorReading(ch.MetricCode)
+		var val float64
+		if ov, ok := overrides[ch.ID]; ok {
+			val = ov
+		} else {
+			val = s.env.GetSensorReading(ch.MetricCode)
+		}
+
 		qualityFlag := "normal"
 
 		// Apply anomaly injection at the telemetry layer (does not pollute environment)
@@ -73,17 +86,18 @@ func (s *sensorSim) sendTelemetry(anomalyRate float64) {
 			QualityFlag:     qualityFlag,
 			CollectedAt:     now,
 		})
+		sentCount++
 	}
 
 	payload, err := json.Marshal(items)
 	if err != nil {
 		log.Printf("❌ 序列化遥测数据失败: %v", err)
-		return
+		return sentCount
 	}
 
 	if err := s.mqtt.publish(telemetryTopic(s.deviceCode), 1, false, payload); err != nil {
 		log.Printf("❌ 遥测上报失败: %v", err)
-		return
+		return sentCount
 	}
 
 	s.totalTelemetry++
@@ -91,6 +105,8 @@ func (s *sensorSim) sendTelemetry(anomalyRate float64) {
 		log.Printf("[%s] ✅ 遥测上报 #%d (%d 通道)",
 			time.Now().Format("15:04:05"), s.totalTelemetry, len(items))
 	}
+
+	return sentCount
 }
 
 // publishHeartbeat publishes a sensor device heartbeat.

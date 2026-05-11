@@ -74,8 +74,8 @@ type CreatePolicyConditionRequest struct {
 	Operator            string   `json:"operator" binding:"required,oneof=> >= < <= == !="`
 	ThresholdValue      float64  `json:"threshold_value" binding:"required"`
 	Hysteresis          *float64 `json:"hysteresis"`
-	WindowSec           *uint    `json:"window_sec" binding:"omitempty,min=1"`
-	RequiredDurationSec *uint    `json:"required_duration_sec" binding:"omitempty,min=1"`
+	WindowSec           *uint    `json:"window_sec"`
+	RequiredDurationSec *uint    `json:"required_duration_sec"`
 	Aggregation         *string  `json:"aggregation" binding:"omitempty,oneof=avg max min last"`
 	Enabled             *bool    `json:"enabled"`
 }
@@ -85,8 +85,8 @@ type UpdatePolicyConditionRequest struct {
 	Operator            *string  `json:"operator" binding:"omitempty,oneof=> >= < <= == !="`
 	ThresholdValue      *float64 `json:"threshold_value"`
 	Hysteresis          *float64 `json:"hysteresis"`
-	WindowSec           *uint    `json:"window_sec" binding:"omitempty,min=1"`
-	RequiredDurationSec *uint    `json:"required_duration_sec" binding:"omitempty,min=1"`
+	WindowSec           *uint    `json:"window_sec"`
+	RequiredDurationSec *uint    `json:"required_duration_sec"`
 	Aggregation         *string  `json:"aggregation" binding:"omitempty,oneof=avg max min last"`
 	Enabled             *bool    `json:"enabled"`
 }
@@ -114,7 +114,7 @@ type CreatePolicyTargetRequest struct {
 	ActuatorChannelID uint64                 `json:"actuator_channel_id" binding:"required"`
 	CommandType       string                 `json:"command_type" binding:"required,min=1,max=32"`
 	CommandPayload    map[string]interface{} `json:"command_payload" binding:"required"`
-	ExecutionOrder    *uint16                `json:"execution_order" binding:"omitempty,min=1"`
+	ExecutionOrder    *uint16                `json:"execution_order"`
 	Enabled           *bool                  `json:"enabled"`
 }
 
@@ -123,7 +123,7 @@ type UpdatePolicyTargetRequest struct {
 	ActuatorChannelID *uint64                `json:"actuator_channel_id"`
 	CommandType       *string                `json:"command_type" binding:"omitempty,min=1,max=32"`
 	CommandPayload    map[string]interface{} `json:"command_payload"`
-	ExecutionOrder    *uint16                `json:"execution_order" binding:"omitempty,min=1"`
+	ExecutionOrder    *uint16                `json:"execution_order"`
 	Enabled           *bool                  `json:"enabled"`
 }
 

@@ -31,62 +31,54 @@
     </div>
 
     <!-- Loading state -->
-    <div v-if="loading" class="card-grid">
-      <el-skeleton v-for="i in 6" :key="i" animated>
-        <template #template>
-          <el-card class="sensor-card"><div style="height:100px" /></el-card>
-        </template>
-      </el-skeleton>
+    <div v-if="loading" class="chart-grid">
+      <div v-for="i in 4" :key="i" class="chart-card-item">
+        <el-card>
+          <template #header>
+            <el-skeleton :rows="1" animated />
+          </template>
+          <div class="chart-placeholder">
+            <el-skeleton :rows="8" animated />
+          </div>
+        </el-card>
+      </div>
     </div>
 
     <!-- Empty states -->
     <el-empty v-else-if="!selectedGreenhouseId" description="请选择温室查看实时数据" />
     <el-empty v-else-if="devices.length === 0" description="所选范围内暂无传感器设备" />
-    <el-empty v-else-if="snapshots.length === 0 && !loading" description="所选设备暂无通道配置" />
+    <el-empty v-else-if="channels.length === 0 && !loading" description="所选设备暂无通道配置" />
 
-    <!-- Card grid -->
-    <div v-else class="card-grid">
-      <el-card
-        v-for="snap in snapshots"
-        :key="snap.channel_id"
-        class="sensor-card"
-        :class="{
-          updated: updatedChannels.has(snap.channel_id),
-          'border-online': snap.status === 'ONLINE',
-          'border-offline': snap.status === 'OFFLINE',
-          'border-fault': snap.status === 'FAULT'
-        }"
-      >
-        <div class="card-header-row">
-          <span class="card-device">{{ snap.device_name }}</span>
-          <el-tag size="small" :type="qualityTagType(snap.quality_flag)">
-            {{ snap.quality_flag || '-' }}
-          </el-tag>
-        </div>
-        <div class="card-channel">{{ snap.channel_code }}</div>
-        <div class="card-metric">{{ getMetricName(snap.metric_code) }}</div>
-        <div class="card-value">
-          {{ snap.latest_value !== null ? formatNumber(snap.latest_value) : '暂无数据' }}
-          <span v-if="snap.latest_value !== null" class="card-unit">{{ snap.unit }}</span>
-        </div>
-        <div class="card-time">{{ snap.collected_at ? formatDate(snap.collected_at) : '-' }}</div>
-      </el-card>
-    </div>
-
-    <!-- Trend chart (collapsible) -->
-    <el-card v-if="snapshots.length > 0 && selectedMetricCodes.length > 0" class="chart-card">
-      <template #header>
-        <div class="chart-header">
-          <span>趋势图（最近1小时）</span>
-          <el-button text type="primary" @click="chartExpanded = !chartExpanded">
-            {{ chartExpanded ? '收起' : '展开' }}
-          </el-button>
-        </div>
-      </template>
-      <div v-show="chartExpanded">
-        <metric-trend-chart :series="chartSeries" />
+    <!-- Time range selector + Chart grid -->
+    <template v-else>
+      <div class="time-range-bar">
+        <el-radio-group v-model="timeRangePreset" @change="fetchInitialHistory">
+          <el-radio-button value="1h">1小时</el-radio-button>
+          <el-radio-button value="6h">6小时</el-radio-button>
+          <el-radio-button value="24h">24小时</el-radio-button>
+          <el-radio-button value="3d">3天</el-radio-button>
+          <el-radio-button value="7d">7天</el-radio-button>
+        </el-radio-group>
       </div>
-    </el-card>
+
+      <div class="chart-grid">
+        <div v-for="item in metricCharts" :key="item.metricCode" class="chart-card-item">
+          <el-card shadow="hover">
+            <template #header>
+              <div class="chart-card-header">
+                <span class="chart-card-title">{{ item.metricName }}</span>
+                <el-tag size="small" type="info">{{ item.seriesCount }} / {{ item.channelCount }} 通道</el-tag>
+              </div>
+            </template>
+            <div v-if="chartLoading" class="chart-placeholder">
+              <el-skeleton :rows="8" animated />
+            </div>
+            <el-empty v-else-if="item.series.length === 0" description="暂无数据" />
+            <MetricTrendChart v-else :series="item.series" :y-axis-name="item.unit" />
+          </el-card>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -94,10 +86,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { deviceApi, greenhouseApi, telemetryApi } from '@/api'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
-import { formatDate, formatNumber, getMetricName } from '@/utils/format'
+import { getMetricName } from '@/utils/format'
 import { useTelemetrySSE } from '@/composables/useTelemetrySSE'
 import { ElMessage } from 'element-plus'
-import type { SensorDevice, SensorChannel, Greenhouse, GrowingZone, ChannelSnapshot } from '@/types'
+import type { SensorDevice, SensorChannel, Greenhouse, GrowingZone } from '@/types'
 import MetricTrendChart from '@/components/charts/MetricTrendChart.vue'
 import { appendTrendPoint, normalizeTrendPoints } from './trendBuffer'
 
@@ -109,12 +101,12 @@ const selectedGreenhouseId = ref<number | null>(null)
 const selectedZoneId = ref<number | null>(null)
 const selectedDeviceIds = ref<number[]>([])
 const selectedMetricCodes = ref<string[]>([])
-const snapshots = ref<ChannelSnapshot[]>([])
 const loading = ref(false)
-const updatedChannels = ref(new Set<number>())
-const chartExpanded = ref(true)
+const chartLoading = ref(false)
+const timeRangePreset = ref('1h')
 const pageError = ref('')
 let loadSeq = 0
+let historySeq = 0
 
 // SSE
 const selectedDeviceCodes = computed(() => {
@@ -166,68 +158,119 @@ const metricOptions = computed(() => {
   return [...seen].map((code) => ({ value: code, label: getMetricName(code) }))
 })
 
-const chartSeries = computed(() => {
-  return Object.entries(trendBuffer.value)
-    .filter(([, data]) => data.length > 0)
-    .filter(([chIdStr]) => {
-      const ch = channelMap.value.get(Number(chIdStr))
-      return ch && selectedMetricCodes.value.includes(ch.metric_code)
-    })
-    .map(([chIdStr, data]) => {
-      const chId = Number(chIdStr)
-      const ch = channelMap.value.get(chId)
-      const dev = ch ? deviceMap.value.get(ch.sensor_device_id) : undefined
-      const label = ch
-        ? `${dev?.name || '?'} / ${ch.channel_code} - ${getMetricName(ch.metric_code)}`
-        : `CH#${chId}`
-      return { name: label, data }
-    })
+// Group trendBuffer by metric_code → one chart card per metric, one series per channel
+interface MetricChartItem {
+  metricCode: string
+  metricName: string
+  channelCount: number
+  seriesCount: number
+  series: Array<{ name: string; data: Array<{ time: string; value: number }> }>
+  unit: string
+}
+
+const metricCharts = computed<MetricChartItem[]>(() => {
+  // Group channels by metric_code
+  const metricGroups = new Map<string, SensorChannel[]>()
+  for (const ch of channels.value) {
+    if (!selectedMetricCodes.value.includes(ch.metric_code)) continue
+    if (!metricGroups.has(ch.metric_code)) metricGroups.set(ch.metric_code, [])
+    metricGroups.get(ch.metric_code)!.push(ch)
+  }
+
+  return [...metricGroups.entries()].map(([code, chs]) => {
+    const series: Array<{ name: string; data: Array<{ time: string; value: number }> }> = []
+    for (const ch of chs) {
+      const buf = trendBuffer.value[ch.id]
+      if (buf && buf.length > 0) {
+        const dev = deviceMap.value.get(ch.sensor_device_id)
+        series.push({
+          name: `${dev?.name || '?'} / ${ch.channel_code}`,
+          data: buf
+        })
+      }
+    }
+
+    return {
+      metricCode: code,
+      metricName: getMetricName(code),
+      channelCount: chs.length,
+      seriesCount: series.length,
+      series,
+      unit: chs[0]?.unit || ''
+    }
+  })
 })
 
-// Watch SSE channelValues and update snapshots
+// SSE watch: update trendBuffer in real-time
 watch(
   () => channelValues.value,
-  (map, previousMap) => {
+  (map) => {
     if (map.size === 0) return
-    const flash = new Set<number>()
-
-    snapshots.value = snapshots.value.map((snap) => {
-      const evt = map.get(snap.channel_id)
-      if (!evt) return snap
-
-      const prevEvt = previousMap?.get(snap.channel_id)
-      const changed = !prevEvt
-        || prevEvt.collected_at !== evt.collected_at
-        || prevEvt.value !== evt.value
-        || prevEvt.metric_code !== evt.metric_code
-
-      if (!changed) return snap
-      flash.add(snap.channel_id)
-
-      // Keep each channel series ordered and idempotent when SSE reconnects or replays the last point.
-      const buf = trendBuffer.value[evt.sensor_channel_id] || []
-      trendBuffer.value[evt.sensor_channel_id] = appendTrendPoint(
+    for (const [chIdStr, evt] of map) {
+      const chId = Number(chIdStr)
+      // Only buffer if this channel belongs to selected devices
+      if (!channelMap.value.has(chId)) continue
+      const buf = trendBuffer.value[chId] || []
+      trendBuffer.value[chId] = appendTrendPoint(
         buf,
         { time: evt.collected_at, value: evt.value },
         MAX_BUFFER
       )
-
-      return {
-        ...snap,
-        latest_value: evt.value,
-        quality_flag: evt.quality_flag || snap.quality_flag,
-        collected_at: evt.collected_at
-      }
-    })
-
-    if (flash.size > 0) {
-      updatedChannels.value = flash
-      setTimeout(() => {
-        updatedChannels.value = new Set()
-      }, 1500)
     }
   }
 )
+
+function getTimeRange(): { start: string; end: string } {
+  const now = new Date()
+  const end = now.toISOString()
+  let start: Date
+  switch (timeRangePreset.value) {
+    case '1h': start = new Date(now.getTime() - 60 * 60 * 1000); break
+    case '6h': start = new Date(now.getTime() - 6 * 60 * 60 * 1000); break
+    case '24h': start = new Date(now.getTime() - 24 * 60 * 60 * 1000); break
+    case '3d': start = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000); break
+    case '7d': start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break
+    default: start = new Date(now.getTime() - 60 * 60 * 1000)
+  }
+  return { start: start.toISOString(), end }
+}
+
+async function fetchInitialHistory() {
+  const allChannels = channels.value
+  if (allChannels.length === 0) return
+
+  chartLoading.value = true
+  const { start, end } = getTimeRange()
+  const seq = ++historySeq
+
+  try {
+    const results = await Promise.all(
+      allChannels.map((ch) =>
+        telemetryApi.getChannelHistory(ch.id, {
+          start_time: start,
+          end_time: end,
+          page: 1,
+          page_size: MAX_BUFFER
+        }).then(history => ({ chId: ch.id, items: history.items }))
+          .catch(() => ({ chId: ch.id, items: [] }))
+      )
+    )
+    if (seq !== historySeq) return
+
+    const newBuffer: Record<number, Array<{ time: string; value: number }>> = {}
+    for (const { chId, items } of results) {
+      if (items.length > 0) {
+        newBuffer[chId] = normalizeTrendPoints(
+          items.map(r => ({ time: r.collected_at, value: r.value })),
+          MAX_BUFFER
+        )
+      }
+    }
+    trendBuffer.value = newBuffer
+  } finally {
+    if (seq === historySeq) chartLoading.value = false
+  }
+}
 
 async function loadGreenhouses() {
   const seq = ++loadSeq
@@ -250,7 +293,6 @@ async function onGreenhouseChange() {
   selectedDeviceIds.value = []
   devices.value = []
   channels.value = []
-  snapshots.value = []
 
   if (!selectedGreenhouseId.value) return
 
@@ -284,7 +326,6 @@ async function onZoneChange() {
   pageError.value = ''
   selectedDeviceIds.value = []
   channels.value = []
-  snapshots.value = []
 
   if (!selectedGreenhouseId.value) return
 
@@ -311,7 +352,7 @@ async function onDeviceChange() {
   const seq = ++loadSeq
   pageError.value = ''
   channels.value = []
-  snapshots.value = []
+  trendBuffer.value = {}
 
   if (selectedDeviceIds.value.length === 0) return
 
@@ -335,76 +376,13 @@ async function onDeviceChange() {
     deviceMap.value = new Map(devices.value.map((d) => [d.id, d]))
     channelMap.value = new Map(allChannels.map((c) => [c.id, c]))
 
-    // Reset trend buffer
-    trendBuffer.value = {}
+    // Auto-select all available metrics
+    const codes = [...new Set(allChannels.map(ch => ch.metric_code))]
+    selectedMetricCodes.value = codes
 
-    // Fetch latest values
+    // Fetch initial history
     if (allChannels.length > 0) {
-      const channelIds = allChannels.map((ch) => ch.id)
-      try {
-        const latest = await telemetryApi.getChannelsLatest(channelIds)
-        if (seq !== loadSeq) return
-        const latestMap = new Map(latest.items.map((it) => [it.sensor_channel_id, it]))
-
-        snapshots.value = allChannels.map((ch) => {
-          const dev = deviceMap.value.get(ch.sensor_device_id)
-          const lat = latestMap.get(ch.id)
-          return {
-            channel_id: ch.id,
-            device_name: dev?.name || '-',
-            device_code: dev?.device_code || '-',
-            channel_code: ch.channel_code,
-            metric_code: ch.metric_code,
-            unit: ch.unit,
-            latest_value: lat?.value ?? null,
-            quality_flag: lat?.quality_flag || 'normal',
-            collected_at: lat?.collected_at || '',
-            status: dev?.status || 'OFFLINE'
-          } as ChannelSnapshot
-        })
-
-        // Seed trend buffer from channel history (keyed by channel_id)
-        const historyResults = await Promise.all(
-          allChannels.map((ch) => {
-            const end = new Date()
-            const start = new Date(end.getTime() - 60 * 60 * 1000)
-            return telemetryApi.getChannelHistory(ch.id, {
-              start_time: start.toISOString(),
-              end_time: end.toISOString(),
-              page: 1,
-              page_size: MAX_BUFFER
-            }).then((history) => ({ chId: ch.id, items: history.items }))
-              .catch(() => ({ chId: ch.id, items: [] }))
-          })
-        )
-        if (seq !== loadSeq) return
-        for (const { chId, items } of historyResults) {
-          if (items.length > 0) {
-            trendBuffer.value[chId] = normalizeTrendPoints(
-              items.map((r) => ({ time: r.collected_at, value: r.value })),
-              MAX_BUFFER
-            )
-          }
-        }
-      } catch {
-        if (seq !== loadSeq) return
-        // Even if latest fails, show cards with null values
-        snapshots.value = allChannels.map((ch) => {
-          const dev = deviceMap.value.get(ch.sensor_device_id)
-          return {
-            channel_id: ch.id,
-            device_name: dev?.name || '-',
-            device_code: dev?.device_code || '-',
-            channel_code: ch.channel_code,
-            metric_code: ch.metric_code,
-            unit: ch.unit,
-            latest_value: null,
-            quality_flag: 'normal',
-            collected_at: '',
-            status: dev?.status || 'OFFLINE'
-          } as ChannelSnapshot
-        })
-      }
+      await fetchInitialHistory()
     }
   } finally {
     if (seq === loadSeq) loading.value = false
@@ -425,13 +403,6 @@ async function retryLoad() {
     return
   }
   await loadGreenhouses()
-}
-
-function qualityTagType(flag: string): string {
-  if (flag === 'normal') return 'success'
-  if (flag === 'out_of_range' || flag === 'device_offline') return 'danger'
-  if (flag === 'missing') return 'warning'
-  return 'info'
 }
 
 onMounted(() => {
@@ -502,78 +473,34 @@ onBeforeUnmount(() => {
     border-radius: var(--radius-md);
   }
 
-  .card-grid {
+  .time-range-bar {
+    margin: 12px 0;
+  }
+
+  .chart-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
     margin-top: 12px;
   }
 
-  .sensor-card {
-    transition: box-shadow 0.3s ease, border-color 0.3s ease;
-    border-left: 4px solid #dcdfe6;
-
-    &.border-online {
-      border-left-color: #67c23a;
-    }
-    &.border-offline {
-      border-left-color: #c0c4cc;
-    }
-    &.border-fault {
-      border-left-color: #f56c6c;
-    }
-
-    &.updated {
-      box-shadow: 0 0 0 2px #409eff;
-    }
+  .chart-card-item {
+    min-width: 0;
   }
 
-  .card-header-row {
+  .chart-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 4px;
   }
-  .card-device {
-    font-size: 13px;
+
+  .chart-card-title {
+    font-size: 15px;
     font-weight: 600;
-    color: var(--color-text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .card-channel {
-    font-size: 12px;
-    color: var(--color-text-secondary);
-  }
-  .card-metric {
-    font-size: 12px;
-    color: var(--color-text-regular);
-    margin-bottom: 8px;
-  }
-  .card-value {
-    font-size: 28px;
-    font-weight: 700;
-    line-height: 1.2;
-  }
-  .card-unit {
-    font-size: 14px;
-    font-weight: 400;
-    color: var(--color-text-secondary);
-  }
-  .card-time {
-    margin-top: 6px;
-    font-size: 12px;
-    color: var(--color-text-secondary);
   }
 
-  .chart-card {
-    margin-top: 16px;
-  }
-  .chart-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  .chart-placeholder {
+    padding: 12px 0;
   }
 }
 </style>
