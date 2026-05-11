@@ -24,7 +24,7 @@ func NewHandler(db *gorm.DB) *Handler {
 
 func (h *Handler) Dashboard(c *gin.Context) {
 	var (
-		errCh              = make(chan error, 10)
+		errCh              = make(chan error, 12)
 		stats              DashboardStats
 		greenhouses        []DashboardGreenhouse
 		activeBatches      []DashboardActiveBatch
@@ -36,6 +36,8 @@ func (h *Handler) Dashboard(c *gin.Context) {
 		totalActuators     int64
 		activeBatchesCount int64
 		alertsOpen         int64
+		energyKwhToday     float64
+		waterLToday        float64
 	)
 
 	var wg sync.WaitGroup
@@ -85,6 +87,39 @@ func (h *Handler) Dashboard(c *gin.Context) {
 		defer wg.Done()
 		if h.db.Migrator().HasTable("crop_batches") {
 			h.db.Table("crop_batches").Where("status = ?", "ACTIVE").Count(&activeBatchesCount)
+		}
+	}()
+
+	// Energy and Water consumption for today
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if h.db.Migrator().HasTable("energy_consumption_records") {
+			todayStart := time.Now().Truncate(24 * time.Hour)
+			var totalEnergy struct {
+				Total float64
+			}
+			h.db.Table("energy_consumption_records").
+				Select("COALESCE(SUM(consumption_value), 0) as total").
+				Where("record_type = ? AND record_period_start >= ?", "ELECTRICITY", todayStart).
+				Scan(&totalEnergy)
+			energyKwhToday = totalEnergy.Total
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if h.db.Migrator().HasTable("energy_consumption_records") {
+			todayStart := time.Now().Truncate(24 * time.Hour)
+			var totalWater struct {
+				Total float64
+			}
+			h.db.Table("energy_consumption_records").
+				Select("COALESCE(SUM(consumption_value), 0) as total").
+				Where("record_type = ? AND record_period_start >= ?", "WATER", todayStart).
+				Scan(&totalWater)
+			waterLToday = totalWater.Total
 		}
 	}()
 
@@ -177,8 +212,8 @@ func (h *Handler) Dashboard(c *gin.Context) {
 	stats.UnresolvedAlerts = int(alertsOpen)
 	stats.DevicesOnline = int(sensorsOnline + actuatorsOnline)
 	stats.DevicesOffline = int(sensorsOffline + actuatorsOffline)
-	stats.EnergyKwhToday = 145.0 // Mock data
-	stats.WaterLToday = 2000.0   // Mock data
+	stats.EnergyKwhToday = energyKwhToday
+	stats.WaterLToday = waterLToday
 
 	// Mock Trends for now
 	now := time.Now().Truncate(time.Hour)
