@@ -2,40 +2,62 @@ package overview
 
 import "time"
 
-// DashboardResponse is the typed response DTO for the dashboard overview.
-type DashboardResponse struct {
-	SensorsOnline    int64                `json:"sensors_online"`
-	SensorsOffline   int64                `json:"sensors_offline"`
-	SensorsTotal     int64                `json:"sensors_total"`
-	ActuatorsOnline  int64                `json:"actuators_online"`
-	ActuatorsOffline int64                `json:"actuators_offline"`
-	ActuatorsTotal   int64                `json:"actuators_total"`
-	DevicesOnline    int64                `json:"devices_online"`
-	DevicesOffline   int64                `json:"devices_offline"`
-	DevicesTotal     int64                `json:"devices_total"`
-	AlertsOpen       int64                `json:"alerts_open"`
-	AlertsCritical   int64                `json:"alerts_critical"`
-	AlertsToday      int64                `json:"alerts_today"`
-	DeviceTypeDist   []DeviceTypeDistItem `json:"device_type_distribution"`
-	GreenhouseSum    []GreenhouseSummary  `json:"greenhouse_summary"`
-	RecentCommands   []RecentCommand      `json:"recent_commands"`
+// DashboardStats provides key high-level statistics
+type DashboardStats struct {
+	ActiveBatchesCount int     `json:"active_batches_count"`
+	UnresolvedAlerts   int     `json:"unresolved_alerts"`
+	DevicesOnline      int     `json:"devices_online"`
+	DevicesOffline     int     `json:"devices_offline"`
+	EnergyKwhToday     float64 `json:"energy_kwh_today"`
+	WaterLToday        float64 `json:"water_l_today"`
 }
 
-type DeviceTypeDistItem struct {
-	Type  string `json:"type"`
-	Count int64  `json:"count"`
+// GreenhouseMetrics contains the latest average metrics for a greenhouse
+type GreenhouseMetrics struct {
+	Temperature float64 `json:"temperature"`
+	Humidity    float64 `json:"humidity"`
+	EC          float64 `json:"ec"`
+	PH          float64 `json:"ph"`
+	DO          float64 `json:"do"`
+	CO2         float64 `json:"co2"`
+	Lux         float64 `json:"lux"`
 }
 
-type GreenhouseSummary struct {
-	GreenhouseID  uint64   `json:"greenhouse_id"`
-	Name          string   `json:"name"`
-	SensorCount   int64    `json:"sensor_count"`
-	ActuatorCount int64    `json:"actuator_count"`
-	ZoneCount     int64    `json:"zone_count"`
-	AvgTemp       *float64 `json:"avg_temp"`
-	AvgHumidity   *float64 `json:"avg_humidity"`
+// DashboardGreenhouse provides a snapshot of a greenhouse's current state
+type DashboardGreenhouse struct {
+	ID               string            `json:"id"`
+	Name             string            `json:"name"`
+	HealthScore      string            `json:"health_score"`
+	Metrics          GreenhouseMetrics `json:"metrics"`
+	ActiveStrategies []string          `json:"active_strategies"`
 }
 
+// DashboardTrends provides 24h trend data
+type DashboardTrends struct {
+	Timestamps []string  `json:"timestamps"`
+	ECAvg      []float64 `json:"ec_avg"`
+	PHAvg      []float64 `json:"ph_avg"`
+}
+
+// DashboardActiveBatch provides info about an active crop batch
+type DashboardActiveBatch struct {
+	BatchID      string `json:"batch_id"`
+	CropName     string `json:"crop_name"`
+	Stage        string `json:"stage"`
+	Day          int    `json:"day"`
+	GreenhouseID string `json:"greenhouse_id"`
+}
+
+// DashboardRecentAlert provides info about a recent critical alert
+type DashboardRecentAlert struct {
+	AlertID        string    `json:"alert_id"`
+	Severity       string    `json:"severity"`
+	Message        string    `json:"message"`
+	Timestamp      time.Time `json:"timestamp"`
+	GreenhouseName string    `json:"greenhouse_name"`
+}
+
+// RecentCommand provides info about recently dispatched commands
 type RecentCommand struct {
 	ID          uint64 `json:"id"`
 	CommandType string `json:"command_type"`
@@ -44,62 +66,14 @@ type RecentCommand struct {
 	CreatedAt   string `json:"created_at"`
 }
 
-// toDashboardResponse assembles the typed dashboard response from raw data.
-func toDashboardResponse(
-	sensorsOnline, sensorsOffline, totalSensors,
-	actuatorsOnline, actuatorsOffline, totalActuators,
-	alertsOpen, alertsCritical, alertsToday int64,
-	ghSummaries []greenhouseSummary,
-	recentCmds []recentCommand,
-) DashboardResponse {
-	return DashboardResponse{
-		SensorsOnline:    sensorsOnline,
-		SensorsOffline:   sensorsOffline,
-		SensorsTotal:     totalSensors,
-		ActuatorsOnline:  actuatorsOnline,
-		ActuatorsOffline: actuatorsOffline,
-		ActuatorsTotal:   totalActuators,
-		DevicesOnline:    sensorsOnline + actuatorsOnline,
-		DevicesOffline:   sensorsOffline + actuatorsOffline,
-		DevicesTotal:     totalSensors + totalActuators,
-		AlertsOpen:       alertsOpen,
-		AlertsCritical:   alertsCritical,
-		AlertsToday:      alertsToday,
-		DeviceTypeDist: []DeviceTypeDistItem{
-			{Type: "SENSOR", Count: totalSensors},
-			{Type: "ACTUATOR", Count: totalActuators},
-		},
-		GreenhouseSum:  toGreenhouseSummaries(ghSummaries),
-		RecentCommands: toRecentCommands(recentCmds),
-	}
+// DashboardResponse is the typed response DTO for the dashboard overview.
+type DashboardResponse struct {
+	Stats          DashboardStats         `json:"stats"`
+	Greenhouses    []DashboardGreenhouse  `json:"greenhouses"`
+	Trends         DashboardTrends        `json:"trends"`
+	ActiveBatches  []DashboardActiveBatch `json:"active_batches"`
+	RecentAlerts   []DashboardRecentAlert `json:"recent_alerts"`
+	RecentCommands []RecentCommand        `json:"recent_commands"`
 }
 
-func toGreenhouseSummaries(src []greenhouseSummary) []GreenhouseSummary {
-	out := make([]GreenhouseSummary, 0, len(src))
-	for _, s := range src {
-		out = append(out, GreenhouseSummary{
-			GreenhouseID:  s.GreenhouseID,
-			Name:          s.Name,
-			SensorCount:   s.SensorCount,
-			ActuatorCount: s.ActuatorCount,
-			ZoneCount:     s.ZoneCount,
-			AvgTemp:       s.AvgTemp,
-			AvgHumidity:   s.AvgHumidity,
-		})
-	}
-	return out
-}
 
-func toRecentCommands(src []recentCommand) []RecentCommand {
-	out := make([]RecentCommand, 0, len(src))
-	for _, c := range src {
-		out = append(out, RecentCommand{
-			ID:          c.ID,
-			CommandType: c.CommandType,
-			DeviceName:  c.DeviceName,
-			Status:      c.Status,
-			CreatedAt:   c.CreatedAt.Format(time.RFC3339),
-		})
-	}
-	return out
-}
