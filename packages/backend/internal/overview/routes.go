@@ -8,6 +8,6 @@ import (
 )
 
 func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
-	h := NewHandler(deps.MySQL)
+	h := NewHandler(deps.MySQL, deps.Influx, deps.Config.Influx.Org, deps.Config.Influx.Bucket)
 	r.GET("/overview/dashboard", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator, auth.RoleViewer), h.Dashboard)
 }

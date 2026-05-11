@@ -1,6 +1,8 @@
 package overview
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
@@ -11,15 +13,19 @@ import (
 	"hydroponic-backend/internal/platform/response"
 
 	"github.com/gin-gonic/gin"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"gorm.io/gorm"
 )
 
 type Handler struct {
-	db *gorm.DB
+	db     *gorm.DB
+	influx influxdb2.Client
+	org    string
+	bucket string
 }
 
-func NewHandler(db *gorm.DB) *Handler {
-	return &Handler{db: db}
+func NewHandler(db *gorm.DB, influx influxdb2.Client, org, bucket string) *Handler {
+	return &Handler{db: db, influx: influx, org: org, bucket: bucket}
 }
 
 func (h *Handler) Dashboard(c *gin.Context) {
@@ -141,11 +147,12 @@ func (h *Handler) Dashboard(c *gin.Context) {
 				SELECT 
 					CAST(cb.id AS CHAR) as batch_id, 
 					c.name as crop_name, 
-					'GROWING' as stage, 
+					bs.name as stage, 
 					DATEDIFF(NOW(), cb.start_date) as day, 
 					CAST(cb.greenhouse_id AS CHAR) as greenhouse_id
 				FROM crop_batches cb
 				JOIN crops c ON c.id = cb.crop_id
+				LEFT JOIN batch_stages bs ON bs.id = cb.current_stage_id
 				WHERE cb.status = 'ACTIVE'
 				LIMIT 5
 			`).Scan(&activeBatches)
@@ -189,6 +196,78 @@ func (h *Handler) Dashboard(c *gin.Context) {
 		}
 	}()
 
+	// Query InfluxDB for 24h Trends
+	now := time.Now().Truncate(time.Hour)
+	trends := DashboardTrends{
+		Timestamps: make([]string, 24),
+		ECAvg:      make([]float64, 24),
+		PHAvg:      make([]float64, 24),
+	}
+
+	// Pre-fill timestamps
+	for i := 0; i < 24; i++ {
+		t := now.Add(-time.Duration(23-i) * time.Hour)
+		trends.Timestamps[i] = t.Format("15:04")
+	}
+
+	if h.influx != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			// Flux query to aggregate mean by 1 hour for EC and PH
+			fluxQuery := fmt.Sprintf(`
+				from(bucket: "%s")
+					|> range(start: -24h)
+					|> filter(fn: (r) => r["_measurement"] == "telemetry")
+					|> filter(fn: (r) => r["metric_code"] == "EC" or r["metric_code"] == "PH")
+					|> filter(fn: (r) => r["_field"] == "value")
+					|> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
+					|> yield(name: "mean")
+			`, h.bucket)
+
+			queryAPI := h.influx.QueryAPI(h.org)
+			result, err := queryAPI.Query(context.Background(), fluxQuery)
+			if err != nil {
+				errCh <- err
+				return
+			}
+
+			// We have 24 buckets, need to map result timestamps to our pre-filled buckets
+			for result.Next() {
+				record := result.Record()
+				val, ok := record.Value().(float64)
+				if !ok {
+					continue
+				}
+
+				metricCode, _ := record.ValueByKey("metric_code").(string)
+				t := record.Time().Truncate(time.Hour)
+
+				// Find index in our 24h array
+				idx := -1
+				for i := 0; i < 24; i++ {
+					bucketTime := now.Add(-time.Duration(23-i) * time.Hour)
+					if t.Equal(bucketTime) {
+						idx = i
+						break
+					}
+				}
+
+				if idx >= 0 && idx < 24 {
+					if metricCode == "EC" {
+						trends.ECAvg[idx] = val
+					} else if metricCode == "PH" {
+						trends.PHAvg[idx] = val
+					}
+				}
+			}
+			if result.Err() != nil {
+				errCh <- result.Err()
+			}
+		}()
+	}
+
 	wg.Wait()
 	close(errCh)
 
@@ -214,20 +293,6 @@ func (h *Handler) Dashboard(c *gin.Context) {
 	stats.DevicesOffline = int(sensorsOffline + actuatorsOffline)
 	stats.EnergyKwhToday = energyKwhToday
 	stats.WaterLToday = waterLToday
-
-	// Mock Trends for now
-	now := time.Now().Truncate(time.Hour)
-	trends := DashboardTrends{
-		Timestamps: make([]string, 24),
-		ECAvg:      make([]float64, 24),
-		PHAvg:      make([]float64, 24),
-	}
-	for i := 0; i < 24; i++ {
-		t := now.Add(-time.Duration(23-i) * time.Hour)
-		trends.Timestamps[i] = t.Format("15:04")
-		trends.ECAvg[i] = 1.5 + float64(i%5)*0.1
-		trends.PHAvg[i] = 5.8 + float64(i%3)*0.1
-	}
 
 	resp := DashboardResponse{
 		Stats:          stats,
@@ -257,15 +322,17 @@ func (h *Handler) Dashboard(c *gin.Context) {
 
 func queryGreenhouseMetrics(db *gorm.DB, out *[]DashboardGreenhouse) error {
 	var rows []struct {
-		ID       uint64  `gorm:"column:id"`
-		Name     string  `gorm:"column:name"`
-		Temp     float64 `gorm:"column:avg_temp"`
-		Humidity float64 `gorm:"column:avg_humidity"`
-		EC       float64 `gorm:"column:avg_ec"`
-		PH       float64 `gorm:"column:avg_ph"`
-		DO       float64 `gorm:"column:avg_do"`
-		CO2      float64 `gorm:"column:avg_co2"`
-		Lux      float64 `gorm:"column:avg_lux"`
+		ID             uint64  `gorm:"column:id"`
+		Name           string  `gorm:"column:name"`
+		Temp           float64 `gorm:"column:avg_temp"`
+		Humidity       float64 `gorm:"column:avg_humidity"`
+		EC             float64 `gorm:"column:avg_ec"`
+		PH             float64 `gorm:"column:avg_ph"`
+		DO             float64 `gorm:"column:avg_do"`
+		CO2            float64 `gorm:"column:avg_co2"`
+		Lux            float64 `gorm:"column:avg_lux"`
+		CriticalAlerts int64   `gorm:"column:critical_alerts"`
+		WarningAlerts  int64   `gorm:"column:warning_alerts"`
 	}
 
 	err := db.Raw(`
@@ -278,7 +345,9 @@ func queryGreenhouseMetrics(db *gorm.DB, out *[]DashboardGreenhouse) error {
 			COALESCE(AVG(t_ph.value), 0) AS avg_ph,
 			COALESCE(AVG(t_do.value), 0) AS avg_do,
 			COALESCE(AVG(t_co2.value), 0) AS avg_co2,
-			COALESCE(AVG(t_lux.value), 0) AS avg_lux
+			COALESCE(AVG(t_lux.value), 0) AS avg_lux,
+			(SELECT COUNT(*) FROM alerts a WHERE (a.device_id IN (SELECT id FROM sensor_devices WHERE greenhouse_id = g.id) AND a.device_type = 'SENSOR' OR a.device_id IN (SELECT id FROM actuator_devices WHERE greenhouse_id = g.id) AND a.device_type = 'ACTUATOR') AND a.status = 'OPEN' AND a.level = 'CRITICAL') as critical_alerts,
+			(SELECT COUNT(*) FROM alerts a WHERE (a.device_id IN (SELECT id FROM sensor_devices WHERE greenhouse_id = g.id) AND a.device_type = 'SENSOR' OR a.device_id IN (SELECT id FROM actuator_devices WHERE greenhouse_id = g.id) AND a.device_type = 'ACTUATOR') AND a.status = 'OPEN' AND a.level = 'WARNING') as warning_alerts
 		FROM greenhouses g
 		LEFT JOIN LATERAL (
 			SELECT tr.value FROM telemetry_records tr
@@ -338,11 +407,32 @@ func queryGreenhouseMetrics(db *gorm.DB, out *[]DashboardGreenhouse) error {
 
 	*out = make([]DashboardGreenhouse, 0, len(rows))
 	for _, r := range rows {
+		// Calculate Health Score
+		healthScore := "good"
+		if r.CriticalAlerts > 0 {
+			healthScore = "critical"
+		} else if r.WarningAlerts > 0 {
+			healthScore = "warning"
+		}
+
+		// Fetch active strategies
+		var strategies []string
+		if db.Migrator().HasTable("climate_profiles") {
+			db.Table("climate_profiles").Select("name").Where("greenhouse_id = ? AND status = 'ACTIVE'", r.ID).Pluck("name", &strategies)
+		}
+		if db.Migrator().HasTable("nutrient_recipes") {
+			var recipeName string
+			db.Table("nutrient_recipes").Select("name").Where("greenhouse_id = ? AND is_active = ?", r.ID, true).Pluck("name", &recipeName)
+			if recipeName != "" {
+				strategies = append(strategies, recipeName)
+			}
+		}
+
 		gh := DashboardGreenhouse{
 			ID:               strconv.FormatUint(r.ID, 10),
 			Name:             r.Name,
-			HealthScore:      "good", // Default for now
-			ActiveStrategies: []string{"Default Strategy"},
+			HealthScore:      healthScore,
+			ActiveStrategies: strategies,
 			Metrics: GreenhouseMetrics{
 				Temperature: r.Temp,
 				Humidity:    r.Humidity,
