@@ -169,6 +169,39 @@ button:active { transform: scale(0.97); }
   .telemetry-table { font-size: 0.76rem; }
   .telemetry-table select, .telemetry-table input { padding: 4px 5px; font-size: 0.74rem; }
 }
+
+/* ── 联动模拟面板 ── */
+.env-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.env-card {
+  background: #f8fcf8; border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 10px; display: flex; justify-content: space-between; align-items: center;
+  transition: border-color 0.2s;
+}
+.env-card.normal { border-left: 3px solid var(--primary); }
+.env-card.warn { border-left: 3px solid #e67e22; background: #fffdf5; }
+.env-card .env-label { font-size: 0.78rem; color: var(--text-secondary); }
+.env-card .env-value { font-size: 0.95rem; font-weight: 600; font-family: 'SF Mono','Fira Code','Consolas',monospace; }
+.env-card .env-unit { font-size: 0.72rem; color: var(--text-secondary); margin-left: 2px; }
+.linked-log {
+  background: var(--log-bg); color: var(--log-text);
+  border-radius: 6px; padding: 8px 12px; max-height: 180px; overflow-y: auto;
+  font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size: 0.75rem; line-height: 1.6;
+}
+.actuator-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.actuator-table th { text-align: left; padding: 6px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; border-bottom: 2px solid var(--border); }
+.actuator-table td { padding: 5px 8px; border-bottom: 1px solid #e8ece8; }
+.actuator-state-on { color: var(--success); font-weight: 600; }
+.actuator-state-off { color: #95a5a6; }
+.server-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; }
+.server-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.server-dot.online { background: #4eff4e; }
+.server-dot.offline { background: #ff4e4e; }
+.toggle-row { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.78rem; color: var(--accent); user-select: none; margin-top: 8px; }
+.toggle-row:hover { color: var(--accent-hover); }
+.toggle-arrow { transition: transform 0.2s; font-size: 0.7rem; }
+.toggle-arrow.open { transform: rotate(90deg); }
+.api-fields { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.api-fields.open { display: block; }
 </style>
 </head>
 <body>
@@ -223,6 +256,7 @@ button:active { transform: scale(0.97); }
   <button class="tab-btn" data-tab="status">📡 状态 & 心跳</button>
   <button class="tab-btn" data-tab="ack">✅ ACK 回执</button>
   <button class="tab-btn" data-tab="commands">📥 下行指令 <span id="cmdBadge" style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:1px 6px;font-size:0.7rem;margin-left:4px;">0</span></button>
+  <button class="tab-btn" data-tab="linked">🌍 联动模拟</button>
 </div>
 
 <!-- 遥测面板 -->
@@ -373,6 +407,118 @@ button:active { transform: scale(0.97); }
   </div>
 </div>
 
+<!-- ============ 联动模拟 ============ -->
+<div id="panel-linked" class="tab-panel">
+
+  <div class="card">
+    <div class="card-header"><span class="icon">🔗</span> 服务器连接</div>
+    <div class="card-body">
+      <div class="row" style="align-items:center;">
+        <div class="form-group" style="flex:2;min-width:200px;">
+          <label>模拟器地址</label>
+          <input id="linkedServerUrl" value="http://127.0.0.1:3001">
+        </div>
+        <div class="form-group" style="flex:0;min-width:auto;">
+          <label>&nbsp;</label>
+          <div class="server-status">
+            <span class="server-dot offline" id="linkedServerDot"></span>
+            <span id="linkedServerLabel">未连接</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex:1;min-width:280px;">
+      <div class="card-header"><span class="icon">⚙️</span> 设备配置</div>
+      <div class="card-body">
+        <div class="form-group" style="margin-bottom:8px;">
+          <label>传感器设备编码 *</label>
+          <input id="linkedSensorCode" placeholder="GH1-SAFE-DWC-01" style="font-family:monospace;">
+        </div>
+        <div class="form-group" style="margin-bottom:8px;">
+          <label>执行器设备编码（可选）</label>
+          <input id="linkedActuatorCode" placeholder="留空则仅模拟传感器" style="font-family:monospace;">
+        </div>
+        <div class="form-group">
+          <label>温室 ID</label>
+          <input id="linkedGreenhouseID" type="number" value="1" min="1" style="width:100px;">
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;min-width:280px;">
+      <div class="card-header"><span class="icon">⏱️</span> 参数配置</div>
+      <div class="card-body">
+        <div class="row">
+          <div class="form-group"><label>遥测间隔 (秒)</label><input id="linkedTelemetrySec" type="number" value="10" min="1" style="width:70px;"></div>
+          <div class="form-group"><label>心跳间隔 (秒)</label><input id="linkedHeartbeatSec" type="number" value="30" min="1" style="width:70px;"></div>
+          <div class="form-group"><label>环境 Tick (ms)</label><input id="linkedEnvTickMs" type="number" value="1000" min="100" style="width:80px;"></div>
+          <div class="form-group"><label>异常率</label><input id="linkedAnomalyRate" type="number" value="0.03" min="0" max="1" step="0.01" style="width:70px;"></div>
+        </div>
+        <div class="toggle-row" onclick="toggleLinkedApi()"><span class="toggle-arrow" id="linkedApiArrow">▶</span> 后端 API 凭据</div>
+        <div class="api-fields" id="linkedApiFields">
+          <div class="row" style="margin-top:8px;">
+            <div class="form-group" style="flex:2;"><label>API 地址</label><input id="linkedApiUrl" value="http://127.0.0.1:3000"></div>
+            <div class="form-group"><label>用户名</label><input id="linkedApiUser" value="admin"></div>
+            <div class="form-group"><label>密码</label><input id="linkedApiPass" type="password" value="admin123"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="icon">🎮</span> 控制</div>
+    <div class="card-body">
+      <div class="btn-group" style="align-items:center;">
+        <button id="btnLinkedStart" class="btn-primary" onclick="linkedStart()">▶ 启动模拟</button>
+        <button id="btnLinkedStop" class="btn-danger" onclick="linkedStop()" disabled>⏹ 停止</button>
+        <span style="margin-left:12px;font-size:0.84rem;">状态: <strong id="linkedRunStatus">未运行</strong></span>
+        <span id="linkedUptime" style="margin-left:8px;font-size:0.8rem;color:var(--text-secondary);display:none;"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex:2;min-width:400px;">
+      <div class="card-header"><span class="icon">🌡️</span> 环境状态 <span id="linkedEnvTS" style="margin-left:8px;font-size:0.72rem;color:var(--text-secondary);"></span></div>
+      <div class="card-body">
+        <div class="env-grid" id="linkedEnvGrid">
+          <div class="env-card normal"><span class="env-label">温度</span><span><span class="env-value">--</span><span class="env-unit">°C</span></span></div>
+          <div class="env-card normal"><span class="env-label">湿度</span><span><span class="env-value">--</span><span class="env-unit">%</span></span></div>
+          <div class="env-card normal"><span class="env-label">pH</span><span><span class="env-value">--</span><span class="env-unit">pH</span></span></div>
+          <div class="env-card normal"><span class="env-label">EC</span><span><span class="env-value">--</span><span class="env-unit">mS/cm</span></span></div>
+          <div class="env-card normal"><span class="env-label">CO₂</span><span><span class="env-value">--</span><span class="env-unit">ppm</span></span></div>
+          <div class="env-card normal"><span class="env-label">光照</span><span><span class="env-value">--</span><span class="env-unit">lx</span></span></div>
+          <div class="env-card normal"><span class="env-label">水温</span><span><span class="env-value">--</span><span class="env-unit">°C</span></span></div>
+          <div class="env-card normal"><span class="env-label">溶解氧</span><span><span class="env-value">--</span><span class="env-unit">mg/L</span></span></div>
+          <div class="env-card normal"><span class="env-label">液位</span><span><span class="env-value">--</span><span class="env-unit">cm</span></span></div>
+          <div class="env-card normal"><span class="env-label">ORP</span><span><span class="env-value">--</span><span class="env-unit">mV</span></span></div>
+          <div class="env-card normal"><span class="env-label">TDS</span><span><span class="env-value">--</span><span class="env-unit">ppm</span></span></div>
+          <div class="env-card normal"><span class="env-label">O₃</span><span><span class="env-value">--</span><span class="env-unit">ppb</span></span></div>
+          <div class="env-card normal"><span class="env-label">浊度</span><span><span class="env-value">--</span><span class="env-unit">NTU</span></span></div>
+          <div class="env-card normal"><span class="env-label">流量</span><span><span class="env-value">--</span><span class="env-unit">L/min</span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="flex:1;min-width:250px;">
+      <div class="card-header"><span class="icon">🔧</span> 执行器状态</div>
+      <div class="card-body" style="max-height:380px;overflow-y:auto;">
+        <div id="linkedActuators" class="empty-hint">未运行或无执行器</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="icon">📋</span> 事件日志 <span style="margin-left:auto;"><button class="btn-outline btn-xs" onclick="linkedClearLog()">清空</button></span></div>
+    <div class="linked-log" id="linkedLog"></div>
+  </div>
+
+</div>
+
 <!-- ============ 日志 ============ -->
 <div class="card">
   <div class="card-header">
@@ -415,8 +561,9 @@ const $cmdBadge = document.getElementById('cmdBadge');
 // ==================== 初始化 ====================
 function init() {
   loadSettings();
+  linkedLoadConfig();
   setCollectedAtNow();
-  addTelemetryRow(); // 默认添加一行
+  addTelemetryRow();
 }
 
 function loadSettings() {
@@ -932,6 +1079,203 @@ document.addEventListener('keydown', (e) => {
     sendTelemetry();
   }
 });
+
+// ==================== 联动模拟 ====================
+let linkedEventSource = null;
+let linkedRunning = false;
+let linkedUptimeTimer = null;
+let linkedStartTime = null;
+
+const linkedEnvFields = ['temp','humidity','ph','ec','co2','light','water_temp','do','level','orp','tds','o3','turbidity','flow_rate'];
+const linkedEnvRanges = {
+  temp:{lo:-10,hi:60}, humidity:{lo:0,hi:100}, ph:{lo:5,hi:7}, ec:{lo:0.5,hi:4},
+  co2:{lo:400,hi:2000}, light:{lo:0,hi:70000}, water_temp:{lo:18,hi:28}, do:{lo:4,hi:10},
+  level:{lo:20,hi:80}, orp:{lo:200,hi:500}, tds:{lo:300,hi:1500}, o3:{lo:0,hi:50},
+  turbidity:{lo:0,hi:20}, flow_rate:{lo:5,hi:20}
+};
+
+function linkedLog(msg, cls) {
+  const el = document.getElementById('linkedLog');
+  const now = new Date().toLocaleTimeString('zh-CN',{hour12:false});
+  const div = document.createElement('div');
+  div.className = 'log-entry ' + (cls||'');
+  div.innerHTML = `<span class="ts">${now}</span>${escapeHtml(msg)}`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+function linkedClearLog() { document.getElementById('linkedLog').innerHTML = ''; }
+function linkedUpdateServerStatus(online) {
+  document.getElementById('linkedServerDot').className = 'server-dot ' + (online?'online':'offline');
+  document.getElementById('linkedServerLabel').textContent = online?'已连接':'未连接';
+}
+
+async function linkedStart() {
+  const code = document.getElementById('linkedSensorCode').value.trim();
+  if (!code) { alert('请输入传感器设备编码'); return; }
+  const serverUrl = document.getElementById('linkedServerUrl').value.trim();
+  const cfg = {
+    sensor_device_code: code,
+    actuator_device_code: document.getElementById('linkedActuatorCode').value.trim(),
+    greenhouse_id: parseInt(document.getElementById('linkedGreenhouseID').value)||1,
+    telemetry_sec: parseInt(document.getElementById('linkedTelemetrySec').value)||10,
+    heartbeat_sec: parseInt(document.getElementById('linkedHeartbeatSec').value)||30,
+    env_tick_ms: parseInt(document.getElementById('linkedEnvTickMs').value)||1000,
+    anomaly_rate: parseFloat(document.getElementById('linkedAnomalyRate').value)||0.03,
+    api_base_url: document.getElementById('linkedApiUrl').value.trim(),
+    username: document.getElementById('linkedApiUser').value.trim(),
+    password: document.getElementById('linkedApiPass').value.trim(),
+  };
+  linkedSaveConfig();
+  linkedLog('正在启动模拟器...', 'info');
+  try {
+    const resp = await fetch(serverUrl+'/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+    const data = await resp.json();
+    if (resp.ok && data.code===0) {
+      linkedLog('✅ 模拟器已启动', 'success');
+      linkedSetRunning(true);
+      linkedConnectSSE(serverUrl);
+    } else {
+      linkedLog('❌ 启动失败: '+(data.message||resp.statusText), 'error');
+    }
+  } catch(e) { linkedLog('❌ 请求失败: '+e.message, 'error'); }
+}
+
+async function linkedStop() {
+  const serverUrl = document.getElementById('linkedServerUrl').value.trim();
+  linkedLog('正在停止...', 'info');
+  try {
+    const resp = await fetch(serverUrl+'/stop',{method:'POST'});
+    const data = await resp.json();
+    if (resp.ok && data.code===0) {
+      const s = data.data;
+      linkedLog(`✅ 已停止 — 运行:${s.uptime_sec}s 遥测:${s.telemetry_count} ACK:${s.cmd_ack_count}`, 'success');
+    }
+  } catch(e) { linkedLog('异常: '+e.message, 'error'); }
+  linkedDisconnectSSE();
+  linkedSetRunning(false);
+}
+
+function linkedConnectSSE(serverUrl) {
+  linkedDisconnectSSE();
+  linkedLog('正在连接 SSE...', 'info');
+  linkedEventSource = new EventSource(serverUrl+'/events');
+  linkedEventSource.onopen = () => { linkedUpdateServerStatus(true); };
+  linkedEventSource.onerror = () => { linkedUpdateServerStatus(false); };
+  linkedEventSource.onmessage = (e) => {
+    try { linkedHandleEvent(JSON.parse(e.data)); } catch(_) {}
+  };
+}
+
+function linkedDisconnectSSE() {
+  if (linkedEventSource) { linkedEventSource.close(); linkedEventSource = null; }
+  linkedUpdateServerStatus(false);
+}
+
+function linkedSetRunning(running) {
+  linkedRunning = running;
+  document.getElementById('btnLinkedStart').disabled = running;
+  document.getElementById('btnLinkedStop').disabled = !running;
+  document.getElementById('linkedRunStatus').textContent = running?'运行中':'未运行';
+  document.getElementById('linkedRunStatus').style.color = running?'var(--success)':'';
+  if (running) {
+    linkedStartTime = Date.now();
+    linkedUptimeTimer = setInterval(() => {
+      const sec = Math.floor((Date.now()-linkedStartTime)/1000);
+      const el = document.getElementById('linkedUptime');
+      el.style.display = '';
+      el.textContent = `运行: ${Math.floor(sec/3600)}h ${Math.floor(sec/60)%60}m ${sec%60}s`;
+    }, 1000);
+  } else {
+    clearInterval(linkedUptimeTimer);
+    linkedUptimeTimer = null; linkedStartTime = null;
+    document.getElementById('linkedUptime').style.display = 'none';
+    document.getElementById('linkedEnvTS').textContent = '';
+    document.querySelectorAll('#linkedEnvGrid .env-card').forEach(c => {
+      c.className = 'env-card normal';
+      c.querySelector('.env-value').textContent = '--';
+    });
+    document.getElementById('linkedActuators').innerHTML = '<div class="empty-hint">未运行或无执行器</div>';
+  }
+}
+
+function linkedHandleEvent(evt) {
+  switch (evt.type) {
+    case 'env': linkedUpdateEnv(evt.data); break;
+    case 'telemetry': linkedLog(`📊 遥测上报 (${evt.data.channel_count} 通道)`, 'success'); break;
+    case 'heartbeat': linkedLog(`💓 ${evt.data.device_type} 心跳`, 'info'); break;
+    case 'cmd': linkedLog(`📥 指令: cmd_id=${evt.data.command_id} type=${evt.data.command_type} state=${evt.data.state} value=${evt.data.value}`, 'info'); break;
+    case 'ack': linkedLog(`✅ ACK: cmd_id=${evt.data.command_id} code=${evt.data.ack_code}`, 'success'); break;
+    case 'status':
+      if (evt.data.status==='stopped') { linkedDisconnectSSE(); linkedSetRunning(false); }
+      linkedLog(`📡 状态: ${evt.data.status}`, 'info'); break;
+    case 'log': linkedLog(`[${evt.data.level}] ${evt.data.message}`, evt.data.level==='error'?'error':'info'); break;
+  }
+}
+
+function linkedUpdateEnv(data) {
+  if (!data||!data.env) return;
+  const env = data.env;
+  const cards = document.querySelectorAll('#linkedEnvGrid .env-card');
+  for (let i=0; i<linkedEnvFields.length && i<cards.length; i++) {
+    const val = env[linkedEnvFields[i]];
+    if (val===undefined) continue;
+    const range = linkedEnvRanges[linkedEnvFields[i]];
+    const cls = (range && (val<range.lo||val>range.hi)) ? 'warn' : 'normal';
+    cards[i].className = 'env-card '+cls;
+    cards[i].querySelector('.env-value').textContent = Number(val).toFixed(2);
+  }
+  if (data.actuators && data.actuators.length>0) {
+    let html = '<table class="actuator-table"><thead><tr><th>ID</th><th>类型</th><th>状态</th><th>功率</th></tr></thead><tbody>';
+    data.actuators.forEach(a => {
+      html += `<tr><td>${a.channel_id}</td><td>${escapeHtml(a.actuator_type)}</td><td class="${a.state==='ON'?'actuator-state-on':'actuator-state-off'}">${a.state}</td><td>${a.value.toFixed(0)}%</td></tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('linkedActuators').innerHTML = html;
+  }
+  if (data.ts) document.getElementById('linkedEnvTS').textContent = new Date(data.ts).toLocaleTimeString('zh-CN',{hour12:false});
+}
+
+function toggleLinkedApi() {
+  const fields = document.getElementById('linkedApiFields');
+  const arrow = document.getElementById('linkedApiArrow');
+  const open = fields.classList.toggle('open');
+  arrow.classList.toggle('open', open);
+}
+
+function linkedSaveConfig() {
+  const cfg = {
+    serverUrl: document.getElementById('linkedServerUrl').value.trim(),
+    sensorCode: document.getElementById('linkedSensorCode').value.trim(),
+    actuatorCode: document.getElementById('linkedActuatorCode').value.trim(),
+    greenhouseID: document.getElementById('linkedGreenhouseID').value,
+    telemetrySec: document.getElementById('linkedTelemetrySec').value,
+    heartbeatSec: document.getElementById('linkedHeartbeatSec').value,
+    envTickMs: document.getElementById('linkedEnvTickMs').value,
+    anomalyRate: document.getElementById('linkedAnomalyRate').value,
+    apiUrl: document.getElementById('linkedApiUrl').value.trim(),
+    apiUser: document.getElementById('linkedApiUser').value.trim(),
+    apiPass: document.getElementById('linkedApiPass').value.trim(),
+  };
+  localStorage.setItem('hydroponic_linked_config', JSON.stringify(cfg));
+}
+
+function linkedLoadConfig() {
+  try {
+    const s = JSON.parse(localStorage.getItem('hydroponic_linked_config'));
+    if (!s) return;
+    if (s.serverUrl) document.getElementById('linkedServerUrl').value = s.serverUrl;
+    if (s.sensorCode) document.getElementById('linkedSensorCode').value = s.sensorCode;
+    if (s.actuatorCode) document.getElementById('linkedActuatorCode').value = s.actuatorCode;
+    if (s.greenhouseID) document.getElementById('linkedGreenhouseID').value = s.greenhouseID;
+    if (s.telemetrySec) document.getElementById('linkedTelemetrySec').value = s.telemetrySec;
+    if (s.heartbeatSec) document.getElementById('linkedHeartbeatSec').value = s.heartbeatSec;
+    if (s.envTickMs) document.getElementById('linkedEnvTickMs').value = s.envTickMs;
+    if (s.anomalyRate) document.getElementById('linkedAnomalyRate').value = s.anomalyRate;
+    if (s.apiUrl) document.getElementById('linkedApiUrl').value = s.apiUrl;
+    if (s.apiUser) document.getElementById('linkedApiUser').value = s.apiUser;
+    if (s.apiPass) document.getElementById('linkedApiPass').value = s.apiPass;
+  } catch(_) {}
+}
 
 // ==================== 工具函数 ====================
 function escapeHtml(str) {

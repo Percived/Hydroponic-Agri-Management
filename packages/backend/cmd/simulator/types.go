@@ -193,3 +193,55 @@ type cmdPayloadState struct {
 	State string  `json:"state"`
 	Value float64 `json:"value"`
 }
+
+// ──────────────── HTTP Server 模式类型 ────────────────
+
+// StartConfig is the HTTP request body for POST /start.
+type StartConfig struct {
+	APIBaseURL         string  `json:"api_base_url"`
+	Username           string  `json:"username"`
+	Password           string  `json:"password"`
+	MqttBroker         string  `json:"mqtt_broker"`
+	MqttUser           string  `json:"mqtt_user"`
+	MqttPass           string  `json:"mqtt_pass"`
+	SensorDeviceCode   string  `json:"sensor_device_code"`
+	ActuatorDeviceCode string  `json:"actuator_device_code"`
+	GreenhouseID       uint64  `json:"greenhouse_id"`
+	TelemetrySec       int     `json:"telemetry_sec"`
+	HeartbeatSec       int     `json:"heartbeat_sec"`
+	EnvTickMs          int     `json:"env_tick_ms"`
+	AnomalyRate        float64 `json:"anomaly_rate"`
+}
+
+// SimSnapshot is a full environment + actuator state snapshot sent via SSE.
+type SimSnapshot struct {
+	TS        string             `json:"ts"`
+	Env       EnvState           `json:"env"`
+	Actuators []ActuatorStateDTO `json:"actuators"`
+}
+
+// ActuatorStateDTO is the serializable actuator channel state.
+type ActuatorStateDTO struct {
+	ChannelID    uint64  `json:"channel_id"`
+	ActuatorType string  `json:"actuator_type"`
+	State        string  `json:"state"`
+	Value        float64 `json:"value"`
+}
+
+// ──────────────── HTTP 响应类型 ────────────────
+
+// statusResponse is returned by GET /status.
+type statusResponse struct {
+	Running        bool   `json:"running"`
+	SensorDevice   string `json:"sensor_device,omitempty"`
+	ActuatorDevice string `json:"actuator_device,omitempty"`
+	UptimeSec      int64  `json:"uptime_sec"`
+	TelemetryCount int64  `json:"telemetry_count"`
+}
+
+// stopResponse is returned by POST /stop.
+type stopResponse struct {
+	UptimeSec      int64 `json:"uptime_sec"`
+	TelemetryCount int64 `json:"telemetry_count"`
+	CmdACKCount    int64 `json:"cmd_ack_count"`
+}

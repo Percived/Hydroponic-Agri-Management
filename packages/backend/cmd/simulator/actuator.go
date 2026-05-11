@@ -18,6 +18,7 @@ type actuatorSim struct {
 	channels   []actuatorChannelDetail
 	mqtt       *mqttManager
 	env        *Environment
+	hub        *SSEHub // optional, nil in CLI mode
 
 	// Map channelID → actuatorChannelDetail for quick lookup
 	chByID map[uint64]actuatorChannelDetail
@@ -27,7 +28,7 @@ type actuatorSim struct {
 }
 
 // newActuatorSim creates a new actuator simulator.
-func newActuatorSim(deviceCode string, channels []actuatorChannelDetail, mqtt *mqttManager, env *Environment) *actuatorSim {
+func newActuatorSim(deviceCode string, channels []actuatorChannelDetail, mqtt *mqttManager, env *Environment, hub *SSEHub) *actuatorSim {
 	chByID := make(map[uint64]actuatorChannelDetail, len(channels))
 	for _, ch := range channels {
 		chByID[ch.ID] = ch
@@ -38,6 +39,7 @@ func newActuatorSim(deviceCode string, channels []actuatorChannelDetail, mqtt *m
 		chByID:     chByID,
 		mqtt:       mqtt,
 		env:        env,
+		hub:        hub,
 	}
 }
 
@@ -84,6 +86,9 @@ func (a *actuatorSim) onCommand(_ mqtt.Client, msg mqtt.Message) {
 		log.Printf("   无法解析命令 payload: %v", err)
 	}
 
+	// Emit command event to SSE
+	emitIfHub(a.hub, func() { a.hub.PublishCmd(cmdID, cmdType, statePayload.State, statePayload.Value) })
+
 	// Simulate execution delay
 	time.Sleep(100 * time.Millisecond)
 
@@ -108,11 +113,17 @@ func (a *actuatorSim) onCommand(_ mqtt.Client, msg mqtt.Message) {
 		return
 	}
 	a.totalCmdACK++
+
+	// Emit ACK event to SSE
+	emitIfHub(a.hub, func() { a.hub.PublishAck(cmdID, ack.AckCode) })
+
 	log.Printf("✅ 已发送 ACK: cmd_id=%d, code=%s", cmdID, ack.AckCode)
 }
 
 // publishHeartbeat publishes an actuator device heartbeat with current states.
 func (a *actuatorSim) publishHeartbeat() {
+	emitIfHub(a.hub, func() { a.hub.PublishHeartbeat("actuator") })
+
 	states := a.env.GetActuatorStates()
 
 	type actuatorHeartbeatPayload struct {

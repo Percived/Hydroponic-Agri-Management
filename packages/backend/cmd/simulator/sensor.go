@@ -20,13 +20,14 @@ type sensorSim struct {
 	mqtt       *mqttManager
 	env        *Environment
 	rngSource  *rand.Rand
+	hub        *SSEHub // optional, nil in CLI mode
 
 	// Stats
 	totalTelemetry int64
 }
 
 // newSensorSim creates a new sensor simulator.
-func newSensorSim(deviceCode string, channels []sensorChannelDetail, cfgByChan map[uint64]metricConfig, mqtt *mqttManager, env *Environment, rng *rand.Rand) *sensorSim {
+func newSensorSim(deviceCode string, channels []sensorChannelDetail, cfgByChan map[uint64]metricConfig, mqtt *mqttManager, env *Environment, rng *rand.Rand, hub *SSEHub) *sensorSim {
 	return &sensorSim{
 		deviceCode: deviceCode,
 		channels:   channels,
@@ -34,6 +35,7 @@ func newSensorSim(deviceCode string, channels []sensorChannelDetail, cfgByChan m
 		mqtt:       mqtt,
 		env:        env,
 		rngSource:  rng,
+		hub:        hub,
 	}
 }
 
@@ -42,6 +44,8 @@ func (s *sensorSim) sendTelemetry(anomalyRate float64) {
 	if len(s.channels) == 0 {
 		return
 	}
+
+	emitIfHub(s.hub, func() { s.hub.PublishTelemetry(len(s.channels)) })
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	items := make([]telemetryItem, 0, len(s.channels))
@@ -91,6 +95,8 @@ func (s *sensorSim) sendTelemetry(anomalyRate float64) {
 
 // publishHeartbeat publishes a sensor device heartbeat.
 func (s *sensorSim) publishHeartbeat() {
+	emitIfHub(s.hub, func() { s.hub.PublishHeartbeat("sensor") })
+
 	payload, _ := json.Marshal(heartbeatPayload{
 		TS: time.Now().UTC().Format(time.RFC3339),
 	})

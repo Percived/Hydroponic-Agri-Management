@@ -20,7 +20,6 @@ var (
 	mqttBroker   = flag.String("broker", "tcp://127.0.0.1:1883", "MQTT Broker 地址")
 	mqttUser     = flag.String("mqtt-user", "", "MQTT 用户名")
 	mqttPass     = flag.String("mqtt-pass", "", "MQTT 密码")
-	greenhouseID = flag.Uint64("gh", 1, "温室 ID")
 	telemetrySec = flag.Int("interval", 10, "遥测上报间隔（秒）")
 	heartbeatSec = flag.Int("heartbeat", 30, "心跳间隔（秒）")
 	anomalyRate  = flag.Float64("anomaly", 0.03, "异常数据注入概率 0~1")
@@ -28,18 +27,13 @@ var (
 
 	// 新增参数
 	profile        = flag.String("profile", "both", "模拟器类型: sensor / actuator / both")
-	sensorDevice   = flag.String("sensor-device", "", "复用已有 sensor 设备编码（空=自动注册）")
-	actuatorDevice = flag.String("actuator-device", "", "复用已有 actuator 设备编码（空=自动注册）")
+	sensorDevice   = flag.String("sensor-device", "", "已有 sensor 设备编码（必填）")
+	actuatorDevice = flag.String("actuator-device", "", "已有 actuator 设备编码（profile=actuator/both 时必填）")
 	envTickMs      = flag.Int("env-tick-ms", 1000, "环境模型 tick 间隔(ms)")
 
-	// 默认执行器类型（注册时使用）
-	defaultActuatorTypes = []string{
-		ActuatorHEATER, ActuatorFAN, ActuatorFOGGER, ActuatorCO2Gen,
-		ActuatorLED, ActuatorSHADE, ActuatorPUMP, ActuatorAERATOR, ActuatorVALVE,
-		ActuatorDOSING_PUMP, ActuatorCHILLER, ActuatorSTIRRER, ActuatorDEHUMIDIFIER,
-		ActuatorDAMPER, ActuatorUV_STERILIZER, ActuatorOZONE_GEN, ActuatorFILTER,
-		ActuatorRO_SYSTEM, ActuatorTOP_UP_VALVE, ActuatorALARM, ActuatorCALIB_VALVE,
-	}
+	// Server 模式
+	serverMode = flag.Bool("server", false, "启动 HTTP Server 模式（控制面板）")
+	serverPort = flag.Int("port", 3001, "HTTP Server 端口")
 )
 
 // ──────────────────── 入口 ────────────────────
@@ -47,6 +41,29 @@ var (
 func main() {
 	flag.Parse()
 
+	if *serverMode {
+		runServerMode()
+		return
+	}
+
+	runCLIMode()
+}
+
+// runServerMode starts the HTTP server for the control panel.
+func runServerMode() {
+	log.Println("╔══════════════════════════════════════════════╗")
+	log.Println("║   水培农业 - 模拟器 HTTP 控制面板           ║")
+	log.Println("╚══════════════════════════════════════════════╝")
+	fmt.Println()
+
+	server := NewSimServer()
+	if err := server.Run(*serverPort); err != nil {
+		log.Fatalf("❌ HTTP 服务启动失败: %v", err)
+	}
+}
+
+// runCLIMode runs the simulator in CLI mode (original behavior, but without auto-registration).
+func runCLIMode() {
 	runSensor := *profile == "sensor" || *profile == "both"
 	runActuator := *profile == "actuator" || *profile == "both"
 
@@ -70,8 +87,8 @@ func main() {
 	}
 	log.Printf("✅ 登录成功，用户: %s", *username)
 
-	// ──── Phase 2: 设备注册 / 自发现 ────
-	log.Println("\n─── Phase 2: 设备注册 / 自发现 ───")
+	// ──── Phase 2: 自发现设备 ────
+	log.Println("\n─── Phase 2: 自发现设备 ───")
 
 	var sensor *sensorSim
 	var actuator *actuatorSim
@@ -249,36 +266,17 @@ loop:
 // ──────────────────── 传感器初始化 ────────────────────
 
 func setupSensor(api *apiClient, rng *rand.Rand) (*sensorSim, error) {
-	var deviceCode string
-	var channels []sensorChannelDetail
-	var cfgByChan map[uint64]metricConfig
-
 	if *sensorDevice == "" {
-		// 注册新传感器设备
-		code := fmt.Sprintf("SIM-S-%s-%04d", time.Now().Format("0102"), rng.Intn(9999))
-		reg, err := api.registerSensorDevice(code, "模拟采集器", *greenhouseID, *telemetrySec)
-		if err != nil {
-			return nil, fmt.Errorf("注册传感器失败: %w", err)
-		}
-		deviceCode = code
-		// 注册后自动发现获取通道详情
-		ds, err := api.discoverSensorDevice(deviceCode)
-		if err != nil {
-			return nil, fmt.Errorf("发现传感器失败: %w", err)
-		}
-		channels = ds.Channels
-		_ = reg
-	} else {
-		// 自发现已有传感器设备
-		deviceCode = *sensorDevice
-		ds, err := api.discoverSensorDevice(deviceCode)
-		if err != nil {
-			return nil, fmt.Errorf("发现传感器失败: %w", err)
-		}
-		channels = ds.Channels
+		return nil, fmt.Errorf("必须指定传感器设备编码 (-sensor-device)")
 	}
+	deviceCode := *sensorDevice
+	ds, err := api.discoverSensorDevice(deviceCode)
+	if err != nil {
+		return nil, fmt.Errorf("发现传感器失败: %w", err)
+	}
+	channels := ds.Channels
 
-	cfgByChan = make(map[uint64]metricConfig, len(channels))
+	cfgByChan := make(map[uint64]metricConfig, len(channels))
 	for _, ch := range channels {
 		cfg := metricConfig{
 			Code:  ch.MetricCode,
@@ -295,38 +293,21 @@ func setupSensor(api *apiClient, rng *rand.Rand) (*sensorSim, error) {
 		cfgByChan[ch.ID] = cfg
 	}
 
-	return newSensorSim(deviceCode, channels, cfgByChan, nil, nil, rng), nil
+	return newSensorSim(deviceCode, channels, cfgByChan, nil, nil, rng, nil), nil
 }
 
 // ──────────────────── 执行器初始化 ────────────────────
 
 func setupActuator(api *apiClient) (*actuatorSim, error) {
-	var deviceCode string
-	var channels []actuatorChannelDetail
-
 	if *actuatorDevice == "" {
-		// 注册新执行器设备
-		code := fmt.Sprintf("SIM-A-%s-%04d", time.Now().Format("0102"), rand.Intn(9999))
-		_, err := api.registerActuatorDevice(code, "模拟执行器", *greenhouseID, defaultActuatorTypes)
-		if err != nil {
-			return nil, fmt.Errorf("注册执行器失败: %w", err)
-		}
-		deviceCode = code
-		// 自发现获取通道详情
-		ds, err := api.discoverActuatorDevice(deviceCode)
-		if err != nil {
-			return nil, fmt.Errorf("发现执行器失败: %w", err)
-		}
-		channels = ds.Channels
-	} else {
-		// 自发现已有执行器设备
-		deviceCode = *actuatorDevice
-		ds, err := api.discoverActuatorDevice(deviceCode)
-		if err != nil {
-			return nil, fmt.Errorf("发现执行器失败: %w", err)
-		}
-		channels = ds.Channels
+		return nil, fmt.Errorf("必须指定执行器设备编码 (-actuator-device)")
 	}
+	deviceCode := *actuatorDevice
+	ds, err := api.discoverActuatorDevice(deviceCode)
+	if err != nil {
+		return nil, fmt.Errorf("发现执行器失败: %w", err)
+	}
+	channels := ds.Channels
 
-	return newActuatorSim(deviceCode, channels, nil, nil), nil
+	return newActuatorSim(deviceCode, channels, nil, nil, nil), nil
 }

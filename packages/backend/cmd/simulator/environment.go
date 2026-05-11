@@ -11,20 +11,20 @@ import (
 
 // EnvState holds the physical environment variables.
 type EnvState struct {
-	Temp      float64 // 空气温度 °C
-	Humidity  float64 // 空气湿度 %
-	PH        float64 // pH 值
-	EC        float64 // 电导率 mS/cm
-	CO2       float64 // CO2 浓度 ppm
-	Light     float64 // 光照强度 lx
-	WaterTemp float64 // 水温 °C
-	DO        float64 // 溶解氧 mg/L
-	Level     float64 // 液位 cm
-	ORP       float64 // 氧化还原电位 mV
-	TDS       float64 // 总溶解固体 ppm
-	O3        float64 // 臭氧浓度 ppb
-	Turbidity float64 // 浊度 NTU
-	FlowRate  float64 // 流量 L/min
+	Temp      float64 `json:"temp"`       // 空气温度 °C
+	Humidity  float64 `json:"humidity"`   // 空气湿度 %
+	PH        float64 `json:"ph"`         // pH 值
+	EC        float64 `json:"ec"`         // 电导率 mS/cm
+	CO2       float64 `json:"co2"`        // CO2 浓度 ppm
+	Light     float64 `json:"light"`      // 光照强度 lx
+	WaterTemp float64 `json:"water_temp"` // 水温 °C
+	DO        float64 `json:"do"`         // 溶解氧 mg/L
+	Level     float64 `json:"level"`      // 液位 cm
+	ORP       float64 `json:"orp"`        // 氧化还原电位 mV
+	TDS       float64 `json:"tds"`        // 总溶解固体 ppm
+	O3        float64 `json:"o3"`         // 臭氧浓度 ppb
+	Turbidity float64 `json:"turbidity"`  // 浊度 NTU
+	FlowRate  float64 `json:"flow_rate"`  // 流量 L/min
 }
 
 // actuatorRuntimeState holds the current state of an actuator channel.
@@ -287,6 +287,28 @@ func (env *Environment) GetActuatorStates() map[uint64]actuatorRuntimeState {
 		out[k] = v
 	}
 	return out
+}
+
+// GetSnapshot returns a full environment + actuator state snapshot for SSE.
+func (env *Environment) GetSnapshot() SimSnapshot {
+	env.mu.RLock()
+	defer env.mu.RUnlock()
+
+	actuators := make([]ActuatorStateDTO, 0, len(env.actuatorStates))
+	for _, v := range env.actuatorStates {
+		actuators = append(actuators, ActuatorStateDTO{
+			ChannelID:    v.ChannelID,
+			ActuatorType: v.ActuatorType,
+			State:        v.State,
+			Value:        v.Value,
+		})
+	}
+
+	return SimSnapshot{
+		TS:        "", // filled by caller if needed
+		Env:       env.State,
+		Actuators: actuators,
+	}
 }
 
 // ──────────────────── 工具函数 ────────────────────
