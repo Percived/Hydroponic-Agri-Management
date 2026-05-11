@@ -52,29 +52,11 @@ func (h *Handler) Dashboard(c *gin.Context) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if e := h.db.Table("sensor_devices").Where("status = ?", "ONLINE").Count(&sensorsOnline).Error; e != nil {
-			errCh <- e
-		}
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if e := h.db.Table("sensor_devices").Count(&totalSensors).Error; e != nil {
-			errCh <- e
-		}
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if e := h.db.Table("actuator_devices").Where("status = ?", "ONLINE").Count(&actuatorsOnline).Error; e != nil {
-			errCh <- e
-		}
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if e := h.db.Table("actuator_devices").Count(&totalActuators).Error; e != nil {
-			errCh <- e
+		if h.db.Migrator().HasTable("devices") {
+			h.db.Table("devices").Where("device_type = ?", "SENSOR").Count(&totalSensors)
+			h.db.Table("devices").Where("device_type = ? AND status = ?", "SENSOR", "ONLINE").Count(&sensorsOnline)
+			h.db.Table("devices").Where("device_type = ?", "ACTUATOR").Count(&totalActuators)
+			h.db.Table("devices").Where("device_type = ? AND status = ?", "ACTUATOR", "ONLINE").Count(&actuatorsOnline)
 		}
 	}()
 
@@ -151,8 +133,8 @@ func (h *Handler) Dashboard(c *gin.Context) {
 					DATEDIFF(NOW(), cb.start_date) as day, 
 					CAST(cb.greenhouse_id AS CHAR) as greenhouse_id
 				FROM crop_batches cb
-				JOIN crops c ON c.id = cb.crop_id
-				LEFT JOIN batch_stages bs ON bs.id = cb.current_stage_id
+				JOIN crop_varieties c ON c.id = cb.crop_variety_id
+				LEFT JOIN growth_stages bs ON bs.id = cb.current_stage_id
 				WHERE cb.status = 'ACTIVE'
 				LIMIT 5
 			`).Scan(&activeBatches)
@@ -163,36 +145,42 @@ func (h *Handler) Dashboard(c *gin.Context) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		h.db.Raw(`
-			SELECT 
-				CAST(a.id AS CHAR) as alert_id, 
-				a.level as severity, 
-				a.message, 
-				a.triggered_at as timestamp, 
-				COALESCE(g.name, 'System') as greenhouse_name
-			FROM alerts a
-			LEFT JOIN sensor_devices sd ON sd.id = a.device_id AND a.device_type = 'SENSOR'
-			LEFT JOIN actuator_devices ad ON ad.id = a.device_id AND a.device_type = 'ACTUATOR'
-			LEFT JOIN greenhouses g ON g.id = sd.greenhouse_id OR g.id = ad.greenhouse_id
-			WHERE a.status = 'OPEN'
-			ORDER BY a.triggered_at DESC
-			LIMIT 5
-		`).Scan(&recentAlerts)
+		if h.db.Migrator().HasTable("alerts") {
+			h.db.Raw(`
+				SELECT 
+					CAST(a.id AS CHAR) as alert_id, 
+					a.level as severity, 
+					a.message, 
+					a.triggered_at as timestamp, 
+					COALESCE(g.name, 'System') as greenhouse_name
+				FROM alerts a
+				LEFT JOIN devices d ON d.id = a.device_id
+				LEFT JOIN greenhouses g ON g.id = d.greenhouse_id
+				WHERE a.status = 'OPEN'
+				ORDER BY a.triggered_at DESC
+				LIMIT 5
+			`).Scan(&recentAlerts)
+		}
 	}()
 
 	// Recent commands
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if e := h.db.Raw(`
-			SELECT cc.id, cc.command_type, ad.name AS device_name, cc.status, CAST(cc.created_at AS CHAR) as created_at
-			FROM control_commands cc
-			JOIN actuator_channels ac ON ac.id = cc.actuator_channel_id
-			JOIN actuator_devices ad ON ad.id = ac.actuator_device_id
-			ORDER BY cc.created_at DESC
-			LIMIT 5
-		`).Scan(&recentCmds).Error; e != nil {
-			errCh <- e
+		if h.db.Migrator().HasTable("commands") {
+			h.db.Raw(`
+				SELECT 
+					CAST(c.id AS CHAR) as command_id, 
+					c.command_type, 
+					c.status, 
+					c.dispatched_at as timestamp, 
+					g.name as greenhouse_name
+				FROM commands c
+				JOIN devices d ON d.id = c.actuator_device_id
+				JOIN greenhouses g ON g.id = d.greenhouse_id
+				ORDER BY c.dispatched_at DESC
+				LIMIT 5
+			`).Scan(&recentCmds)
 		}
 	}()
 
@@ -346,55 +334,55 @@ func queryGreenhouseMetrics(db *gorm.DB, out *[]DashboardGreenhouse) error {
 			COALESCE(AVG(t_do.value), 0) AS avg_do,
 			COALESCE(AVG(t_co2.value), 0) AS avg_co2,
 			COALESCE(AVG(t_lux.value), 0) AS avg_lux,
-			(SELECT COUNT(*) FROM alerts a WHERE (a.device_id IN (SELECT id FROM sensor_devices WHERE greenhouse_id = g.id) AND a.device_type = 'SENSOR' OR a.device_id IN (SELECT id FROM actuator_devices WHERE greenhouse_id = g.id) AND a.device_type = 'ACTUATOR') AND a.status = 'OPEN' AND a.level = 'CRITICAL') as critical_alerts,
-			(SELECT COUNT(*) FROM alerts a WHERE (a.device_id IN (SELECT id FROM sensor_devices WHERE greenhouse_id = g.id) AND a.device_type = 'SENSOR' OR a.device_id IN (SELECT id FROM actuator_devices WHERE greenhouse_id = g.id) AND a.device_type = 'ACTUATOR') AND a.status = 'OPEN' AND a.level = 'WARNING') as warning_alerts
+			(SELECT COUNT(*) FROM alerts a WHERE (a.device_id IN (SELECT id FROM devices WHERE greenhouse_id = g.id AND device_type = 'SENSOR') AND a.device_type = 'SENSOR' OR a.device_id IN (SELECT id FROM devices WHERE greenhouse_id = g.id AND device_type = 'ACTUATOR') AND a.device_type = 'ACTUATOR') AND a.status = 'OPEN' AND a.level = 'CRITICAL') as critical_alerts,
+			(SELECT COUNT(*) FROM alerts a WHERE (a.device_id IN (SELECT id FROM devices WHERE greenhouse_id = g.id AND device_type = 'SENSOR') AND a.device_type = 'SENSOR' OR a.device_id IN (SELECT id FROM devices WHERE greenhouse_id = g.id AND device_type = 'ACTUATOR') AND a.device_type = 'ACTUATOR') AND a.status = 'OPEN' AND a.level = 'WARNING') as warning_alerts
 		FROM greenhouses g
 		LEFT JOIN LATERAL (
 			SELECT tr.value FROM telemetry_records tr
 			JOIN sensor_channels sc ON sc.id = tr.sensor_channel_id
-			JOIN sensor_devices sd2 ON sd2.id = sc.sensor_device_id
+			JOIN devices sd2 ON sd2.id = sc.device_id
 			WHERE sd2.greenhouse_id = g.id AND tr.metric_code = 'TEMP'
 			ORDER BY tr.collected_at DESC LIMIT 1
 		) t_temp ON true
 		LEFT JOIN LATERAL (
 			SELECT tr.value FROM telemetry_records tr
 			JOIN sensor_channels sc ON sc.id = tr.sensor_channel_id
-			JOIN sensor_devices sd2 ON sd2.id = sc.sensor_device_id
+			JOIN devices sd2 ON sd2.id = sc.device_id
 			WHERE sd2.greenhouse_id = g.id AND tr.metric_code = 'HUMIDITY'
 			ORDER BY tr.collected_at DESC LIMIT 1
 		) t_hum ON true
 		LEFT JOIN LATERAL (
 			SELECT tr.value FROM telemetry_records tr
 			JOIN sensor_channels sc ON sc.id = tr.sensor_channel_id
-			JOIN sensor_devices sd2 ON sd2.id = sc.sensor_device_id
+			JOIN devices sd2 ON sd2.id = sc.device_id
 			WHERE sd2.greenhouse_id = g.id AND tr.metric_code = 'EC'
 			ORDER BY tr.collected_at DESC LIMIT 1
 		) t_ec ON true
 		LEFT JOIN LATERAL (
 			SELECT tr.value FROM telemetry_records tr
 			JOIN sensor_channels sc ON sc.id = tr.sensor_channel_id
-			JOIN sensor_devices sd2 ON sd2.id = sc.sensor_device_id
+			JOIN devices sd2 ON sd2.id = sc.device_id
 			WHERE sd2.greenhouse_id = g.id AND tr.metric_code = 'PH'
 			ORDER BY tr.collected_at DESC LIMIT 1
 		) t_ph ON true
 		LEFT JOIN LATERAL (
 			SELECT tr.value FROM telemetry_records tr
 			JOIN sensor_channels sc ON sc.id = tr.sensor_channel_id
-			JOIN sensor_devices sd2 ON sd2.id = sc.sensor_device_id
+			JOIN devices sd2 ON sd2.id = sc.device_id
 			WHERE sd2.greenhouse_id = g.id AND tr.metric_code = 'DO'
 			ORDER BY tr.collected_at DESC LIMIT 1
 		) t_do ON true
 		LEFT JOIN LATERAL (
 			SELECT tr.value FROM telemetry_records tr
 			JOIN sensor_channels sc ON sc.id = tr.sensor_channel_id
-			JOIN sensor_devices sd2 ON sd2.id = sc.sensor_device_id
+			JOIN devices sd2 ON sd2.id = sc.device_id
 			WHERE sd2.greenhouse_id = g.id AND tr.metric_code = 'CO2'
 			ORDER BY tr.collected_at DESC LIMIT 1
 		) t_co2 ON true
 		LEFT JOIN LATERAL (
 			SELECT tr.value FROM telemetry_records tr
 			JOIN sensor_channels sc ON sc.id = tr.sensor_channel_id
-			JOIN sensor_devices sd2 ON sd2.id = sc.sensor_device_id
+			JOIN devices sd2 ON sd2.id = sc.device_id
 			WHERE sd2.greenhouse_id = g.id AND tr.metric_code = 'ILLUMINATION'
 			ORDER BY tr.collected_at DESC LIMIT 1
 		) t_lux ON true
