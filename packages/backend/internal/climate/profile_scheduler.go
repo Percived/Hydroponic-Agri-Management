@@ -211,7 +211,7 @@ func (s *ProfileScheduler) executeAction(action ClimateStageAction) (uint64, err
 		return 0, fmt.Errorf("create command: %w", err)
 	}
 
-	deviceCode, _ := s.lookupActuatorDeviceCode(action.ActuatorChannelID)
+	deviceCode, channelCode, _ := s.lookupActuatorTarget(action.ActuatorChannelID)
 	now := time.Now().UTC()
 
 	if s.mqttClient == nil || !s.mqttClient.IsConnected() {
@@ -232,8 +232,14 @@ func (s *ProfileScheduler) executeAction(action ClimateStageAction) (uint64, err
 		return cmd.ID, fmt.Errorf("mqtt offline")
 	}
 
+	payload := command.BuildDeviceCommandPayload(action.CommandPayload, command.DispatchTargetMeta{
+		CommandID:         cmd.ID,
+		CommandType:       action.CommandType,
+		ActuatorChannelID: action.ActuatorChannelID,
+		ChannelCode:       channelCode,
+	})
 	topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, deviceCode, mqttpkg.TopicCmdPrefix, action.CommandType)
-	token := s.mqttClient.Publish(topic, 1, false, action.CommandPayload)
+	token := s.mqttClient.Publish(topic, 1, false, payload)
 	if token.Wait() && token.Error() != nil {
 		s.db.Model(&cmd).Update("status", "FAILED")
 		s.hub.Publish(event.SSEEvent{
@@ -274,22 +280,23 @@ func (s *ProfileScheduler) executeAction(action ClimateStageAction) (uint64, err
 }
 
 // lookupActuatorDeviceCode resolves an actuator channel ID to its device code.
-func (s *ProfileScheduler) lookupActuatorDeviceCode(actuatorChannelID uint64) (string, error) {
+func (s *ProfileScheduler) lookupActuatorTarget(actuatorChannelID uint64) (string, string, error) {
 	var result struct {
-		DeviceCode string
+		DeviceCode  string
+		ChannelCode string
 	}
 	err := s.db.Table("actuator_channels").
-		Select("actuator_devices.device_code").
+		Select("actuator_devices.device_code, actuator_channels.channel_code").
 		Joins("JOIN actuator_devices ON actuator_devices.id = actuator_channels.actuator_device_id").
 		Where("actuator_channels.id = ?", actuatorChannelID).
 		Scan(&result).Error
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if result.DeviceCode == "" {
-		return "", fmt.Errorf("device not found for channel %d", actuatorChannelID)
+		return "", "", fmt.Errorf("device not found for channel %d", actuatorChannelID)
 	}
-	return result.DeviceCode, nil
+	return result.DeviceCode, result.ChannelCode, nil
 }
 
 // --- Cooldown helpers ---

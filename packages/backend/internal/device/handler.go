@@ -618,6 +618,9 @@ func (h *Handler) UpdateActuatorChannel(c *gin.Context) {
 	if req.CurrentState != nil {
 		updates["current_state"] = *req.CurrentState
 	}
+	if req.CurrentLevel != nil {
+		updates["current_level"] = *req.CurrentLevel
+	}
 	if req.RatedPowerWatt != nil {
 		updates["rated_power_watt"] = *req.RatedPowerWatt
 	}
@@ -969,6 +972,7 @@ func channelToActuatorResponse(ch ActuatorChannel) ActuatorChannelResponse {
 		ChannelCode:      ch.ChannelCode,
 		ActuatorType:     ch.ActuatorType,
 		CurrentState:     ch.CurrentState,
+		CurrentLevel:     ch.CurrentLevel,
 		RatedPowerWatt:   ch.RatedPowerWatt,
 		Enabled:          ch.Enabled,
 		Metadata:         ch.Metadata,

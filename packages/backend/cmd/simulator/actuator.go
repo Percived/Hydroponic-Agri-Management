@@ -11,6 +11,13 @@ import (
 
 // ──────────────────── 执行器模拟器 ────────────────────
 
+// channelState is a single channel state update.
+type channelState struct {
+	ChannelCode string   `json:"channel_code"`
+	State       string   `json:"state"`
+	Level       *float64 `json:"level,omitempty"`
+}
+
 // actuatorSim simulates an actuator device that receives commands via MQTT
 // and applies their effects to the environment model.
 type actuatorSim struct {
@@ -86,25 +93,52 @@ func (a *actuatorSim) onCommand(_ mqtt.Client, msg mqtt.Message) {
 		log.Printf("   无法解析命令 payload: %v", err)
 	}
 
+	targetChannels := a.selectTargetChannels(cmd.ActuatorChannelID, cmd.ChannelCode)
+	targetSpecified := cmd.ActuatorChannelID != 0 || cmd.ChannelCode != ""
+
 	// Emit command event to SSE
 	emitIfHub(a.hub, func() { a.hub.PublishCmd(cmdID, cmdType, statePayload.State, statePayload.Value) })
 
 	// Simulate execution delay
 	time.Sleep(100 * time.Millisecond)
 
-	// Apply to all actuator channels (the command targets a specific channel,
-	// but in the simulator we apply it to all channels of this device)
-	// In practice, the backend dispatches per-channel, so the topic is device-specific
-	for _, ch := range a.channels {
+	ackCode := "ok"
+	ackMessage := fmt.Sprintf("simulated %s completed", cmdType)
+	if targetSpecified && len(targetChannels) == 0 {
+		ackCode = "invalid"
+		ackMessage = fmt.Sprintf("target channel not found: id=%d code=%s", cmd.ActuatorChannelID, cmd.ChannelCode)
+		log.Printf("   指定通道不存在，跳过执行: id=%d code=%s", cmd.ActuatorChannelID, cmd.ChannelCode)
+	}
+
+	if !targetSpecified {
+		targetChannels = a.channels
+	}
+
+	// Apply to the selected actuator channels and build state report
+	channelStates := make([]channelState, 0, len(targetChannels))
+	for _, ch := range targetChannels {
 		a.env.UpdateActuatorState(ch.ID, ch.ActuatorType, statePayload.State, statePayload.Value)
 		log.Printf("   执行器通道 [%d] %s → %s (value=%.0f%%)", ch.ID, ch.ActuatorType, statePayload.State, statePayload.Value)
+		cs := channelState{
+			ChannelCode: ch.ChannelCode,
+			State:       statePayload.State,
+		}
+		if statePayload.Value != 0 {
+			cs.Level = &statePayload.Value
+		}
+		channelStates = append(channelStates, cs)
+	}
+
+	// Report selected channel states back to backend
+	if len(channelStates) > 0 {
+		a.publishStates(channelStates)
 	}
 
 	// Send ACK
 	ack := ackPayload{
 		CommandID:  cmdID,
-		AckCode:    "ok",
-		AckMessage: fmt.Sprintf("simulated %s completed", cmdType),
+		AckCode:    ackCode,
+		AckMessage: ackMessage,
 	}
 	ackData, _ := json.Marshal(ack)
 
@@ -118,6 +152,36 @@ func (a *actuatorSim) onCommand(_ mqtt.Client, msg mqtt.Message) {
 	emitIfHub(a.hub, func() { a.hub.PublishAck(cmdID, ack.AckCode) })
 
 	log.Printf("✅ 已发送 ACK: cmd_id=%d, code=%s", cmdID, ack.AckCode)
+}
+
+func (a *actuatorSim) selectTargetChannels(channelID uint64, channelCode string) []actuatorChannelDetail {
+	if channelID != 0 {
+		if ch, ok := a.chByID[channelID]; ok {
+			return []actuatorChannelDetail{ch}
+		}
+	}
+	if channelCode != "" {
+		for _, ch := range a.channels {
+			if ch.ChannelCode == channelCode {
+				return []actuatorChannelDetail{ch}
+			}
+		}
+	}
+	return nil
+}
+
+// publishStates reports per-channel states to the backend via MQTT state topic.
+func (a *actuatorSim) publishStates(states []channelState) {
+	type statePayload struct {
+		Channels []channelState `json:"channels"`
+	}
+	payload, _ := json.Marshal(statePayload{Channels: states})
+
+	if err := a.mqtt.publish(stateTopic(a.deviceCode), 1, false, payload); err != nil {
+		log.Printf("❌ 状态上报失败: %v", err)
+	} else {
+		log.Printf("📤 已上报 %d 个通道状态", len(states))
+	}
 }
 
 // publishHeartbeat publishes an actuator device heartbeat with current states.

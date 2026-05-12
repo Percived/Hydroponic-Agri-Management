@@ -131,6 +131,7 @@ export interface ActuatorChannel {
   channel_code: string
   actuator_type: ActuatorType
   current_state: string
+  current_level?: number
   rated_power_watt?: number
   enabled: boolean
   metadata?: Record<string, unknown>
@@ -153,6 +154,7 @@ export interface UpdateActuatorChannelRequest {
   rated_power_watt?: number
   enabled?: boolean
   current_state?: string
+  current_level?: number
   metadata?: Record<string, unknown>
 }
 

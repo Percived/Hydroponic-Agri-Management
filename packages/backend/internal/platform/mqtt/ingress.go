@@ -86,6 +86,8 @@ func (s *IngressService) onMessage(_ mqttlib.Client, msg mqttlib.Message) {
 		s.handleDiagnostics(deviceCode, msg.Payload())
 	case TopicAck:
 		s.handleAck(deviceCode, msg.Payload())
+	case TopicState:
+		s.handleState(deviceCode, msg.Payload())
 	default:
 		s.log.Warn("ingress: unknown topic type", "type", topicType, "device", deviceCode)
 	}
@@ -410,6 +412,53 @@ func (s *IngressService) handleErrors(deviceCode string, payload []byte) {
 func (s *IngressService) handleDiagnostics(deviceCode string, payload []byte) {
 	s.log.Info("ingress: diagnostics received", "device", deviceCode, "payload_len", len(payload))
 	// Future: store in a diagnostics table or forward to monitoring system
+}
+
+// channelStateItem is a single channel state update within a handleState payload.
+type channelStateItem struct {
+	ChannelCode string   `json:"channel_code"`
+	State       string   `json:"state"`
+	Level       *float64 `json:"level"`
+}
+
+// handleState processes per-channel state updates from devices.
+// Expected payload: {"channels":[{"channel_code":"fan-01","state":"ON"},...]}
+func (s *IngressService) handleState(deviceCode string, payload []byte) {
+	var req struct {
+		Channels []channelStateItem `json:"channels"`
+	}
+	if err := json.Unmarshal(payload, &req); err != nil {
+		s.log.Error("ingress: invalid state payload", "device", deviceCode, "error", err)
+		return
+	}
+	if len(req.Channels) == 0 {
+		return
+	}
+
+	updated := 0
+	for _, ch := range req.Channels {
+		if ch.ChannelCode == "" {
+			continue
+		}
+		// Resolve channel ID via JOIN on actuator_devices
+		sub := s.db.Table("actuator_channels ac").
+			Select("ac.id").
+			Joins("JOIN actuator_devices ad ON ad.id = ac.actuator_device_id").
+			Where("ad.device_code = ? AND ac.channel_code = ?", deviceCode, ch.ChannelCode)
+		updates := map[string]interface{}{"current_state": ch.State}
+		if ch.Level != nil {
+			updates["current_level"] = *ch.Level
+		}
+		result := s.db.Model(&device.ActuatorChannel{}).
+			Where("id IN (?)", sub).
+			Updates(updates)
+		if result.RowsAffected > 0 {
+			updated++
+		} else {
+			s.log.Warn("ingress: state for unknown channel", "device", deviceCode, "channel", ch.ChannelCode)
+		}
+	}
+	s.log.Debug("ingress: state updated", "device", deviceCode, "channels_updated", updated)
 }
 
 // handleAck processes command acknowledgements

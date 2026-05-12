@@ -43,7 +43,7 @@
                 unit="m"
               />
               <SensorCard
-                label="温度"
+                label="水温"
                 :value="sensorData[String(row.id)]?.temp"
                 unit="°C"
               />
@@ -127,7 +127,7 @@
             <el-option v-for="ch in levelChannels" :key="ch.id" :label="channelLabel(ch)" :value="ch.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="温度传感器通道">
+        <el-form-item label="水温传感器通道">
           <el-select v-model="formData.temp_sensor_channel_id" placeholder="不绑定" clearable filterable style="width: 100%">
             <el-option v-for="ch in tempChannels" :key="ch.id" :label="channelLabel(ch)" :value="ch.id" />
           </el-select>
@@ -209,7 +209,7 @@ function growingZoneName(zoneId?: number) {
 const ecChannels = computed(() => allChannels.value.filter(ch => ch.metric_code === 'EC'))
 const phChannels = computed(() => allChannels.value.filter(ch => ch.metric_code === 'PH'))
 const levelChannels = computed(() => allChannels.value.filter(ch => ch.metric_code === 'LEVEL'))
-const tempChannels = computed(() => allChannels.value.filter(ch => ch.metric_code === 'TEMP' || ch.metric_code === 'TEMPERATURE'))
+const tempChannels = computed(() => allChannels.value.filter(ch => ch.metric_code === 'WATER_TEMP'))
 
 const sensorDeviceLabelById = computed(() => {
   const map: Record<number, string> = {}
@@ -428,10 +428,10 @@ async function handleSubmit() {
       code: formData.code,
       total_volume_liter: formData.total_volume_liter
     }
-    if (formData.ec_sensor_channel_id) payload.ec_sensor_channel_id = formData.ec_sensor_channel_id
-    if (formData.ph_sensor_channel_id) payload.ph_sensor_channel_id = formData.ph_sensor_channel_id
-    if (formData.level_sensor_channel_id) payload.level_sensor_channel_id = formData.level_sensor_channel_id
-    if (formData.temp_sensor_channel_id) payload.temp_sensor_channel_id = formData.temp_sensor_channel_id
+    payload.ec_sensor_channel_id = formData.ec_sensor_channel_id ?? null
+    payload.ph_sensor_channel_id = formData.ph_sensor_channel_id ?? null
+    payload.level_sensor_channel_id = formData.level_sensor_channel_id ?? null
+    payload.temp_sensor_channel_id = formData.temp_sensor_channel_id ?? null
 
     if (isEdit.value && editingId.value) {
       await nutrientApi.updateNutrientTank(editingId.value, payload)

@@ -11,6 +11,7 @@ const (
 	TopicErrors      = "errors"
 	TopicDiagnostics = "diagnostics"
 	TopicAck         = "ack"
+	TopicState       = "state"
 
 	// Outbound topics (backend → device)
 	TopicCmdPrefix = "cmd"

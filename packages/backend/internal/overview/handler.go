@@ -128,16 +128,17 @@ func (h *Handler) Dashboard(c *gin.Context) {
 		defer wg.Done()
 		if h.db.Migrator().HasTable("crop_batches") {
 			h.db.Raw(`
-				SELECT 
-					CAST(cb.id AS CHAR) as batch_id, 
-					c.name as crop_name, 
-					bs.name as stage, 
-					DATEDIFF(NOW(), cb.started_at) as day, 
+				SELECT
+					CAST(cb.id AS CHAR) as batch_id,
+					cv.name as crop_name,
+					COALESCE(gs.name, cb.status) as stage,
+					DATEDIFF(NOW(), cb.started_at) as day,
 					CAST(cb.greenhouse_id AS CHAR) as greenhouse_id
 				FROM crop_batches cb
-				JOIN crop_varieties c ON c.id = cb.crop_variety_id
-				LEFT JOIN growth_stages bs ON bs.id = cb.current_stage_id
-				WHERE cb.status = 'ACTIVE'
+				JOIN crop_varieties cv ON cv.id = cb.crop_variety_id
+				LEFT JOIN batch_stage_runtime bsr ON bsr.batch_id = cb.id
+				LEFT JOIN growth_stages gs ON gs.id = bsr.current_growth_stage_id
+				WHERE cb.status = 'RUNNING'
 				LIMIT 5
 			`).Scan(&activeBatches)
 		}
@@ -149,16 +150,19 @@ func (h *Handler) Dashboard(c *gin.Context) {
 		defer wg.Done()
 		if h.db.Migrator().HasTable("alerts") {
 			h.db.Raw(`
-				SELECT 
-					CAST(a.id AS CHAR) as alert_id, 
-					a.level as severity, 
-					a.message, 
-					a.triggered_at as timestamp, 
-					COALESCE(g.name, 'System') as greenhouse_name
+				SELECT
+					CAST(a.id AS CHAR) as alert_id,
+					a.level as severity,
+					a.message,
+					a.triggered_at as timestamp,
+					COALESCE(g_sensor.name, g_actuator.name, 'System') as greenhouse_name
 				FROM alerts a
-				LEFT JOIN sensor_devices sd ON sd.id = a.device_id AND a.device_type = 'SENSOR'
-				LEFT JOIN actuator_devices ad ON ad.id = a.device_id AND a.device_type = 'ACTUATOR'
-				LEFT JOIN greenhouses g ON g.id = sd.greenhouse_id OR g.id = ad.greenhouse_id
+				LEFT JOIN sensor_channels sc ON sc.id = a.sensor_channel_id
+				LEFT JOIN sensor_devices sd ON sd.id = sc.sensor_device_id
+				LEFT JOIN greenhouses g_sensor ON g_sensor.id = sd.greenhouse_id
+				LEFT JOIN actuator_channels ac ON ac.id = a.actuator_channel_id
+				LEFT JOIN actuator_devices ad ON ad.id = ac.actuator_device_id
+				LEFT JOIN greenhouses g_actuator ON g_actuator.id = ad.greenhouse_id
 				WHERE a.status = 'OPEN'
 				ORDER BY a.triggered_at DESC
 				LIMIT 5
@@ -337,8 +341,14 @@ func queryGreenhouseMetrics(db *gorm.DB, out *[]DashboardGreenhouse) error {
 			COALESCE(AVG(t_do.value), 0) AS avg_do,
 			COALESCE(AVG(t_co2.value), 0) AS avg_co2,
 			COALESCE(AVG(t_lux.value), 0) AS avg_lux,
-			(SELECT COUNT(*) FROM alerts a WHERE (a.device_id IN (SELECT id FROM sensor_devices WHERE greenhouse_id = g.id) AND a.device_type = 'SENSOR' OR a.device_id IN (SELECT id FROM actuator_devices WHERE greenhouse_id = g.id) AND a.device_type = 'ACTUATOR') AND a.status = 'OPEN' AND a.level = 'CRITICAL') as critical_alerts,
-			(SELECT COUNT(*) FROM alerts a WHERE (a.device_id IN (SELECT id FROM sensor_devices WHERE greenhouse_id = g.id) AND a.device_type = 'SENSOR' OR a.device_id IN (SELECT id FROM actuator_devices WHERE greenhouse_id = g.id) AND a.device_type = 'ACTUATOR') AND a.status = 'OPEN' AND a.level = 'WARNING') as warning_alerts
+			(SELECT COUNT(*) FROM alerts a WHERE a.status = 'OPEN' AND a.level = 'CRITICAL' AND (
+				a.sensor_channel_id IN (SELECT sc.id FROM sensor_channels sc JOIN sensor_devices sd2 ON sd2.id = sc.sensor_device_id WHERE sd2.greenhouse_id = g.id)
+				OR a.actuator_channel_id IN (SELECT ac.id FROM actuator_channels ac JOIN actuator_devices ad2 ON ad2.id = ac.actuator_device_id WHERE ad2.greenhouse_id = g.id)
+			)) as critical_alerts,
+			(SELECT COUNT(*) FROM alerts a WHERE a.status = 'OPEN' AND a.level = 'WARNING' AND (
+				a.sensor_channel_id IN (SELECT sc.id FROM sensor_channels sc JOIN sensor_devices sd2 ON sd2.id = sc.sensor_device_id WHERE sd2.greenhouse_id = g.id)
+				OR a.actuator_channel_id IN (SELECT ac.id FROM actuator_channels ac JOIN actuator_devices ad2 ON ad2.id = ac.actuator_device_id WHERE ad2.greenhouse_id = g.id)
+			)) as warning_alerts
 		FROM greenhouses g
 		LEFT JOIN LATERAL (
 			SELECT tr.value FROM telemetry_records tr

@@ -1,10 +1,32 @@
 # 交接文档
 
-最后更新: 2026-05-10
+最后更新: 2026-05-12
 当前分支: version2
 当前重点: v2.3.2 气候联动触发源单通道化
 
+## 最新变更 (2026-05-12)
+
+### 营养液槽传感器绑定语义说明：`temp_sensor_channel_id` 约定绑定水温通道
+
+- **契约说明**
+  - 后端字段名维持 `temp_sensor_channel_id` 不变，避免迁移与 DTO 破坏式变更
+  - 前端与接口文档统一将该字段解释为“水温传感器通道 ID”，实际应绑定 `metric_code=WATER_TEMP` 的采集通道
+  - 当前后端 handler 仍未对 `metric_code` 做强校验，如需在服务端兜底，后续可在 nutrient tank create/update 增加校验
+
 ## 最新变更 (2026-05-10)
+
+### 执行器命令单通道化：设备级 Topic 保持兼容，Payload 补目标通道
+
+- **命令下发 payload 补齐目标通道元数据**
+  - `internal/command/` 手动命令下发在保留设备级 MQTT topic 的前提下，向 payload 注入 `actuator_channel_id` 与 `channel_code`
+  - `internal/policy/scheduler.go`、`internal/climate/profile_scheduler.go` 自动下发链路同步注入同样字段，避免手动/自动行为不一致
+- **模拟器执行器改为优先单通道执行**
+  - `cmd/simulator/actuator.go` 收到带目标通道的命令后，仅对匹配的执行器通道生效
+  - 未携带目标通道时仍保持原有“整机广播”兼容行为
+  - 若显式指定的通道不存在，模拟器不再误控全部通道，并返回 `invalid` ACK
+- **测试**
+  - 新增后端测试覆盖：验证 MQTT 下发 payload 包含目标执行器通道标识
+  - 新增模拟器测试覆盖：验证命令仅作用于目标通道
 
 ### SSE 契约固化：DTO v1 + Devices/Commands 订阅端点
 

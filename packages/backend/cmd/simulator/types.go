@@ -12,6 +12,7 @@ const (
 	topicErrors    = "errors"
 	topicAck       = "ack"
 	topicCmdPrefix = "cmd"
+	topicState     = "state"
 )
 
 // ──────────────────── 执行器类型常量 ────────────────────
@@ -122,6 +123,7 @@ type actuatorChannelDetail struct {
 	ChannelCode  string   `json:"channel_code"`
 	ActuatorType string   `json:"actuator_type"`
 	CurrentState string   `json:"current_state"`
+	CurrentLevel *float64 `json:"current_level"`
 	RatedPower   *float64 `json:"rated_power_watt"`
 }
 
@@ -151,9 +153,11 @@ type ackPayload struct {
 }
 
 type incomingCmd struct {
-	CommandType string          `json:"command_type"`
-	Payload     json.RawMessage `json:"payload"`
-	CommandID   uint64          `json:"command_id,omitempty"`
+	CommandType       string          `json:"command_type"`
+	Payload           json.RawMessage `json:"payload"`
+	CommandID         uint64          `json:"command_id,omitempty"`
+	ActuatorChannelID uint64          `json:"actuator_channel_id,omitempty"`
+	ChannelCode       string          `json:"channel_code,omitempty"`
 
 	// Parsed from wrapped payload (injected by backend dispatchMQTT)
 	InternalCommandID   uint64 `json:"_command_id,omitempty"`

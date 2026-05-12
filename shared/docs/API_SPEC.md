@@ -693,7 +693,7 @@ ID 类型：`BIGINT`，响应中以数字返回
 | ec_sensor_channel_id    | number\|null | EC 传感器通道 ID            | 1                      |
 | ph_sensor_channel_id    | number\|null | pH 传感器通道 ID            | 2                      |
 | level_sensor_channel_id | number\|null | 液位传感器通道 ID           | 3                      |
-| temp_sensor_channel_id  | number\|null | 温度传感器通道 ID           | 4                      |
+| temp_sensor_channel_id  | number\|null | 水温传感器通道 ID           | 4                      |
 | created_at              | string       | 创建时间                    | "2026-01-01T00:00:00Z" |
 | updated_at              | string       | 更新时间                    | "2026-01-01T00:00:00Z" |
 
@@ -2211,19 +2211,19 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 请求体：
 
-| 字段            | 类型         | 必填 | 规则         | 示例                   |
-| --------------- | ------------ | ---- | ------------ | ---------------------- |
-| batch_id        | number       | 是   | 批次 ID      | 1                      |
-| growth_stage_id | number       | 是   | 生长阶段 ID  | 1                      |
-| recipe_id       | number\|null | 否   | 阶段配方 ID  | 10                     |
-| policy_id       | number\|null | 否   | 阶段策略 ID  | 20                     |
-| climate_profile_id | number\|null | 否 | 阶段气候 Profile ID | 30               |
-| stage_start_at  | string       | 是   | 阶段开始时间 | "2026-01-01T00:00:00Z" |
-| stage_end_at    | string       | 是   | 阶段结束时间 | "2026-01-14T00:00:00Z" |
-| target_ec_min   | number\|null | 否   | 目标 EC 下限 | 1.2                    |
-| target_ec_max   | number\|null | 否   | 目标 EC 上限 | 1.8                    |
-| target_ph_min   | number\|null | 否   | 目标 pH 下限 | 5.5                    |
-| target_ph_max   | number\|null | 否   | 目标 pH 上限 | 6.5                    |
+| 字段               | 类型         | 必填 | 规则                | 示例                   |
+| ------------------ | ------------ | ---- | ------------------- | ---------------------- |
+| batch_id           | number       | 是   | 批次 ID             | 1                      |
+| growth_stage_id    | number       | 是   | 生长阶段 ID         | 1                      |
+| recipe_id          | number\|null | 否   | 阶段配方 ID         | 10                     |
+| policy_id          | number\|null | 否   | 阶段策略 ID         | 20                     |
+| climate_profile_id | number\|null | 否   | 阶段气候 Profile ID | 30                     |
+| stage_start_at     | string       | 是   | 阶段开始时间        | "2026-01-01T00:00:00Z" |
+| stage_end_at       | string       | 是   | 阶段结束时间        | "2026-01-14T00:00:00Z" |
+| target_ec_min      | number\|null | 否   | 目标 EC 下限        | 1.2                    |
+| target_ec_max      | number\|null | 否   | 目标 EC 上限        | 1.8                    |
+| target_ph_min      | number\|null | 否   | 目标 pH 下限        | 5.5                    |
+| target_ph_max      | number\|null | 否   | 目标 pH 上限        | 6.5                    |
 
 **GET /api/batch-stage-plans/:id**
 
@@ -2570,7 +2570,7 @@ ID 类型：`BIGINT`，响应中以数字返回
 | ec_sensor_channel_id    | number\|null | 否   | EC 传感器通道 ID      | 1         |
 | ph_sensor_channel_id    | number\|null | 否   | pH 传感器通道 ID      | 2         |
 | level_sensor_channel_id | number\|null | 否   | 液位传感器通道 ID     | 3         |
-| temp_sensor_channel_id  | number\|null | 否   | 温度传感器通道 ID     | 4         |
+| temp_sensor_channel_id  | number\|null | 否   | 水温传感器通道 ID     | 4         |
 
 **GET /api/nutrient-tanks/:id**
 

@@ -10,6 +10,7 @@ export interface NutrientTank {
   ec_sensor_channel_id?: number | null
   ph_sensor_channel_id?: number | null
   level_sensor_channel_id?: number | null
+  // 复用后端既有字段名，前端约定这里绑定 WATER_TEMP 通道。
   temp_sensor_channel_id?: number | null
   created_at: string
   updated_at: string
@@ -101,6 +102,7 @@ export interface CreateNutrientTankRequest {
   ec_sensor_channel_id?: number
   ph_sensor_channel_id?: number
   level_sensor_channel_id?: number
+  // 复用后端既有字段名，前端约定这里绑定 WATER_TEMP 通道。
   temp_sensor_channel_id?: number
 }
 

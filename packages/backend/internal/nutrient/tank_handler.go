@@ -93,17 +93,17 @@ func (h *Handler) UpdateTank(c *gin.Context) {
 	if req.Status != nil {
 		updates["status"] = *req.Status
 	}
-	if req.ECSensorChannelID != nil {
-		updates["ec_sensor_channel_id"] = *req.ECSensorChannelID
+	if req.ECSensorChannelID.Set {
+		updates["ec_sensor_channel_id"] = req.ECSensorChannelID.Value
 	}
-	if req.PHSensorChannelID != nil {
-		updates["ph_sensor_channel_id"] = *req.PHSensorChannelID
+	if req.PHSensorChannelID.Set {
+		updates["ph_sensor_channel_id"] = req.PHSensorChannelID.Value
 	}
-	if req.LevelSensorChannelID != nil {
-		updates["level_sensor_channel_id"] = *req.LevelSensorChannelID
+	if req.LevelSensorChannelID.Set {
+		updates["level_sensor_channel_id"] = req.LevelSensorChannelID.Value
 	}
-	if req.TempSensorChannelID != nil {
-		updates["temp_sensor_channel_id"] = *req.TempSensorChannelID
+	if req.TempSensorChannelID.Set {
+		updates["temp_sensor_channel_id"] = req.TempSensorChannelID.Value
 	}
 
 	if len(updates) == 0 {

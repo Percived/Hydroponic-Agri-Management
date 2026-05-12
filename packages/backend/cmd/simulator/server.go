@@ -245,7 +245,9 @@ func (s *SimServer) handleStart(c *gin.Context) {
 				state = "OFF"
 			}
 			value := 0.0
-			if state == "ON" {
+			if ch.CurrentLevel != nil {
+				value = *ch.CurrentLevel
+			} else if state == "ON" {
 				value = 100.0
 			}
 			env.UpdateActuatorState(ch.ID, ch.ActuatorType, state, value)

@@ -117,6 +117,7 @@ type ActuatorChannel struct {
 	ChannelCode      string    `gorm:"size:64;not null"`
 	ActuatorType     string    `gorm:"column:actuator_type;size:32;not null"`
 	CurrentState     string    `gorm:"column:current_state;size:16;default:OFF"`
+	CurrentLevel     *float64  `gorm:"column:current_level;type:decimal(8,2)"`
 	RatedPowerWatt   *float64  `gorm:"column:rated_power_watt;type:decimal(10,2)"`
 	Enabled          bool      `gorm:"default:true"`
 	Metadata         string    `gorm:"type:json"`

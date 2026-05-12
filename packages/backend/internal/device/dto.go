@@ -133,6 +133,7 @@ type UpdateActuatorChannelRequest struct {
 	ChannelCode    *string  `json:"channel_code" binding:"omitempty,max=64"`
 	ActuatorType   *string  `json:"actuator_type" binding:"omitempty,max=32"`
 	CurrentState   *string  `json:"current_state" binding:"omitempty,max=16"`
+	CurrentLevel   *float64 `json:"current_level"`
 	RatedPowerWatt *float64 `json:"rated_power_watt"`
 	Enabled        *bool    `json:"enabled"`
 	Metadata       *string  `json:"metadata"`
@@ -144,6 +145,7 @@ type ActuatorChannelResponse struct {
 	ChannelCode      string   `json:"channel_code"`
 	ActuatorType     string   `json:"actuator_type"`
 	CurrentState     string   `json:"current_state"`
+	CurrentLevel     *float64 `json:"current_level"`
 	RatedPowerWatt   *float64 `json:"rated_power_watt"`
 	Enabled          bool     `json:"enabled"`
 	Metadata         string   `json:"metadata"`

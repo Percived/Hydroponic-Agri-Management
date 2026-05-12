@@ -314,7 +314,7 @@ func (s *Scheduler) executeTarget(t PolicyTarget, p ControlPolicy) (uint64, erro
 		return 0, fmt.Errorf("create command: %w", err)
 	}
 
-	deviceCode, _ := s.lookupActuatorDeviceCode(t.ActuatorChannelID)
+	deviceCode, channelCode, _ := s.lookupActuatorTarget(t.ActuatorChannelID)
 	now := time.Now().UTC()
 
 	if s.mqttClient == nil || !s.mqttClient.IsConnected() {
@@ -335,8 +335,14 @@ func (s *Scheduler) executeTarget(t PolicyTarget, p ControlPolicy) (uint64, erro
 		return cmd.ID, fmt.Errorf("mqtt offline")
 	}
 
+	payload := command.BuildDeviceCommandPayload(t.CommandPayload, command.DispatchTargetMeta{
+		CommandID:         cmd.ID,
+		CommandType:       t.CommandType,
+		ActuatorChannelID: t.ActuatorChannelID,
+		ChannelCode:       channelCode,
+	})
 	topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, deviceCode, mqttpkg.TopicCmdPrefix, t.CommandType)
-	token := s.mqttClient.Publish(topic, 1, false, t.CommandPayload)
+	token := s.mqttClient.Publish(topic, 1, false, payload)
 	if token.Wait() && token.Error() != nil {
 		s.db.Model(&cmd).Update("status", "FAILED")
 		s.hub.Publish(event.SSEEvent{
@@ -376,22 +382,23 @@ func (s *Scheduler) executeTarget(t PolicyTarget, p ControlPolicy) (uint64, erro
 	return cmd.ID, nil
 }
 
-func (s *Scheduler) lookupActuatorDeviceCode(actuatorChannelID uint64) (string, error) {
+func (s *Scheduler) lookupActuatorTarget(actuatorChannelID uint64) (string, string, error) {
 	var result struct {
-		DeviceCode string
+		DeviceCode  string
+		ChannelCode string
 	}
 	err := s.db.Table("actuator_channels").
-		Select("actuator_devices.device_code").
+		Select("actuator_devices.device_code, actuator_channels.channel_code").
 		Joins("JOIN actuator_devices ON actuator_devices.id = actuator_channels.actuator_device_id").
 		Where("actuator_channels.id = ?", actuatorChannelID).
 		Scan(&result).Error
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if result.DeviceCode == "" {
-		return "", fmt.Errorf("device not found for channel %d", actuatorChannelID)
+		return "", "", fmt.Errorf("device not found for channel %d", actuatorChannelID)
 	}
-	return result.DeviceCode, nil
+	return result.DeviceCode, result.ChannelCode, nil
 }
 
 func (s *Scheduler) isInCooldown(key string) bool {

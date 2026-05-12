@@ -1,5 +1,30 @@
 package nutrient
 
+import (
+	"bytes"
+	"encoding/json"
+)
+
+type OptionalUint64 struct {
+	Set   bool
+	Value *uint64
+}
+
+func (o *OptionalUint64) UnmarshalJSON(data []byte) error {
+	o.Set = true
+	if bytes.Equal(data, []byte("null")) {
+		o.Value = nil
+		return nil
+	}
+
+	var v uint64
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	o.Value = &v
+	return nil
+}
+
 // ---------- NutrientTank ----------
 
 type CreateNutrientTankRequest struct {
@@ -15,14 +40,14 @@ type CreateNutrientTankRequest struct {
 }
 
 type UpdateNutrientTankRequest struct {
-	Code                 *string  `json:"code" binding:"omitempty,min=1,max=32"`
-	TotalVolumeLiter     *float64 `json:"total_volume_liter" binding:"omitempty,gt=0"`
-	CurrentVolumeLiter   *float64 `json:"current_volume_liter"`
-	Status               *string  `json:"status" binding:"omitempty,oneof=ACTIVE INACTIVE EMPTY"`
-	ECSensorChannelID    *uint64  `json:"ec_sensor_channel_id"`
-	PHSensorChannelID    *uint64  `json:"ph_sensor_channel_id"`
-	LevelSensorChannelID *uint64  `json:"level_sensor_channel_id"`
-	TempSensorChannelID  *uint64  `json:"temp_sensor_channel_id"`
+	Code                 *string        `json:"code" binding:"omitempty,min=1,max=32"`
+	TotalVolumeLiter     *float64       `json:"total_volume_liter" binding:"omitempty,gt=0"`
+	CurrentVolumeLiter   *float64       `json:"current_volume_liter"`
+	Status               *string        `json:"status" binding:"omitempty,oneof=ACTIVE INACTIVE EMPTY"`
+	ECSensorChannelID    OptionalUint64 `json:"ec_sensor_channel_id"`
+	PHSensorChannelID    OptionalUint64 `json:"ph_sensor_channel_id"`
+	LevelSensorChannelID OptionalUint64 `json:"level_sensor_channel_id"`
+	TempSensorChannelID  OptionalUint64 `json:"temp_sensor_channel_id"`
 }
 
 type NutrientTankResponse struct {

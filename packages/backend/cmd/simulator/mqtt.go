@@ -89,6 +89,10 @@ func ackTopic(deviceCode string) string {
 	return fmt.Sprintf("%s/%s/%s", topicPrefix, deviceCode, topicAck)
 }
 
+func stateTopic(deviceCode string) string {
+	return fmt.Sprintf("%s/%s/%s", topicPrefix, deviceCode, topicState)
+}
+
 func cmdTopic(deviceCode string) string {
 	return fmt.Sprintf("%s/%s/%s/#", topicPrefix, deviceCode, topicCmdPrefix)
 }

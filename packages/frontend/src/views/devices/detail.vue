@@ -203,6 +203,15 @@
                   width="100"
                 />
                 <el-table-column
+                  prop="current_level"
+                  label="定量值"
+                  width="100"
+                >
+                  <template #default="{ row }">{{
+                    row.current_level ?? "-"
+                  }}</template>
+                </el-table-column>
+                <el-table-column
                   prop="rated_power_watt"
                   label="额定功率(W)"
                   width="120"

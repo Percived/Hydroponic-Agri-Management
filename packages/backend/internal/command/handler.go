@@ -292,35 +292,27 @@ func (h *Handler) DispatchAsync(c *gin.Context) {
 
 // dispatchMQTT publishes a command to the device's MQTT command topic.
 func (h *Handler) dispatchMQTT(cmd ControlCommand) (string, error) {
-	deviceCode, err := h.lookupDeviceCode(cmd.ActuatorChannelID)
+	target, err := h.lookupActuatorTarget(cmd.ActuatorChannelID)
 	if err != nil {
 		return "", fmt.Errorf("device lookup: %w", err)
 	}
 	if h.mqttClient == nil || !h.mqttClient.IsConnected() {
-		return deviceCode, fmt.Errorf("mqtt not connected")
+		return target.DeviceCode, fmt.Errorf("mqtt not connected")
 	}
 
-	// Merge command_id and command_type into payload for backward-compatible device ACK
-	var payloadMap map[string]interface{}
-	if err := json.Unmarshal([]byte(cmd.Payload), &payloadMap); err != nil {
-		// If payload is not valid JSON, send it as-is
-		topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, deviceCode, mqttpkg.TopicCmdPrefix, cmd.CommandType)
-		token := h.mqttClient.Publish(topic, 1, false, cmd.Payload)
-		if token.Wait() && token.Error() != nil {
-			return deviceCode, fmt.Errorf("publish: %w", token.Error())
-		}
-		return deviceCode, nil
-	}
-	payloadMap["_command_id"] = cmd.ID
-	payloadMap["_command_type"] = cmd.CommandType
-	wrappedPayload, _ := json.Marshal(payloadMap)
+	payload := BuildDeviceCommandPayload(cmd.Payload, DispatchTargetMeta{
+		CommandID:         cmd.ID,
+		CommandType:       cmd.CommandType,
+		ActuatorChannelID: cmd.ActuatorChannelID,
+		ChannelCode:       target.ChannelCode,
+	})
 
-	topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, deviceCode, mqttpkg.TopicCmdPrefix, cmd.CommandType)
-	token := h.mqttClient.Publish(topic, 1, false, wrappedPayload)
+	topic := fmt.Sprintf("%s/%s/%s/%s", mqttpkg.TopicPrefix, target.DeviceCode, mqttpkg.TopicCmdPrefix, cmd.CommandType)
+	token := h.mqttClient.Publish(topic, 1, false, payload)
 	if token.Wait() && token.Error() != nil {
-		return deviceCode, fmt.Errorf("publish: %w", token.Error())
+		return target.DeviceCode, fmt.Errorf("publish: %w", token.Error())
 	}
-	return deviceCode, nil
+	return target.DeviceCode, nil
 }
 
 func (h *Handler) markFailed(commandID uint64, deviceCode string, cause error) {
@@ -357,23 +349,26 @@ func (h *Handler) markFailed(commandID uint64, deviceCode string, cause error) {
 	})
 }
 
-// lookupDeviceCode finds the device code for an actuator channel.
-func (h *Handler) lookupDeviceCode(actuatorChannelID uint64) (string, error) {
-	var result struct {
-		DeviceCode string
-	}
+type actuatorTarget struct {
+	DeviceCode  string
+	ChannelCode string
+}
+
+// lookupActuatorTarget finds the device and channel identifiers for an actuator channel.
+func (h *Handler) lookupActuatorTarget(actuatorChannelID uint64) (actuatorTarget, error) {
+	var result actuatorTarget
 	err := h.db.Table("actuator_channels").
-		Select("actuator_devices.device_code").
+		Select("actuator_devices.device_code, actuator_channels.channel_code").
 		Joins("JOIN actuator_devices ON actuator_devices.id = actuator_channels.actuator_device_id").
 		Where("actuator_channels.id = ?", actuatorChannelID).
 		Scan(&result).Error
 	if err != nil {
-		return "", err
+		return actuatorTarget{}, err
 	}
 	if result.DeviceCode == "" {
-		return "", fmt.Errorf("device not found for channel %d", actuatorChannelID)
+		return actuatorTarget{}, fmt.Errorf("device not found for channel %d", actuatorChannelID)
 	}
-	return result.DeviceCode, nil
+	return result, nil
 }
 
 // AckCommand marks a command as ACKED with receipt information.
