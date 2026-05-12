@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"hydroponic-backend/internal/platform/auditlog"
 	"hydroponic-backend/internal/platform/config"
 	platformErrors "hydroponic-backend/internal/platform/errors"
 	"hydroponic-backend/internal/platform/response"
@@ -20,6 +21,18 @@ type Handler struct {
 
 func NewHandler(cfg config.AuthConfig, db *gorm.DB) *Handler {
 	return &Handler{cfg: cfg, db: db}
+}
+
+func currentUserID(c *gin.Context) uint64 {
+	v, ok := c.Get(CtxUserID)
+	if !ok {
+		return 0
+	}
+	id, ok := v.(uint64)
+	if !ok {
+		return 0
+	}
+	return id
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -63,10 +76,39 @@ func (h *Handler) Login(c *gin.Context) {
 			"roles":    roles,
 		},
 	})
+
+	targetID := user.ID
+	_ = auditlog.WriteEntry(h.db, auditlog.Entry{
+		UserID:     user.ID,
+		Action:     "LOGIN",
+		TargetType: "USER",
+		TargetID:   &targetID,
+		Detail: gin.H{
+			"username": user.Username,
+			"roles":    roles,
+		},
+		RequestID: c.GetString("request_id"),
+	})
 }
 
 func (h *Handler) Logout(c *gin.Context) {
 	response.Success(c, gin.H{})
+
+	userID := currentUserID(c)
+	if userID == 0 {
+		return
+	}
+	targetID := userID
+	_ = auditlog.WriteEntry(h.db, auditlog.Entry{
+		UserID:     userID,
+		Action:     "LOGOUT",
+		TargetType: "USER",
+		TargetID:   &targetID,
+		Detail: gin.H{
+			"username": c.GetString(CtxUsername),
+		},
+		RequestID: c.GetString("request_id"),
+	})
 }
 
 func (h *Handler) ListUsers(c *gin.Context) {
@@ -163,6 +205,27 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"id": user.ID})
+
+	targetID := user.ID
+	_ = auditlog.WriteEntry(h.db, auditlog.Entry{
+		UserID:     currentUserID(c),
+		Action:     "CREATE_USER",
+		TargetType: "USER",
+		TargetID:   &targetID,
+		Detail: gin.H{
+			"username": user.Username,
+			"nickname": user.Nickname,
+			"status":   user.Status,
+			"roles":    req.Roles,
+		},
+		RequestID: c.GetString("request_id"),
+		AfterData: gin.H{
+			"username": user.Username,
+			"nickname": user.Nickname,
+			"status":   user.Status,
+			"roles":    req.Roles,
+		},
+	})
 }
 
 func (h *Handler) UpdateUser(c *gin.Context) {
@@ -218,6 +281,19 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{})
+
+	targetID := userID
+	_ = auditlog.WriteEntry(h.db, auditlog.Entry{
+		UserID:     currentUserID(c),
+		Action:     "UPDATE_USER",
+		TargetType: "USER",
+		TargetID:   &targetID,
+		Detail: gin.H{
+			"updates": updates,
+			"roles":   req.Roles,
+		},
+		RequestID: c.GetString("request_id"),
+	})
 }
 
 func (h *Handler) UpdateUserStatus(c *gin.Context) {
@@ -238,6 +314,18 @@ func (h *Handler) UpdateUserStatus(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{})
+
+	targetID := userID
+	_ = auditlog.WriteEntry(h.db, auditlog.Entry{
+		UserID:     currentUserID(c),
+		Action:     "UPDATE_USER",
+		TargetType: "USER",
+		TargetID:   &targetID,
+		Detail: gin.H{
+			"status": req.Status,
+		},
+		RequestID: c.GetString("request_id"),
+	})
 }
 
 func (h *Handler) ListRoles(c *gin.Context) {

@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"time"
 
+	"hydroponic-backend/internal/auth"
+	"hydroponic-backend/internal/platform/auditlog"
 	platformErrors "hydroponic-backend/internal/platform/errors"
 	"hydroponic-backend/internal/platform/response"
 
@@ -56,6 +58,10 @@ func (h *Handler) CreateSensorDevice(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"id": dev.ID})
+	writeDeviceAudit(h.db, c, "CREATE_DEVICE", "SENSOR_DEVICE", dev.ID, gin.H{
+		"device_code": dev.DeviceCode,
+		"name":        dev.Name,
+	})
 }
 
 func (h *Handler) UpdateSensorDevice(c *gin.Context) {
@@ -104,6 +110,7 @@ func (h *Handler) UpdateSensorDevice(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{})
+	writeDeviceAudit(h.db, c, "UPDATE_DEVICE", "SENSOR_DEVICE", id, updates)
 }
 
 func (h *Handler) ListSensorDevices(c *gin.Context) {
@@ -196,6 +203,7 @@ func (h *Handler) DeleteSensorDevice(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{})
+	writeDeviceAudit(h.db, c, "DELETE_DEVICE", "SENSOR_DEVICE", id, gin.H{"id": id})
 }
 
 // ---- SensorChannel CRUD ----
@@ -246,6 +254,11 @@ func (h *Handler) CreateSensorChannel(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"id": ch.ID})
+	writeDeviceAudit(h.db, c, "CREATE_DEVICE", "SENSOR_CHANNEL", ch.ID, gin.H{
+		"sensor_device_id": ch.SensorDeviceID,
+		"channel_code":     ch.ChannelCode,
+		"metric_code":      ch.MetricCode,
+	})
 }
 
 func (h *Handler) UpdateSensorChannel(c *gin.Context) {
@@ -317,6 +330,7 @@ func (h *Handler) UpdateSensorChannel(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{})
+	writeDeviceAudit(h.db, c, "UPDATE_DEVICE", "SENSOR_CHANNEL", id, updates)
 }
 
 func (h *Handler) ListSensorChannels(c *gin.Context) {
@@ -419,6 +433,10 @@ func (h *Handler) CreateActuatorDevice(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"id": dev.ID})
+	writeDeviceAudit(h.db, c, "CREATE_DEVICE", "ACTUATOR_DEVICE", dev.ID, gin.H{
+		"device_code": dev.DeviceCode,
+		"name":        dev.Name,
+	})
 }
 
 func (h *Handler) UpdateActuatorDevice(c *gin.Context) {
@@ -467,6 +485,7 @@ func (h *Handler) UpdateActuatorDevice(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{})
+	writeDeviceAudit(h.db, c, "UPDATE_DEVICE", "ACTUATOR_DEVICE", id, updates)
 }
 
 func (h *Handler) ListActuatorDevices(c *gin.Context) {
@@ -559,6 +578,7 @@ func (h *Handler) DeleteActuatorDevice(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{})
+	writeDeviceAudit(h.db, c, "DELETE_DEVICE", "ACTUATOR_DEVICE", id, gin.H{"id": id})
 }
 
 // ---- ActuatorChannel CRUD ----
@@ -593,6 +613,11 @@ func (h *Handler) CreateActuatorChannel(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"id": ch.ID})
+	writeDeviceAudit(h.db, c, "CREATE_DEVICE", "ACTUATOR_CHANNEL", ch.ID, gin.H{
+		"actuator_device_id": ch.ActuatorDeviceID,
+		"channel_code":       ch.ChannelCode,
+		"actuator_type":      ch.ActuatorType,
+	})
 }
 
 func (h *Handler) UpdateActuatorChannel(c *gin.Context) {
@@ -644,6 +669,7 @@ func (h *Handler) UpdateActuatorChannel(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{})
+	writeDeviceAudit(h.db, c, "UPDATE_DEVICE", "ACTUATOR_CHANNEL", id, updates)
 }
 
 func (h *Handler) ListActuatorChannels(c *gin.Context) {
@@ -739,6 +765,7 @@ func (h *Handler) DeleteActuatorChannel(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{})
+	writeDeviceAudit(h.db, c, "DELETE_DEVICE", "ACTUATOR_CHANNEL", id, gin.H{"id": id})
 }
 
 // ---- Batch Registration ----
@@ -1025,4 +1052,28 @@ func actuatorChannelsToResponse(channels []ActuatorChannel) []ActuatorChannelRes
 		items = append(items, channelToActuatorResponse(ch))
 	}
 	return items
+}
+
+func currentUserID(c *gin.Context) uint64 {
+	v, ok := c.Get(auth.CtxUserID)
+	if !ok {
+		return 0
+	}
+	id, ok := v.(uint64)
+	if !ok {
+		return 0
+	}
+	return id
+}
+
+func writeDeviceAudit(db *gorm.DB, c *gin.Context, action, targetType string, id uint64, detail interface{}) {
+	targetID := id
+	_ = auditlog.WriteEntry(db, auditlog.Entry{
+		UserID:     currentUserID(c),
+		Action:     action,
+		TargetType: targetType,
+		TargetID:   &targetID,
+		Detail:     detail,
+		RequestID:  c.GetString("request_id"),
+	})
 }

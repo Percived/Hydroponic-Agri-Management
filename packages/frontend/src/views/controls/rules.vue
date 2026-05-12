@@ -18,12 +18,17 @@
             <el-tag size="small">{{ typeLabel(row.policy_type) }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="计划描述" min-width="170">
+          <template #default="{ row }">
+            <span>{{ formatScheduleSummary(row) }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="priority" label="优先级" width="90" />
         <el-table-column prop="retry_limit" label="重试" width="80" />
         <el-table-column prop="timeout_sec" label="超时(s)" width="90" />
         <el-table-column prop="enabled" label="启用" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.enabled === 1 ? 'success' : 'info'">{{ row.enabled === 1 ? '启用' : '停用' }}</el-tag>
+            <el-tag :type="isPolicyEnabled(row) ? 'success' : 'info'">{{ isPolicyEnabled(row) ? '启用' : '停用' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="version" label="版本" width="100" />
@@ -103,7 +108,7 @@
 
         <el-row :gutter="12">
           <el-col :span="12">
-            <el-form-item label="生效起始">
+            <el-form-item label="生效开始">
               <el-date-picker
                 v-model="formData.effective_from"
                 type="datetime"
@@ -116,7 +121,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="失效时间">
+            <el-form-item label="生效结束">
               <el-date-picker
                 v-model="formData.effective_to"
                 type="datetime"
@@ -139,22 +144,70 @@
           style="margin-bottom: 16px"
         />
 
-        <!-- THRESHOLD + SCHEDULE: 策略条件 -->
-        <template v-if="formData.policy_type !== 'DURATION'">
-          <el-divider>
-            策略条件
-            <el-switch
-              v-if="formData.policy_type === 'SCHEDULE'"
-              v-model="scheduleUseCondition"
-              size="small"
-              style="margin-left: 8px"
-            />
-            <span v-if="formData.policy_type === 'SCHEDULE'" style="font-size:12px;color:#909399;margin-left:4px">
-              {{ scheduleUseCondition ? '启用条件检查' : '无条件（仅定时执行）' }}
-            </span>
-          </el-divider>
+        <template v-if="formData.policy_type === 'SCHEDULE'">
+          <el-divider>执行计划</el-divider>
+          <el-row :gutter="12">
+            <el-col :span="12">
+              <el-form-item label="计划类型" required>
+                <el-select v-model="formData.schedule_mode" style="width: 100%">
+                  <el-option label="单次执行" value="ONCE" />
+                  <el-option label="每日执行" value="DAILY" />
+                  <el-option label="每周执行" value="WEEKLY" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="时区">
+                <el-input v-model="formData.timezone" disabled />
+              </el-form-item>
+            </el-col>
+          </el-row>
 
-          <template v-if="formData.policy_type === 'THRESHOLD' || scheduleUseCondition">
+          <el-form-item v-if="formData.schedule_mode === 'ONCE'" label="执行时间" required>
+            <el-date-picker
+              v-model="formData.run_once_at"
+              type="datetime"
+              placeholder="选择单次执行时间"
+              style="width: 100%"
+              format="YYYY-MM-DD HH:mm:ss"
+            />
+          </el-form-item>
+
+          <el-form-item v-if="formData.schedule_mode === 'DAILY'" label="每日时刻" required>
+            <el-time-picker
+              v-model="formData.time_of_day"
+              placeholder="选择每日执行时刻"
+              style="width: 100%"
+              format="HH:mm:ss"
+              value-format="HH:mm:ss"
+            />
+          </el-form-item>
+
+          <template v-if="formData.schedule_mode === 'WEEKLY'">
+            <el-form-item label="每周时刻" required>
+              <el-time-picker
+                v-model="formData.time_of_day"
+                placeholder="选择每周执行时刻"
+                style="width: 100%"
+                format="HH:mm:ss"
+                value-format="HH:mm:ss"
+              />
+            </el-form-item>
+            <el-form-item label="执行星期" required>
+              <el-checkbox-group v-model="formData.weekdays">
+                <el-checkbox-button v-for="item in weekdayOptions" :key="item.value" :label="item.value">
+                  {{ item.label }}
+                </el-checkbox-button>
+              </el-checkbox-group>
+            </el-form-item>
+          </template>
+        </template>
+
+        <!-- THRESHOLD: 策略条件 -->
+        <template v-if="formData.policy_type === 'THRESHOLD'">
+          <el-divider>策略条件</el-divider>
+
+          <template>
             <div v-for="(cond, index) in conditions" :key="index" class="target-item">
               <div class="target-item-header">
                 <span class="target-item-title">触发条件 {{ index + 1 }}</span>
@@ -417,6 +470,16 @@ const actuatorParamSuggestions: Record<string, string[]> = {
   CALIBRATION_VALVE: ['state']
 }
 
+const weekdayOptions = [
+  { value: 1, label: '周一' },
+  { value: 2, label: '周二' },
+  { value: 3, label: '周三' },
+  { value: 4, label: '周四' },
+  { value: 5, label: '周五' },
+  { value: 6, label: '周六' },
+  { value: 7, label: '周日' }
+]
+
 function getParamSuggestions(index: number): string[] {
   const t = targets.value[index]
   if (!t?.channelId) return []
@@ -543,15 +606,17 @@ const formData = reactive({
   retry_limit: 3,
   timeout_sec: 30,
   effective_from: null as Date | null,
-  effective_to: null as Date | null
+  effective_to: null as Date | null,
+  schedule_mode: 'ONCE' as 'ONCE' | 'DAILY' | 'WEEKLY',
+  run_once_at: null as Date | null,
+  time_of_day: '' as string,
+  weekdays: [] as number[],
+  timezone: 'Asia/Shanghai'
 })
 
 const conditions = ref<ConditionItem[]>([defaultCondition()])
 
 const targets = ref<TargetItem[]>([defaultTarget()])
-
-// SCHEDULE 类型: 是否启用条件检查
-const scheduleUseCondition = ref(false)
 
 // 动态标题
 const dialogTitle = computed(() => {
@@ -562,6 +627,60 @@ const dialogTitle = computed(() => {
 function typeLabel(t: string) {
   const map: Record<string, string> = { THRESHOLD: '阈值', SCHEDULE: '定时', DURATION: '时长' }
   return map[t] || t
+}
+
+function isPolicyEnabled(policy: ControlPolicy) {
+  return policy.enabled === true || policy.enabled === 1
+}
+
+function encodeWeekdaysMask(weekdays: number[]): number | undefined {
+  if (!weekdays.length) return undefined
+  return weekdays.reduce((mask, day) => {
+    if (day === 7) return mask | (1 << 6)
+    return mask | (1 << (day - 1))
+  }, 0)
+}
+
+function decodeWeekdaysMask(mask?: number): number[] {
+  if (!mask) return []
+  return weekdayOptions
+    .map(item => item.value)
+    .filter(day => (day === 7 ? (mask & (1 << 6)) !== 0 : (mask & (1 << (day - 1))) !== 0))
+}
+
+function formatScheduleSummary(policy: ControlPolicy): string {
+  if (policy.policy_type !== 'SCHEDULE') return '-'
+  if (!policy.schedule_mode) return '计划未配置'
+  if (policy.schedule_mode === 'ONCE') {
+    return policy.run_once_at ? `${formatRunOnceAt(policy.run_once_at, policy.timezone)} 单次` : '单次时间未配置'
+  }
+  if (policy.schedule_mode === 'DAILY') {
+    return policy.time_of_day ? `每日 ${policy.time_of_day}` : '每日时刻未配置'
+  }
+  if (policy.schedule_mode === 'WEEKLY') {
+    const weekdays = decodeWeekdaysMask(policy.weekdays_mask)
+      .map(day => weekdayOptions.find(item => item.value === day)?.label)
+      .filter(Boolean)
+      .join('/')
+    return weekdays && policy.time_of_day ? `${weekdays} ${policy.time_of_day}` : '每周计划未配置'
+  }
+  return '计划未配置'
+}
+
+function formatRunOnceAt(value: string, timezone?: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  const formatter = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: timezone || 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+  return formatter.format(date).replace(/\//g, '-')
 }
 
 // ── 多目标动作 helpers ──
@@ -713,19 +832,27 @@ function openCreateDialog() {
   formData.timeout_sec = 30
   formData.effective_from = null
   formData.effective_to = null
+  formData.schedule_mode = 'ONCE'
+  formData.run_once_at = null
+  formData.time_of_day = ''
+  formData.weekdays = []
+  formData.timezone = 'Asia/Shanghai'
   conditions.value = [defaultCondition()]
   targets.value = [defaultTarget()]
-  scheduleUseCondition.value = false
   growingZones.value = []
   actuatorChannels.value = []
   loadActuatorChannels()
   dialogVisible.value = true
 }
 
-// THRESHOLD 必须使用条件，SCHEDULE 切换时重置
 watch(() => formData.policy_type, (val) => {
-  if (val === 'THRESHOLD') scheduleUseCondition.value = false
-  // THRESHOLD 的 scheduleUseCondition 不生效，条件始终显示
+  if (val !== 'SCHEDULE') {
+    formData.schedule_mode = 'ONCE'
+    formData.run_once_at = null
+    formData.time_of_day = ''
+    formData.weekdays = []
+    formData.timezone = 'Asia/Shanghai'
+  }
 })
 
 async function openEditDialog(policy: ControlPolicy) {
@@ -741,26 +868,33 @@ async function openEditDialog(policy: ControlPolicy) {
   formData.timeout_sec = policy.timeout_sec || 30
   formData.effective_from = policy.effective_from ? new Date(policy.effective_from) : null
   formData.effective_to = policy.effective_to ? new Date(policy.effective_to) : null
+  formData.schedule_mode = policy.schedule_mode || 'ONCE'
+  formData.run_once_at = policy.run_once_at ? new Date(policy.run_once_at) : null
+  formData.time_of_day = policy.time_of_day || ''
+  formData.weekdays = decodeWeekdaysMask(policy.weekdays_mask)
+  formData.timezone = policy.timezone || 'Asia/Shanghai'
 
-  // Load conditions
-  scheduleUseCondition.value = false
-  try {
-    const condResult = await policyApi.getPolicyConditions(policy.id)
-    if (condResult.items && condResult.items.length > 0) {
-      conditions.value = condResult.items.map((c: any) => ({
-        metric_code: c.metric_code,
-        operator: c.operator,
-        threshold_value: c.threshold_value,
-        hysteresis: c.hysteresis,
-        window_sec: c.window_sec,
-        required_duration_sec: c.required_duration_sec,
-        aggregation: c.aggregation
-      }))
-      if (policy.policy_type === 'SCHEDULE') scheduleUseCondition.value = true
-    } else {
+  // Load conditions only for threshold policies.
+  if (policy.policy_type === 'THRESHOLD') {
+    try {
+      const condResult = await policyApi.getPolicyConditions(policy.id)
+      if (condResult.items && condResult.items.length > 0) {
+        conditions.value = condResult.items.map((c: any) => ({
+          metric_code: c.metric_code,
+          operator: c.operator,
+          threshold_value: c.threshold_value,
+          hysteresis: c.hysteresis,
+          window_sec: c.window_sec,
+          required_duration_sec: c.required_duration_sec,
+          aggregation: c.aggregation
+        }))
+      } else {
+        conditions.value = [defaultCondition()]
+      }
+    } catch {
       conditions.value = [defaultCondition()]
     }
-  } catch {
+  } else {
     conditions.value = [defaultCondition()]
   }
 
@@ -809,9 +943,28 @@ async function handleSubmit() {
     }
   }
 
+  if (formData.policy_type === 'SCHEDULE') {
+    if (!formData.schedule_mode) {
+      ElMessage.warning('请选择计划类型')
+      return
+    }
+    if (formData.schedule_mode === 'ONCE' && !formData.run_once_at) {
+      ElMessage.warning('请设置单次执行时间')
+      return
+    }
+    if ((formData.schedule_mode === 'DAILY' || formData.schedule_mode === 'WEEKLY') && !formData.time_of_day) {
+      ElMessage.warning('请设置执行时刻')
+      return
+    }
+    if (formData.schedule_mode === 'WEEKLY' && !formData.weekdays.length) {
+      ElMessage.warning('请至少选择一个执行星期')
+      return
+    }
+  }
+
   submitLoading.value = true
   try {
-    const useCond = formData.policy_type === 'THRESHOLD' || scheduleUseCondition.value
+    const useCond = formData.policy_type === 'THRESHOLD'
     const finalConditions = useCond ? conditions.value : []
     const finalTargets = targets.value.filter(t => t.channelId)
 
@@ -825,11 +978,17 @@ async function handleSubmit() {
         retry_limit: formData.retry_limit,
         timeout_sec: formData.timeout_sec,
         effective_from: formData.effective_from?.toISOString() || null,
-        effective_to: formData.effective_to?.toISOString() || null
+        effective_to: formData.effective_to?.toISOString() || null,
+        schedule_mode: formData.policy_type === 'SCHEDULE' ? formData.schedule_mode : undefined,
+        run_once_at: formData.policy_type === 'SCHEDULE' && formData.schedule_mode === 'ONCE' ? formData.run_once_at?.toISOString() || null : undefined,
+        time_of_day: formData.policy_type === 'SCHEDULE' && formData.schedule_mode !== 'ONCE' ? formData.time_of_day : undefined,
+        weekdays_mask: formData.policy_type === 'SCHEDULE' && formData.schedule_mode === 'WEEKLY' ? encodeWeekdaysMask(formData.weekdays) : undefined,
+        timezone: formData.policy_type === 'SCHEDULE' ? formData.timezone : undefined
       }
       // Remove null fields to avoid overwriting with null
       if (payload.effective_from === null) delete payload.effective_from
       if (payload.effective_to === null) delete payload.effective_to
+      if (payload.run_once_at === null) delete payload.run_once_at
       await policyApi.updatePolicy(pid, payload as any)
 
       // Sync Conditions
@@ -875,7 +1034,12 @@ async function handleSubmit() {
         retry_limit: formData.retry_limit,
         timeout_sec: formData.timeout_sec,
         effective_from: formData.effective_from?.toISOString() || undefined,
-        effective_to: formData.effective_to?.toISOString() || undefined
+        effective_to: formData.effective_to?.toISOString() || undefined,
+        schedule_mode: formData.policy_type === 'SCHEDULE' ? formData.schedule_mode : undefined,
+        run_once_at: formData.policy_type === 'SCHEDULE' && formData.schedule_mode === 'ONCE' ? formData.run_once_at?.toISOString() || undefined : undefined,
+        time_of_day: formData.policy_type === 'SCHEDULE' && formData.schedule_mode !== 'ONCE' ? formData.time_of_day : undefined,
+        weekdays_mask: formData.policy_type === 'SCHEDULE' && formData.schedule_mode === 'WEEKLY' ? encodeWeekdaysMask(formData.weekdays) : undefined,
+        timezone: formData.policy_type === 'SCHEDULE' ? formData.timezone : undefined
       }
       const res = await policyApi.createPolicy(createPayload as any)
       const pid = res.id

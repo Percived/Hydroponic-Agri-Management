@@ -4,24 +4,30 @@ import "time"
 
 // ControlPolicy represents a control policy for threshold/schedule/duration-based automation.
 type ControlPolicy struct {
-	ID            uint64     `gorm:"primaryKey;autoIncrement"`
-	PolicyCode    string     `gorm:"column:policy_code;size:64;uniqueIndex;not null"`
-	Name          string     `gorm:"size:128;not null"`
-	PolicyType    string     `gorm:"column:policy_type;size:16;not null"` // THRESHOLD/SCHEDULE/DURATION
-	GreenhouseID  uint64     `gorm:"column:greenhouse_id;not null"`
-	GrowingZoneID *uint64    `gorm:"column:growing_zone_id"`
-	Priority      int        `gorm:"default:100"`
-	RetryLimit    uint8      `gorm:"column:retry_limit;default:3"`
-	TimeoutSec    uint       `gorm:"column:timeout_sec;default:30"`
-	Enabled       bool       `gorm:"default:true"`
-	Version       string     `gorm:"size:32;default:v1"`
-	EffectiveFrom *time.Time `gorm:"column:effective_from"`
-	EffectiveTo   *time.Time `gorm:"column:effective_to"`
-	CreatedBy     *uint64    `gorm:"column:created_by"`
-	PublishedBy   *uint64    `gorm:"column:published_by"`
-	PublishedAt   *time.Time `gorm:"column:published_at"`
-	CreatedAt     time.Time  `gorm:"autoCreateTime:milli"`
-	UpdatedAt     time.Time  `gorm:"autoUpdateTime:milli"`
+	ID               uint64     `gorm:"primaryKey;autoIncrement"`
+	PolicyCode       string     `gorm:"column:policy_code;size:64;uniqueIndex;not null"`
+	Name             string     `gorm:"size:128;not null"`
+	PolicyType       string     `gorm:"column:policy_type;size:16;not null"` // THRESHOLD/SCHEDULE/DURATION
+	GreenhouseID     uint64     `gorm:"column:greenhouse_id;not null"`
+	GrowingZoneID    *uint64    `gorm:"column:growing_zone_id"`
+	Priority         int        `gorm:"default:100"`
+	RetryLimit       uint8      `gorm:"column:retry_limit;default:3"`
+	TimeoutSec       uint       `gorm:"column:timeout_sec;default:30"`
+	Enabled          bool       `gorm:"default:true"`
+	Version          string     `gorm:"size:32;default:v1"`
+	EffectiveFrom    *time.Time `gorm:"column:effective_from"`
+	EffectiveTo      *time.Time `gorm:"column:effective_to"`
+	ScheduleMode     *string    `gorm:"column:schedule_mode;size:16"`
+	RunOnceAt        *time.Time `gorm:"column:run_once_at"`
+	TimeOfDay        *string    `gorm:"column:time_of_day;type:time"`
+	WeekdaysMask     *uint8     `gorm:"column:weekdays_mask"`
+	Timezone         string     `gorm:"column:timezone;size:64;default:Asia/Shanghai"`
+	LastScheduledFor *time.Time `gorm:"column:last_scheduled_for"`
+	CreatedBy        *uint64    `gorm:"column:created_by"`
+	PublishedBy      *uint64    `gorm:"column:published_by"`
+	PublishedAt      *time.Time `gorm:"column:published_at"`
+	CreatedAt        time.Time  `gorm:"autoCreateTime:milli"`
+	UpdatedAt        time.Time  `gorm:"autoUpdateTime:milli"`
 	// Associations
 	Conditions []PolicyCondition `gorm:"foreignKey:PolicyID"`
 	Targets    []PolicyTarget    `gorm:"foreignKey:PolicyID"`

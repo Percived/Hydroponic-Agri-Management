@@ -6,6 +6,75 @@
 
 ## 最新变更 (2026-05-12)
 
+### MQTT ingress 执行器状态更新兼容 MySQL
+
+- **问题**
+  - `internal/platform/mqtt/ingress.go` 处理 `state` 上报时，使用 `UPDATE actuator_channels ... WHERE id IN (SELECT ... FROM actuator_channels JOIN actuator_devices ...)`
+  - 在 MySQL 上会触发 `Error 1093: You can't specify target table 'actuator_channels' for update in FROM clause`
+  - 旧逻辑还会把 SQL 失败误记成 `state for unknown channel`
+- **修复**
+  - 改为先按 `device_code + channel_code` 查询唯一 `actuator_channel.id`，再按主键执行更新，避开 MySQL 同表子查询更新限制
+  - 区分“解析/查询失败”和“未知通道”两类日志，避免误导排查
+- **测试**
+  - `internal/platform/mqtt/ingress_status_test.go` 新增回归用例，验证 `handleState()` 可按设备编码与通道编码更新目标执行器通道状态
+
+### 定时策略自动命令补齐 `created_by`
+
+- **问题**
+  - `internal/policy/scheduler.go` 在自动执行 `SCHEDULE` target 时创建 `control_commands` 未写 `created_by`
+  - MySQL 上 `control_commands.created_by` 为 `NOT NULL + FK users.id`，会报 `fk_control_commands_user` 外键错误并导致定时策略执行失败
+- **修复**
+  - 自动命令创建人改为优先取 `published_by`，其次取策略 `created_by`
+  - 对历史数据缺少上述字段的情况，兜底查询首个可用用户 ID，避免继续写入 `0`
+- **测试**
+  - `internal/policy/scheduler_test.go` 新增回归用例，验证定时策略下发的命令 `created_by` 使用策略发布人
+  - 测试基座补充 `users` 表与默认用户，覆盖自动命令创建人兜底路径
+
+### 审计日志最小可用方案落地
+
+- **`internal/platform/auditlog/logger.go`**
+  - 新增底层审计写入 helper，支持 `request_id`、`detail`、`before_data`、`after_data`
+  - 业务模块改为依赖 `platform/auditlog`，避免 `internal/audit -> auth -> audit` 循环依赖
+- **已接入的业务动作**
+  - `LOGIN` / `LOGOUT`
+  - `CREATE_USER` / `UPDATE_USER`
+  - `CREATE_DEVICE` / `UPDATE_DEVICE` / `DELETE_DEVICE`（覆盖传感器/执行器设备与通道）
+  - `UPDATE_ALERT`
+  - `CREATE_RULE` / `UPDATE_RULE` / `DELETE_RULE`（通过 `internal/policy/routes.go` 包装写审计，避免改动锁定中的 handler 文件）
+  - `CONTROL_CMD`：覆盖 `SendCommand`、`DispatchAsync`、`DispatchAndWait`
+- **命令审计细节**
+  - 每次执行器通道命令都会写 `CONTROL_CMD`
+  - `detail` 至少包含：`actuator_channel_id`、`device_code`、`channel_code`、`command_type`、`payload`、`status`
+  - 失败/超时场景会补充 `error`；同步等待成功会补充 `ack_code` / `ack_message`
+- **`internal/audit/handler.go`**
+  - 列表接口联表 `users` 返回 `username`
+  - `detail` 在列表响应中序列化为紧凑 JSON 字符串，便于前端直接展示
+
+### SCHEDULE 策略升级为真正“到点执行”
+
+- **Schema**
+  - `control_policies` 新增：`schedule_mode`、`run_once_at`、`time_of_day`、`weekdays_mask`、`timezone`、`last_scheduled_for`
+  - `effective_from` / `effective_to` 对 `SCHEDULE` 仅表示生效窗口，不再表示执行时刻
+- **`internal/policy/scheduler.go`**
+  - `SCHEDULE` 调度从“沿用条件引擎”改为“按计划点命中”单独执行
+  - 首期支持 `ONCE / DAILY / WEEKLY`
+  - 调度器只扫描 `published_at IS NOT NULL` 的定时策略
+  - `last_scheduled_for` 用于同一计划点幂等去重，重复扫描不会重复下发命令
+  - 策略计划发生变更时，`UpdatePolicy()` 会重置 `last_scheduled_for`，避免旧游标阻塞新计划点
+  - 多 target 定时策略在“已有目标成功后再次失败”时不再回滚 claim，避免同一计划点重复下发已成功目标
+  - 历史未配置计划的 `SCHEDULE` 不再静默跳过，会写 `SKIPPED + schedule_not_configured`
+- **`internal/policy/policy_handler.go` / `dto.go`**
+  - 创建、更新、查询 DTO 新增结构化调度字段
+  - `SCHEDULE` 校验规则：
+    - `ONCE` 必填 `run_once_at`
+    - `DAILY` 必填 `time_of_day`
+    - `WEEKLY` 必填 `time_of_day + weekdays_mask`
+  - `THRESHOLD` 禁止携带调度字段
+- **测试**
+  - 新增 `internal/policy/scheduler_test.go`
+  - 新增 `internal/policy/policy_handler_test.go`
+  - 覆盖 `ONCE` 单次幂等、`DAILY` 命中、`WEEKLY` 星期过滤、未发布忽略、未配置计划写跳过记录、计划变更清游标、部分失败不重复补发
+
 ### 营养液槽传感器绑定语义说明：`temp_sensor_channel_id` 约定绑定水温通道
 
 - **契约说明**

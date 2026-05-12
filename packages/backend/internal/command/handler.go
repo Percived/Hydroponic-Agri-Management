@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"hydroponic-backend/internal/auth"
+	"hydroponic-backend/internal/platform/auditlog"
 	platformErrors "hydroponic-backend/internal/platform/errors"
 	"hydroponic-backend/internal/platform/event"
 	mqttpkg "hydroponic-backend/internal/platform/mqtt"
@@ -106,6 +107,9 @@ func (h *Handler) SendCommand(c *gin.Context) {
 	deviceCode, err := h.dispatchMQTT(cmd)
 	if err != nil {
 		h.markFailed(cmd.ID, deviceCode, err)
+		h.writeCommandAudit(c, cmd, h.commandAuditTarget(cmd.ActuatorChannelID), "FAILED", map[string]interface{}{
+			"error": err.Error(),
+		})
 		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeDeviceOffline, "mqtt_dispatch_failed", nil)
 		return
 	}
@@ -136,6 +140,8 @@ func (h *Handler) SendCommand(c *gin.Context) {
 			SourceType:    "MANUAL",
 		},
 	})
+
+	h.writeCommandAudit(c, cmd, h.commandAuditTarget(cmd.ActuatorChannelID), "SENT", nil)
 
 	response.Success(c, gin.H{
 		"id":      id,
@@ -181,6 +187,9 @@ func (h *Handler) DispatchAndWait(c *gin.Context) {
 	deviceCode, err := h.dispatchMQTT(cmd)
 	if err != nil {
 		h.markFailed(cmd.ID, deviceCode, err)
+		h.writeCommandAudit(c, cmd, h.commandAuditTarget(cmd.ActuatorChannelID), "FAILED", map[string]interface{}{
+			"error": err.Error(),
+		})
 		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeDeviceOffline, "mqtt_dispatch_failed", nil)
 		return
 	}
@@ -209,6 +218,9 @@ func (h *Handler) DispatchAndWait(c *gin.Context) {
 	if waitErr != nil {
 		// Mark as TIMEOUT
 		h.db.Model(&ControlCommand{}).Where("id = ?", cmd.ID).Update("status", "TIMEOUT")
+		h.writeCommandAudit(c, cmd, h.commandAuditTarget(cmd.ActuatorChannelID), "TIMEOUT", map[string]interface{}{
+			"error": waitErr.Error(),
+		})
 		response.Success(c, gin.H{
 			"id":      cmd.ID,
 			"status":  "TIMEOUT",
@@ -216,6 +228,11 @@ func (h *Handler) DispatchAndWait(c *gin.Context) {
 		})
 		return
 	}
+
+	h.writeCommandAudit(c, cmd, h.commandAuditTarget(cmd.ActuatorChannelID), "ACKED", map[string]interface{}{
+		"ack_code":    receipt.AckCode,
+		"ack_message": receipt.AckMessage,
+	})
 
 	response.Success(c, gin.H{
 		"id":          cmd.ID,
@@ -259,6 +276,9 @@ func (h *Handler) DispatchAsync(c *gin.Context) {
 	deviceCode, err := h.dispatchMQTT(cmd)
 	if err != nil {
 		h.markFailed(cmd.ID, deviceCode, err)
+		h.writeCommandAudit(c, cmd, h.commandAuditTarget(cmd.ActuatorChannelID), "FAILED", map[string]interface{}{
+			"error": err.Error(),
+		})
 		response.Error(c, http.StatusServiceUnavailable, platformErrors.CodeDeviceOffline, "mqtt_dispatch_failed", nil)
 		return
 	}
@@ -282,6 +302,8 @@ func (h *Handler) DispatchAsync(c *gin.Context) {
 			SourceType:    "MANUAL",
 		},
 	})
+
+	h.writeCommandAudit(c, cmd, h.commandAuditTarget(cmd.ActuatorChannelID), "SENT", nil)
 
 	response.Success(c, gin.H{
 		"id":      cmd.ID,
@@ -706,4 +728,52 @@ func currentUserID(c *gin.Context) uint64 {
 		return 0
 	}
 	return id
+}
+
+func requestID(c *gin.Context) string {
+	return c.GetString("request_id")
+}
+
+func (h *Handler) commandAuditTarget(actuatorChannelID uint64) actuatorTarget {
+	target, err := h.lookupActuatorTarget(actuatorChannelID)
+	if err != nil {
+		return actuatorTarget{}
+	}
+	return target
+}
+
+func (h *Handler) writeCommandAudit(c *gin.Context, cmd ControlCommand, target actuatorTarget, status string, extra map[string]interface{}) {
+	detail := map[string]interface{}{
+		"actuator_channel_id": cmd.ActuatorChannelID,
+		"command_type":        cmd.CommandType,
+		"payload":             decodePayloadForAudit(cmd.Payload),
+		"status":              status,
+	}
+	if target.DeviceCode != "" {
+		detail["device_code"] = target.DeviceCode
+	}
+	if target.ChannelCode != "" {
+		detail["channel_code"] = target.ChannelCode
+	}
+	for k, v := range extra {
+		detail[k] = v
+	}
+
+	targetID := cmd.ID
+	_ = auditlog.WriteEntry(h.db, auditlog.Entry{
+		UserID:     currentUserID(c),
+		Action:     "CONTROL_CMD",
+		TargetType: "COMMAND",
+		TargetID:   &targetID,
+		Detail:     detail,
+		RequestID:  requestID(c),
+	})
+}
+
+func decodePayloadForAudit(raw string) interface{} {
+	var payload interface{}
+	if err := json.Unmarshal([]byte(raw), &payload); err == nil {
+		return payload
+	}
+	return raw
 }

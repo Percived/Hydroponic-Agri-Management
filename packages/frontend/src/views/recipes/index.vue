@@ -210,7 +210,7 @@
                   filterable 
                   style="width: 100%" 
                   :disabled="isEditStageTarget"
-                  @change="(val) => handleMetricChange(val, metric)"
+                  @change="(val: string) => handleMetricChange(val, metric)"
                 >
                   <el-option v-for="m in metrics" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
                 </el-select>

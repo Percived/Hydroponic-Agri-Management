@@ -10,10 +10,16 @@ export interface ControlPolicy {
   priority: number
   retry_limit: number
   timeout_sec: number
-  enabled: number
+  enabled: number | boolean
   version: string
   effective_from?: string
   effective_to?: string
+  schedule_mode?: 'ONCE' | 'DAILY' | 'WEEKLY' | null
+  run_once_at?: string
+  time_of_day?: string
+  weekdays_mask?: number
+  timezone?: string
+  last_scheduled_for?: string
   created_by?: number
   published_by?: number
   published_at?: string
@@ -33,7 +39,7 @@ export interface PolicyCondition {
   window_sec?: number
   required_duration_sec?: number
   aggregation?: string
-  enabled: number
+  enabled: number | boolean
   created_at: string
   updated_at: string
 }
@@ -45,7 +51,7 @@ export interface PolicyTarget {
   command_type: string
   command_payload: Record<string, unknown>
   execution_order: number
-  enabled: number
+  enabled: number | boolean
   created_at: string
   updated_at: string
 }
@@ -74,6 +80,13 @@ export interface CreatePolicyRequest {
   priority?: number
   retry_limit?: number
   timeout_sec?: number
+  effective_from?: string
+  effective_to?: string
+  schedule_mode?: 'ONCE' | 'DAILY' | 'WEEKLY'
+  run_once_at?: string
+  time_of_day?: string
+  weekdays_mask?: number
+  timezone?: string
   conditions?: CreateConditionRequest[]
   targets?: CreateTargetRequest[]
 }

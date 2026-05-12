@@ -58,11 +58,6 @@
               {{ row.detail || '-' }}
             </template>
           </el-table-column>
-          <el-table-column prop="ip_address" label="IP地址" width="130">
-            <template #default="{ row }">
-              {{ row.ip_address || '-' }}
-            </template>
-          </el-table-column>
           <el-table-column prop="created_at" label="时间" width="180">
             <template #default="{ row }">
               {{ formatDateTime(row.created_at) }}

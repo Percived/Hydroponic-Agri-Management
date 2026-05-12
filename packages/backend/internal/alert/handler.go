@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"hydroponic-backend/internal/auth"
+	"hydroponic-backend/internal/platform/auditlog"
 	platformErrors "hydroponic-backend/internal/platform/errors"
 	"hydroponic-backend/internal/platform/event"
 	"hydroponic-backend/internal/platform/response"
@@ -280,6 +281,19 @@ func (h *Handler) UpdateAlertStatus(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{})
+
+	targetID := id
+	_ = auditlog.WriteEntry(h.db, auditlog.Entry{
+		UserID:     currentUserID(c),
+		Action:     "UPDATE_ALERT",
+		TargetType: "ALERT",
+		TargetID:   &targetID,
+		Detail: gin.H{
+			"status":  req.Status,
+			"comment": req.Comment,
+		},
+		RequestID: c.GetString("request_id"),
+	})
 }
 
 // GetAlertTimeline returns all timeline events for an alert.

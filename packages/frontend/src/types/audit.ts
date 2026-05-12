@@ -18,12 +18,12 @@ export enum AuditAction {
 export interface AuditLog {
   id: number
   user_id: number
-  username: string
+  username: string | null
   action: AuditAction
   target_type: string
   target_id: number | null
   detail: string | null
-  ip_address: string | null
+  request_id?: string | null
   created_at: string
 }
 

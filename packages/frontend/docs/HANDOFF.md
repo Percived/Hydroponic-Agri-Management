@@ -6,6 +6,31 @@
 
 ## 最新变更 (2026-05-12)
 
+### 审计日志页对齐后端最小可用审计返回
+
+- **`src/views/audit-logs/index.vue`**
+  - 移除当前后端未提供的 `IP地址` 列，避免固定显示空值
+  - 保持现有动作筛选与列表结构不变，直接展示后端返回的 `detail` 文本
+- **`src/types/audit.ts`**
+  - `username` 调整为可空
+  - 删除 `ip_address` 字段依赖，新增可选 `request_id`
+- **后端配套变化**
+  - `/api/audit-logs` 现在会返回 `username`
+  - `detail` 统一为可直接渲染的紧凑 JSON 字符串
+  - 审计记录已覆盖登录、用户、设备、策略、告警，以及每次执行器通道命令
+
+### 策略控制页：SCHEDULE 改为结构化计划编辑
+
+- **`src/views/controls/rules.vue`**
+  - `SCHEDULE` 不再通过“无条件（仅定时执行）”开关表达定时语义
+  - 新增结构化计划编辑：`单次执行 / 每日执行 / 每周执行`
+  - 表单新增 `schedule_mode/run_once_at/time_of_day/weekdays_mask/timezone`
+  - `effective_from / effective_to` 文案保留为生效窗口，不再表达执行时刻
+  - 列表新增“计划描述”列，用于展示单次/每日/每周计划摘要
+- **`src/types/policy.ts`**
+  - `ControlPolicy`、`CreatePolicyRequest` 补齐 `SCHEDULE` 调度字段
+  - `enabled` 放宽为 `number | boolean`，兼容后端 `bool` 返回
+
 ### 营养液槽温度绑定语义调整：前端改为只选择水温通道
 
 - **`src/views/nutrient/tanks.vue`**

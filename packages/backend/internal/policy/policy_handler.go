@@ -2,6 +2,7 @@ package policy
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -53,6 +54,27 @@ func (h *Handler) CreatePolicy(c *gin.Context) {
 	if req.EffectiveTo != nil {
 		policy.EffectiveTo = req.EffectiveTo
 	}
+	if req.ScheduleMode != nil {
+		policy.ScheduleMode = req.ScheduleMode
+	}
+	if req.RunOnceAt != nil {
+		policy.RunOnceAt = req.RunOnceAt
+	}
+	if req.TimeOfDay != nil {
+		policy.TimeOfDay = req.TimeOfDay
+	}
+	if req.WeekdaysMask != nil {
+		policy.WeekdaysMask = req.WeekdaysMask
+	}
+	if req.Timezone != nil {
+		policy.Timezone = strings.TrimSpace(*req.Timezone)
+	}
+
+	normalizePolicySchedule(&policy)
+	if err := validatePolicySchedule(policy); err != nil {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, err.Error(), nil)
+		return
+	}
 
 	if err := h.db.Create(&policy).Error; err != nil {
 		response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "create_failed", nil)
@@ -101,6 +123,25 @@ func (h *Handler) CreatePolicyWithNested(c *gin.Context) {
 		}
 		if req.EffectiveTo != nil {
 			policy.EffectiveTo = req.EffectiveTo
+		}
+		if req.ScheduleMode != nil {
+			policy.ScheduleMode = req.ScheduleMode
+		}
+		if req.RunOnceAt != nil {
+			policy.RunOnceAt = req.RunOnceAt
+		}
+		if req.TimeOfDay != nil {
+			policy.TimeOfDay = req.TimeOfDay
+		}
+		if req.WeekdaysMask != nil {
+			policy.WeekdaysMask = req.WeekdaysMask
+		}
+		if req.Timezone != nil {
+			policy.Timezone = strings.TrimSpace(*req.Timezone)
+		}
+		normalizePolicySchedule(&policy)
+		if err := validatePolicySchedule(policy); err != nil {
+			return err
 		}
 		if err := tx.Create(&policy).Error; err != nil {
 			return err
@@ -173,41 +214,85 @@ func (h *Handler) UpdatePolicy(c *gin.Context) {
 		return
 	}
 
-	updates := map[string]interface{}{}
-	if req.Name != nil {
-		updates["name"] = *req.Name
-	}
-	if req.PolicyType != nil {
-		updates["policy_type"] = *req.PolicyType
-	}
-	if req.GrowingZoneID != nil {
-		updates["growing_zone_id"] = *req.GrowingZoneID
-	}
-	if req.Priority != nil {
-		updates["priority"] = *req.Priority
-	}
-	if req.RetryLimit != nil {
-		updates["retry_limit"] = *req.RetryLimit
-	}
-	if req.TimeoutSec != nil {
-		updates["timeout_sec"] = *req.TimeoutSec
-	}
-	if req.Enabled != nil {
-		updates["enabled"] = *req.Enabled
-	}
-	if req.Version != nil {
-		updates["version"] = *req.Version
-	}
-	if req.EffectiveFrom != nil {
-		updates["effective_from"] = *req.EffectiveFrom
-	}
-	if req.EffectiveTo != nil {
-		updates["effective_to"] = *req.EffectiveTo
+	var existing ControlPolicy
+	if err := h.db.First(&existing, id).Error; err != nil {
+		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
+		return
 	}
 
-	if len(updates) == 0 {
-		response.Success(c, gin.H{})
+	candidate := existing
+	if req.Name != nil {
+		candidate.Name = *req.Name
+	}
+	if req.PolicyType != nil {
+		candidate.PolicyType = *req.PolicyType
+	}
+	if req.GrowingZoneID != nil {
+		candidate.GrowingZoneID = req.GrowingZoneID
+	}
+	if req.Priority != nil {
+		candidate.Priority = *req.Priority
+	}
+	if req.RetryLimit != nil {
+		candidate.RetryLimit = *req.RetryLimit
+	}
+	if req.TimeoutSec != nil {
+		candidate.TimeoutSec = *req.TimeoutSec
+	}
+	if req.Enabled != nil {
+		candidate.Enabled = *req.Enabled
+	}
+	if req.Version != nil {
+		candidate.Version = *req.Version
+	}
+	if req.EffectiveFrom != nil {
+		candidate.EffectiveFrom = req.EffectiveFrom
+	}
+	if req.EffectiveTo != nil {
+		candidate.EffectiveTo = req.EffectiveTo
+	}
+	if req.ScheduleMode != nil {
+		candidate.ScheduleMode = req.ScheduleMode
+	}
+	if req.RunOnceAt != nil {
+		candidate.RunOnceAt = req.RunOnceAt
+	}
+	if req.TimeOfDay != nil {
+		candidate.TimeOfDay = req.TimeOfDay
+	}
+	if req.WeekdaysMask != nil {
+		candidate.WeekdaysMask = req.WeekdaysMask
+	}
+	if req.Timezone != nil {
+		candidate.Timezone = strings.TrimSpace(*req.Timezone)
+	}
+
+	normalizePolicySchedule(&candidate)
+	if err := validatePolicySchedule(candidate); err != nil {
+		response.Error(c, http.StatusBadRequest, platformErrors.CodeValidationError, err.Error(), nil)
 		return
+	}
+	if scheduleConfigChanged(existing, candidate) {
+		candidate.LastScheduledFor = nil
+	}
+
+	updates := map[string]interface{}{
+		"name":               candidate.Name,
+		"policy_type":        candidate.PolicyType,
+		"growing_zone_id":    candidate.GrowingZoneID,
+		"priority":           candidate.Priority,
+		"retry_limit":        candidate.RetryLimit,
+		"timeout_sec":        candidate.TimeoutSec,
+		"enabled":            candidate.Enabled,
+		"version":            candidate.Version,
+		"effective_from":     candidate.EffectiveFrom,
+		"effective_to":       candidate.EffectiveTo,
+		"schedule_mode":      candidate.ScheduleMode,
+		"run_once_at":        candidate.RunOnceAt,
+		"time_of_day":        candidate.TimeOfDay,
+		"weekdays_mask":      candidate.WeekdaysMask,
+		"timezone":           candidate.Timezone,
+		"last_scheduled_for": candidate.LastScheduledFor,
 	}
 
 	result := h.db.Model(&ControlPolicy{}).Where("id = ?", id).Updates(updates)
@@ -395,49 +480,168 @@ func toPolicyResponse(p ControlPolicy) ControlPolicyResponse {
 	}
 
 	return ControlPolicyResponse{
-		ID:            p.ID,
-		PolicyCode:    p.PolicyCode,
-		Name:          p.Name,
-		PolicyType:    p.PolicyType,
-		GreenhouseID:  p.GreenhouseID,
-		GrowingZoneID: p.GrowingZoneID,
-		Priority:      p.Priority,
-		RetryLimit:    p.RetryLimit,
-		TimeoutSec:    p.TimeoutSec,
-		Enabled:       p.Enabled,
-		Version:       p.Version,
-		EffectiveFrom: p.EffectiveFrom,
-		EffectiveTo:   p.EffectiveTo,
-		CreatedBy:     p.CreatedBy,
-		PublishedBy:   p.PublishedBy,
-		PublishedAt:   p.PublishedAt,
-		Conditions:    conditions,
-		Targets:       targets,
-		CreatedAt:     p.CreatedAt,
-		UpdatedAt:     p.UpdatedAt,
+		ID:               p.ID,
+		PolicyCode:       p.PolicyCode,
+		Name:             p.Name,
+		PolicyType:       p.PolicyType,
+		GreenhouseID:     p.GreenhouseID,
+		GrowingZoneID:    p.GrowingZoneID,
+		Priority:         p.Priority,
+		RetryLimit:       p.RetryLimit,
+		TimeoutSec:       p.TimeoutSec,
+		Enabled:          p.Enabled,
+		Version:          p.Version,
+		EffectiveFrom:    p.EffectiveFrom,
+		EffectiveTo:      p.EffectiveTo,
+		ScheduleMode:     p.ScheduleMode,
+		RunOnceAt:        p.RunOnceAt,
+		TimeOfDay:        p.TimeOfDay,
+		WeekdaysMask:     p.WeekdaysMask,
+		Timezone:         p.Timezone,
+		LastScheduledFor: p.LastScheduledFor,
+		CreatedBy:        p.CreatedBy,
+		PublishedBy:      p.PublishedBy,
+		PublishedAt:      p.PublishedAt,
+		Conditions:       conditions,
+		Targets:          targets,
+		CreatedAt:        p.CreatedAt,
+		UpdatedAt:        p.UpdatedAt,
 	}
 }
 
 // toPolicySummary converts a ControlPolicy to a summary (without nested relations).
 func toPolicySummary(p ControlPolicy) ControlPolicyResponse {
 	return ControlPolicyResponse{
-		ID:            p.ID,
-		PolicyCode:    p.PolicyCode,
-		Name:          p.Name,
-		PolicyType:    p.PolicyType,
-		GreenhouseID:  p.GreenhouseID,
-		GrowingZoneID: p.GrowingZoneID,
-		Priority:      p.Priority,
-		RetryLimit:    p.RetryLimit,
-		TimeoutSec:    p.TimeoutSec,
-		Enabled:       p.Enabled,
-		Version:       p.Version,
-		EffectiveFrom: p.EffectiveFrom,
-		EffectiveTo:   p.EffectiveTo,
-		CreatedBy:     p.CreatedBy,
-		PublishedBy:   p.PublishedBy,
-		PublishedAt:   p.PublishedAt,
-		CreatedAt:     p.CreatedAt,
-		UpdatedAt:     p.UpdatedAt,
+		ID:               p.ID,
+		PolicyCode:       p.PolicyCode,
+		Name:             p.Name,
+		PolicyType:       p.PolicyType,
+		GreenhouseID:     p.GreenhouseID,
+		GrowingZoneID:    p.GrowingZoneID,
+		Priority:         p.Priority,
+		RetryLimit:       p.RetryLimit,
+		TimeoutSec:       p.TimeoutSec,
+		Enabled:          p.Enabled,
+		Version:          p.Version,
+		EffectiveFrom:    p.EffectiveFrom,
+		EffectiveTo:      p.EffectiveTo,
+		ScheduleMode:     p.ScheduleMode,
+		RunOnceAt:        p.RunOnceAt,
+		TimeOfDay:        p.TimeOfDay,
+		WeekdaysMask:     p.WeekdaysMask,
+		Timezone:         p.Timezone,
+		LastScheduledFor: p.LastScheduledFor,
+		CreatedBy:        p.CreatedBy,
+		PublishedBy:      p.PublishedBy,
+		PublishedAt:      p.PublishedAt,
+		CreatedAt:        p.CreatedAt,
+		UpdatedAt:        p.UpdatedAt,
 	}
+}
+
+func normalizePolicySchedule(p *ControlPolicy) {
+	if p.PolicyType != "SCHEDULE" {
+		p.ScheduleMode = nil
+		p.RunOnceAt = nil
+		p.TimeOfDay = nil
+		p.WeekdaysMask = nil
+		return
+	}
+	if strings.TrimSpace(p.Timezone) == "" {
+		p.Timezone = "Asia/Shanghai"
+	}
+	if p.ScheduleMode == nil {
+		return
+	}
+	switch *p.ScheduleMode {
+	case "ONCE":
+		p.TimeOfDay = nil
+		p.WeekdaysMask = nil
+	case "DAILY":
+		p.RunOnceAt = nil
+		p.WeekdaysMask = nil
+	case "WEEKLY":
+		p.RunOnceAt = nil
+	}
+}
+
+type policyValidationError string
+
+func (e policyValidationError) Error() string { return string(e) }
+
+func validatePolicySchedule(p ControlPolicy) error {
+	if p.PolicyType != "SCHEDULE" {
+		if p.ScheduleMode != nil || p.RunOnceAt != nil || p.TimeOfDay != nil || p.WeekdaysMask != nil {
+			return policyValidationError("schedule_fields_not_allowed")
+		}
+		return nil
+	}
+
+	if p.ScheduleMode == nil {
+		return policyValidationError("schedule_mode_required")
+	}
+
+	switch *p.ScheduleMode {
+	case "ONCE":
+		if p.RunOnceAt == nil {
+			return policyValidationError("run_once_at_required")
+		}
+	case "DAILY":
+		if p.TimeOfDay == nil || strings.TrimSpace(*p.TimeOfDay) == "" {
+			return policyValidationError("time_of_day_required")
+		}
+	case "WEEKLY":
+		if p.TimeOfDay == nil || strings.TrimSpace(*p.TimeOfDay) == "" || p.WeekdaysMask == nil || *p.WeekdaysMask == 0 {
+			return policyValidationError("weekly_schedule_fields_required")
+		}
+	default:
+		return policyValidationError("schedule_mode_invalid")
+	}
+
+	return nil
+}
+
+func scheduleConfigChanged(before, after ControlPolicy) bool {
+	if before.PolicyType != after.PolicyType {
+		return true
+	}
+	if !equalStringPtr(before.ScheduleMode, after.ScheduleMode) {
+		return true
+	}
+	if !equalTimePtr(before.RunOnceAt, after.RunOnceAt) {
+		return true
+	}
+	if !equalStringPtr(before.TimeOfDay, after.TimeOfDay) {
+		return true
+	}
+	if !equalUint8Ptr(before.WeekdaysMask, after.WeekdaysMask) {
+		return true
+	}
+	return strings.TrimSpace(before.Timezone) != strings.TrimSpace(after.Timezone)
+}
+
+func equalStringPtr(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
+func equalTimePtr(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Equal(*b)
+}
+
+func equalUint8Ptr(a, b *uint8) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
+func isPolicyValidationError(err error) bool {
+	var validationErr policyValidationError
+	return errors.As(err, &validationErr)
 }

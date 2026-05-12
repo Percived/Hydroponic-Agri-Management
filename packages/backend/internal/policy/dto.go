@@ -18,6 +18,11 @@ type CreatePolicyRequest struct {
 	Version       *string    `json:"version" binding:"omitempty,min=1,max=32"`
 	EffectiveFrom *time.Time `json:"effective_from"`
 	EffectiveTo   *time.Time `json:"effective_to"`
+	ScheduleMode  *string    `json:"schedule_mode" binding:"omitempty,oneof=ONCE DAILY WEEKLY"`
+	RunOnceAt     *time.Time `json:"run_once_at"`
+	TimeOfDay     *string    `json:"time_of_day" binding:"omitempty,len=8"`
+	WeekdaysMask  *uint8     `json:"weekdays_mask"`
+	Timezone      *string    `json:"timezone" binding:"omitempty,min=1,max=64"`
 }
 
 // UpdatePolicyRequest is the request body for updating a control policy.
@@ -32,30 +37,41 @@ type UpdatePolicyRequest struct {
 	Version       *string    `json:"version" binding:"omitempty,min=1,max=32"`
 	EffectiveFrom *time.Time `json:"effective_from"`
 	EffectiveTo   *time.Time `json:"effective_to"`
+	ScheduleMode  *string    `json:"schedule_mode" binding:"omitempty,oneof=ONCE DAILY WEEKLY"`
+	RunOnceAt     *time.Time `json:"run_once_at"`
+	TimeOfDay     *string    `json:"time_of_day" binding:"omitempty,len=8"`
+	WeekdaysMask  *uint8     `json:"weekdays_mask"`
+	Timezone      *string    `json:"timezone" binding:"omitempty,min=1,max=64"`
 }
 
 // ControlPolicyResponse is the response body for a control policy.
 type ControlPolicyResponse struct {
-	ID            uint64                    `json:"id"`
-	PolicyCode    string                    `json:"policy_code"`
-	Name          string                    `json:"name"`
-	PolicyType    string                    `json:"policy_type"`
-	GreenhouseID  uint64                    `json:"greenhouse_id"`
-	GrowingZoneID *uint64                   `json:"growing_zone_id"`
-	Priority      int                       `json:"priority"`
-	RetryLimit    uint8                     `json:"retry_limit"`
-	TimeoutSec    uint                      `json:"timeout_sec"`
-	Enabled       bool                      `json:"enabled"`
-	Version       string                    `json:"version"`
-	EffectiveFrom *time.Time                `json:"effective_from"`
-	EffectiveTo   *time.Time                `json:"effective_to"`
-	CreatedBy     *uint64                   `json:"created_by"`
-	PublishedBy   *uint64                   `json:"published_by"`
-	PublishedAt   *time.Time                `json:"published_at"`
-	Conditions    []PolicyConditionResponse `json:"conditions,omitempty"`
-	Targets       []PolicyTargetResponse    `json:"targets,omitempty"`
-	CreatedAt     time.Time                 `json:"created_at"`
-	UpdatedAt     time.Time                 `json:"updated_at"`
+	ID               uint64                    `json:"id"`
+	PolicyCode       string                    `json:"policy_code"`
+	Name             string                    `json:"name"`
+	PolicyType       string                    `json:"policy_type"`
+	GreenhouseID     uint64                    `json:"greenhouse_id"`
+	GrowingZoneID    *uint64                   `json:"growing_zone_id"`
+	Priority         int                       `json:"priority"`
+	RetryLimit       uint8                     `json:"retry_limit"`
+	TimeoutSec       uint                      `json:"timeout_sec"`
+	Enabled          bool                      `json:"enabled"`
+	Version          string                    `json:"version"`
+	EffectiveFrom    *time.Time                `json:"effective_from"`
+	EffectiveTo      *time.Time                `json:"effective_to"`
+	ScheduleMode     *string                   `json:"schedule_mode"`
+	RunOnceAt        *time.Time                `json:"run_once_at"`
+	TimeOfDay        *string                   `json:"time_of_day"`
+	WeekdaysMask     *uint8                    `json:"weekdays_mask"`
+	Timezone         string                    `json:"timezone"`
+	LastScheduledFor *time.Time                `json:"last_scheduled_for"`
+	CreatedBy        *uint64                   `json:"created_by"`
+	PublishedBy      *uint64                   `json:"published_by"`
+	PublishedAt      *time.Time                `json:"published_at"`
+	Conditions       []PolicyConditionResponse `json:"conditions,omitempty"`
+	Targets          []PolicyTargetResponse    `json:"targets,omitempty"`
+	CreatedAt        time.Time                 `json:"created_at"`
+	UpdatedAt        time.Time                 `json:"updated_at"`
 }
 
 // ControlPolicyListResponse is the paginated list response for control policies.
@@ -195,6 +211,11 @@ type CreatePolicyWithNestedRequest struct {
 	Version       *string                `json:"version"`
 	EffectiveFrom *time.Time             `json:"effective_from"`
 	EffectiveTo   *time.Time             `json:"effective_to"`
+	ScheduleMode  *string                `json:"schedule_mode" binding:"omitempty,oneof=ONCE DAILY WEEKLY"`
+	RunOnceAt     *time.Time             `json:"run_once_at"`
+	TimeOfDay     *string                `json:"time_of_day" binding:"omitempty,len=8"`
+	WeekdaysMask  *uint8                 `json:"weekdays_mask"`
+	Timezone      *string                `json:"timezone" binding:"omitempty,min=1,max=64"`
 	Conditions    []ConditionWithTargets `json:"conditions"`
 }
 

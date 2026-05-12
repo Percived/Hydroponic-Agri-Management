@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"hydroponic-backend/internal/audit"
 	"hydroponic-backend/internal/device"
 	"hydroponic-backend/internal/platform/event"
 
@@ -61,8 +62,27 @@ func TestSendCommand_MQTTNotConnected_MarksFailedAndCreatesReceipt(t *testing.T)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&ControlCommand{}, &ControlCommandReceipt{}); err != nil {
+	if err := db.AutoMigrate(&ControlCommand{}, &ControlCommandReceipt{}, &audit.AuditLog{}, &device.ActuatorDevice{}, &device.ActuatorChannel{}); err != nil {
 		t.Fatalf("migrate: %v", err)
+	}
+
+	dev := device.ActuatorDevice{
+		ID:           10,
+		GreenhouseID: 1,
+		DeviceCode:   "ACT-001",
+		Name:         "actuator-1",
+	}
+	if err := db.Create(&dev).Error; err != nil {
+		t.Fatalf("create actuator device: %v", err)
+	}
+	ch := device.ActuatorChannel{
+		ID:               1,
+		ActuatorDeviceID: dev.ID,
+		ChannelCode:      "fan-a",
+		ActuatorType:     device.ActuatorTypeFan,
+	}
+	if err := db.Create(&ch).Error; err != nil {
+		t.Fatalf("create actuator channel: %v", err)
 	}
 
 	cmd := ControlCommand{
@@ -86,6 +106,8 @@ func TestSendCommand_MQTTNotConnected_MarksFailedAndCreatesReceipt(t *testing.T)
 	req.Header.Set("Content-Type", "application/json")
 	c.Request = req
 	c.Params = gin.Params{{Key: "id", Value: itoa(cmd.ID)}}
+	c.Set("user_id", uint64(1))
+	c.Set("request_id", "req-send-failed")
 
 	h.SendCommand(c)
 
@@ -109,6 +131,23 @@ func TestSendCommand_MQTTNotConnected_MarksFailedAndCreatesReceipt(t *testing.T)
 	}
 	if rcpt.AckAt == nil || time.Since(*rcpt.AckAt) > time.Minute {
 		t.Fatalf("expected ack_at set")
+	}
+
+	var auditLog audit.AuditLog
+	if err := db.First(&auditLog).Error; err != nil {
+		t.Fatalf("audit log: %v", err)
+	}
+	if auditLog.Action != "CONTROL_CMD" {
+		t.Fatalf("expected CONTROL_CMD, got %s", auditLog.Action)
+	}
+	if auditLog.TargetType != "COMMAND" {
+		t.Fatalf("expected COMMAND target, got %s", auditLog.TargetType)
+	}
+	if auditLog.RequestID != "req-send-failed" {
+		t.Fatalf("expected request id req-send-failed, got %s", auditLog.RequestID)
+	}
+	if auditLog.TargetID == nil || *auditLog.TargetID != cmd.ID {
+		t.Fatalf("expected target_id %d", cmd.ID)
 	}
 }
 
@@ -181,6 +220,92 @@ func TestDispatchMQTT_IncludesTargetActuatorChannelMetadata(t *testing.T) {
 	}
 	if got := payload["channel_code"]; got == nil {
 		t.Fatalf("expected channel_code in payload")
+	}
+}
+
+func TestDispatchAsync_WritesAuditLogForActuatorChannelCommand(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&ControlCommand{}, &ControlCommandReceipt{}, &audit.AuditLog{}, &device.ActuatorDevice{}, &device.ActuatorChannel{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	dev := device.ActuatorDevice{
+		ID:           10,
+		GreenhouseID: 1,
+		DeviceCode:   "ACT-001",
+		Name:         "actuator-1",
+	}
+	if err := db.Create(&dev).Error; err != nil {
+		t.Fatalf("create actuator device: %v", err)
+	}
+	ch := device.ActuatorChannel{
+		ID:               101,
+		ActuatorDeviceID: dev.ID,
+		ChannelCode:      "fan-a",
+		ActuatorType:     device.ActuatorTypeFan,
+	}
+	if err := db.Create(&ch).Error; err != nil {
+		t.Fatalf("create actuator channel: %v", err)
+	}
+
+	client := &fakeMQTTClient{connected: true}
+	h := NewHandler(db, client, event.NewHub())
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	reqBody := `{"actuator_channel_id":101,"command_type":"SWITCH","payload":{"state":"ON","value":80},"request_id":"req-dispatch-async"}`
+	req := httptest.NewRequest(http.MethodPost, "/commands/dispatch-async", bytes.NewBufferString(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	c.Request = req
+	c.Set("user_id", uint64(42))
+	c.Set("request_id", "req-dispatch-async")
+
+	h.DispatchAsync(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+	}
+
+	var cmd ControlCommand
+	if err := db.First(&cmd).Error; err != nil {
+		t.Fatalf("load command: %v", err)
+	}
+	if cmd.Status != "SENT" {
+		t.Fatalf("expected SENT command, got %s", cmd.Status)
+	}
+
+	var auditLog audit.AuditLog
+	if err := db.First(&auditLog).Error; err != nil {
+		t.Fatalf("audit log: %v", err)
+	}
+	if auditLog.Action != "CONTROL_CMD" {
+		t.Fatalf("expected CONTROL_CMD, got %s", auditLog.Action)
+	}
+	if auditLog.TargetType != "COMMAND" {
+		t.Fatalf("expected COMMAND target, got %s", auditLog.TargetType)
+	}
+	if auditLog.TargetID == nil || *auditLog.TargetID != cmd.ID {
+		t.Fatalf("expected target_id %d", cmd.ID)
+	}
+	if auditLog.RequestID != "req-dispatch-async" {
+		t.Fatalf("expected request_id req-dispatch-async, got %s", auditLog.RequestID)
+	}
+	if !json.Valid(auditLog.Detail) {
+		t.Fatalf("expected valid detail JSON, got %s", string(auditLog.Detail))
+	}
+	if !bytes.Contains(auditLog.Detail, []byte(`"actuator_channel_id":101`)) {
+		t.Fatalf("expected detail to contain actuator_channel_id, got %s", string(auditLog.Detail))
+	}
+	if !bytes.Contains(auditLog.Detail, []byte(`"channel_code":"fan-a"`)) {
+		t.Fatalf("expected detail to contain channel_code, got %s", string(auditLog.Detail))
+	}
+	if !bytes.Contains(auditLog.Detail, []byte(`"status":"SENT"`)) {
+		t.Fatalf("expected detail to contain SENT status, got %s", string(auditLog.Detail))
 	}
 }
 

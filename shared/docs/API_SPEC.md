@@ -303,28 +303,34 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 #### ControlPolicy
 
-| 字段            | 类型              | 说明                                  | 示例                   |
-| --------------- | ----------------- | ------------------------------------- | ---------------------- |
-| id              | number            | 策略 ID                               | 1                      |
-| policy_code     | string            | 策略编码（唯一）                      | "POL-TEMP-CTRL"        |
-| name            | string            | 名称                                  | "温度自动控制"         |
-| policy_type     | string            | 策略类型：THRESHOLD/SCHEDULE/DURATION | "THRESHOLD"            |
-| greenhouse_id   | number            | 所属温室 ID                           | 1                      |
-| growing_zone_id | number\|null      | 所属种植区 ID                         | 1                      |
-| priority        | number            | 优先级                                | 100                    |
-| retry_limit     | number            | 重试次数上限                          | 3                      |
-| timeout_sec     | number            | 超时秒数                              | 30                     |
-| enabled         | number            | 启用：1/0                             | 1                      |
-| version         | string            | 版本                                  | "v1"                   |
-| effective_from  | string\|null      | 生效开始时间                          | "2026-01-01T00:00:00Z" |
-| effective_to    | string\|null      | 生效结束时间                          | null                   |
-| created_by      | number\|null      | 创建者                                | 1                      |
-| published_by    | number\|null      | 发布者                                | 1                      |
-| published_at    | string\|null      | 发布时间                              | "2026-01-01T00:00:00Z" |
-| created_at      | string            | 创建时间                              | "2026-01-01T00:00:00Z" |
-| updated_at      | string            | 更新时间                              | "2026-01-01T00:00:00Z" |
-| conditions      | PolicyCondition[] | 条件列表（含关联时）                  | []                     |
-| targets         | PolicyTarget[]    | 目标列表（含关联时）                  | []                     |
+| 字段               | 类型              | 说明                                  | 示例                   |
+| ------------------ | ----------------- | ------------------------------------- | ---------------------- |
+| id                 | number            | 策略 ID                               | 1                      |
+| policy_code        | string            | 策略编码（唯一）                      | "POL-TEMP-CTRL"        |
+| name               | string            | 名称                                  | "温度自动控制"         |
+| policy_type        | string            | 策略类型：THRESHOLD/SCHEDULE/DURATION | "THRESHOLD"            |
+| greenhouse_id      | number            | 所属温室 ID                           | 1                      |
+| growing_zone_id    | number\|null      | 所属种植区 ID                         | 1                      |
+| priority           | number            | 优先级                                | 100                    |
+| retry_limit        | number            | 重试次数上限                          | 3                      |
+| timeout_sec        | number            | 超时秒数                              | 30                     |
+| enabled            | number            | 启用：1/0                             | 1                      |
+| version            | string            | 版本                                  | "v1"                   |
+| effective_from     | string\|null      | 生效开始时间（SCHEDULE 为生效窗口）   | "2026-01-01T00:00:00Z" |
+| effective_to       | string\|null      | 生效结束时间（SCHEDULE 为生效窗口）   | null                   |
+| schedule_mode      | string\|null      | 定时模式：ONCE/DAILY/WEEKLY           | "DAILY"                |
+| run_once_at        | string\|null      | 单次执行时间（仅 ONCE）               | "2026-05-13T09:00:00Z" |
+| time_of_day        | string\|null      | 每日/每周执行时刻（HH:mm:ss）         | "08:00:00"             |
+| weekdays_mask      | number\|null      | 每周执行掩码（周一到周日）            | 21                     |
+| timezone           | string            | IANA 时区                             | "Asia/Shanghai"        |
+| last_scheduled_for | string\|null      | 最近一次已处理的计划点                | "2026-05-13T08:00:00Z" |
+| created_by         | number\|null      | 创建者                                | 1                      |
+| published_by       | number\|null      | 发布者                                | 1                      |
+| published_at       | string\|null      | 发布时间                              | "2026-01-01T00:00:00Z" |
+| created_at         | string            | 创建时间                              | "2026-01-01T00:00:00Z" |
+| updated_at         | string            | 更新时间                              | "2026-01-01T00:00:00Z" |
+| conditions         | PolicyCondition[] | 条件列表（含关联时）                  | []                     |
+| targets            | PolicyTarget[]    | 目标列表（含关联时）                  | []                     |
 
 #### PolicyCondition
 
@@ -444,18 +450,19 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 #### AuditLog
 
-| 字段        | 类型         | 说明               | 示例                   |
-| ----------- | ------------ | ------------------ | ---------------------- |
-| id          | number       | 日志 ID            | 1                      |
-| user_id     | number       | 操作用户 ID        | 1                      |
-| action      | string       | 操作动作           | "CREATE"               |
-| target_type | string       | 目标类型           | "GREENHOUSE"           |
-| target_id   | number\|null | 目标 ID            | 1                      |
-| detail      | object       | 操作详情（JSON）   | {}                     |
-| request_id  | string       | 请求 ID            | "req_abc123"           |
-| before_data | object       | 变更前数据（JSON） | {}                     |
-| after_data  | object       | 变更后数据（JSON） | {}                     |
-| created_at  | string       | 创建时间           | "2026-01-01T12:00:00Z" |
+| 字段        | 类型         | 说明                                   | 示例                    |
+| ----------- | ------------ | -------------------------------------- | ----------------------- |
+| id          | number       | 日志 ID                                | 1                       |
+| user_id     | number       | 操作用户 ID                            | 1                       |
+| username    | string\|null | 用户名（列表联表返回）                 | "admin"                 |
+| action      | string       | 操作动作                               | "CONTROL_CMD"           |
+| target_type | string       | 目标类型                               | "COMMAND"               |
+| target_id   | number\|null | 目标 ID                                | 1                       |
+| detail      | string       | 操作详情（列表接口返回紧凑 JSON 文本） | "{\"status\":\"SENT\"}" |
+| request_id  | string       | 请求 ID                                | "req_abc123"            |
+| before_data | object       | 变更前数据（数据库原始 JSON）          | {}                      |
+| after_data  | object       | 变更后数据（数据库原始 JSON）          | {}                      |
+| created_at  | string       | 创建时间                               | "2026-01-01T12:00:00Z"  |
 
 ### 2.13 品种与生长阶段
 
@@ -1564,20 +1571,32 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 请求体：
 
-| 字段            | 类型         | 必填 | 规则                        | 示例                   |
-| --------------- | ------------ | ---- | --------------------------- | ---------------------- |
-| policy_code     | string       | 是   | 1-64 字符（唯一）           | "POL-TEMP"             |
-| name            | string       | 是   | 1-128 字符                  | "温度控制策略"         |
-| policy_type     | string       | 是   | THRESHOLD/SCHEDULE/DURATION | "THRESHOLD"            |
-| greenhouse_id   | number       | 是   | 温室 ID                     | 1                      |
-| growing_zone_id | number\|null | 否   | 种植区 ID                   | 1                      |
-| priority        | number       | 否   | 优先级，默认 100            | 100                    |
-| retry_limit     | number       | 否   | 重试次数，默认 3，最多 10   | 3                      |
-| timeout_sec     | number       | 否   | 超时秒数，默认 30，>=1      | 30                     |
-| enabled         | number       | 否   | 1/0，默认 1                 | 1                      |
-| version         | string       | 否   | 1-32 字符                   | "v1"                   |
-| effective_from  | string       | 否   | ISO 8601                    | "2026-01-01T00:00:00Z" |
-| effective_to    | string       | 否   | ISO 8601                    | null                   |
+| 字段            | 类型         | 必填 | 规则                            | 示例                   |
+| --------------- | ------------ | ---- | ------------------------------- | ---------------------- |
+| policy_code     | string       | 是   | 1-64 字符（唯一）               | "POL-TEMP"             |
+| name            | string       | 是   | 1-128 字符                      | "温度控制策略"         |
+| policy_type     | string       | 是   | THRESHOLD/SCHEDULE/DURATION     | "THRESHOLD"            |
+| greenhouse_id   | number       | 是   | 温室 ID                         | 1                      |
+| growing_zone_id | number\|null | 否   | 种植区 ID                       | 1                      |
+| priority        | number       | 否   | 优先级，默认 100                | 100                    |
+| retry_limit     | number       | 否   | 重试次数，默认 3，最多 10       | 3                      |
+| timeout_sec     | number       | 否   | 超时秒数，默认 30，>=1          | 30                     |
+| enabled         | number       | 否   | 1/0，默认 1                     | 1                      |
+| version         | string       | 否   | 1-32 字符                       | "v1"                   |
+| effective_from  | string       | 否   | ISO 8601                        | "2026-01-01T00:00:00Z" |
+| effective_to    | string       | 否   | ISO 8601                        | null                   |
+| schedule_mode   | string       | 否   | ONCE/DAILY/WEEKLY               | "DAILY"                |
+| run_once_at     | string       | 否   | ISO 8601，仅 ONCE 使用          | "2026-05-13T09:00:00Z" |
+| time_of_day     | string       | 否   | HH:mm:ss，DAILY/WEEKLY 使用     | "08:00:00"             |
+| weekdays_mask   | number       | 否   | WEEKLY 使用，周一到周日 bitmask | 21                     |
+| timezone        | string       | 否   | IANA 时区，默认 Asia/Shanghai   | "Asia/Shanghai"        |
+
+说明：
+
+- `SCHEDULE` 策略支持 `ONCE / DAILY / WEEKLY` 三种结构化计划
+- `SCHEDULE` 允许无条件执行，命中计划点后直接执行 targets
+- `effective_from / effective_to` 对 `SCHEDULE` 仅表示生效窗口，不表示执行时刻
+- 调度器只扫描已发布（`published_at IS NOT NULL`）的 `SCHEDULE` 策略
 
 **POST /api/policies/full**
 
@@ -1606,6 +1625,11 @@ ID 类型：`BIGINT`，响应中以数字返回
 鉴权：ADMIN / OPERATOR
 
 请求体：同创建但所有字段可选
+
+说明：
+
+- 若 `policy_type` 从 `SCHEDULE` 切换为其他类型，后端会清空调度字段
+- 历史未配置计划的 `SCHEDULE` 会在执行记录中标记为 `schedule_not_configured`
 
 **DELETE /api/policies/:id**
 
@@ -2054,7 +2078,7 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 鉴权：ADMIN
 
-查询参数：page, page_size, user_id, action, target_type
+查询参数：page, page_size, user_id, action, start_time, end_time
 
 响应：分页列表，items 为 AuditLog[]
 

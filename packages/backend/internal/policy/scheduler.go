@@ -118,13 +118,11 @@ func (s *Scheduler) evaluateScheduledPolicies() {
 
 	var policies []ControlPolicy
 	err := s.db.
-		Preload("Conditions", "enabled = true").
 		Preload("Targets", func(db *gorm.DB) *gorm.DB {
 			return db.Where("enabled = true").Order("execution_order asc, id asc")
 		}).
 		Where("control_policies.enabled = true AND policy_type = ?", "SCHEDULE").
-		Where("(effective_from IS NULL OR effective_from <= ?)", now).
-		Where("(effective_to IS NULL OR effective_to >= ?)", now).
+		Where("published_at IS NOT NULL").
 		Order("priority ASC").
 		Find(&policies).Error
 	if err != nil {
@@ -133,8 +131,72 @@ func (s *Scheduler) evaluateScheduledPolicies() {
 	}
 
 	for _, p := range policies {
-		s.evaluateAndExecute(p, "SCHEDULE", "", nil, nil)
+		s.evaluateScheduledPolicy(p, now)
 	}
+}
+
+func (s *Scheduler) evaluateScheduledPolicy(p ControlPolicy, now time.Time) {
+	if p.ScheduleMode == nil {
+		if p.LastScheduledFor == nil {
+			if err := s.db.Model(&ControlPolicy{}).Where("id = ?", p.ID).Update("last_scheduled_for", now).Error; err != nil {
+				s.log.Error("scheduler: failed to mark unconfigured schedule policy", "policy_id", p.ID, "error", err)
+				return
+			}
+			s.recordPolicyExecution(p.ID, "SCHEDULE", nil, "SKIPPED", "schedule_not_configured", nil)
+		}
+		return
+	}
+
+	scheduledFor, due, err := s.findDueScheduledFor(p, now)
+	if err != nil {
+		s.recordPolicyExecution(p.ID, "SCHEDULE", nil, "SKIPPED", "schedule_not_configured", nil)
+		return
+	}
+	if !due {
+		return
+	}
+	claimed, err := s.claimScheduleSlot(p.ID, *scheduledFor)
+	if err != nil {
+		s.log.Error("scheduler: failed to claim scheduled slot", "policy_id", p.ID, "scheduled_for", scheduledFor, "error", err)
+		return
+	}
+	if !claimed {
+		return
+	}
+	if !s.withinEffectiveWindow(p, *scheduledFor) {
+		s.recordPolicyExecution(p.ID, "SCHEDULE", scheduledFor, "SKIPPED", "outside_effective_window", nil)
+		return
+	}
+	if len(p.Targets) == 0 {
+		s.recordPolicyExecution(p.ID, "SCHEDULE", scheduledFor, "SKIPPED", "no_targets", nil)
+		return
+	}
+
+	var lastCommandID *uint64
+	successfulTargets := 0
+	for _, t := range p.Targets {
+		if !t.Enabled {
+			continue
+		}
+
+		cmdID, execErr := s.executeTarget(t, p)
+		if execErr != nil {
+			if successfulTargets == 0 {
+				s.restoreScheduleSlotClaim(p.ID, p.LastScheduledFor)
+			}
+			s.log.Error("scheduler: failed to execute scheduled target",
+				"policy_id", p.ID,
+				"target_id", t.ID,
+				"error", execErr,
+			)
+			s.recordPolicyExecution(p.ID, "SCHEDULE", scheduledFor, "FAILED", fmt.Sprintf("target_execution_failed: %s", execErr.Error()), nil)
+			return
+		}
+		lastCommandID = &cmdID
+		successfulTargets++
+	}
+
+	s.recordPolicyExecution(p.ID, "SCHEDULE", scheduledFor, "EXECUTED", "schedule_due", lastCommandID)
 }
 
 func (s *Scheduler) evaluateAndExecute(p ControlPolicy, triggerSource, triggerMetric string, triggerValue *float64, evtData map[string]interface{}) {
@@ -214,8 +276,138 @@ func (s *Scheduler) evaluateAndExecute(p ControlPolicy, triggerSource, triggerMe
 	// Record cooldown
 	s.setCooldown(cooldownKey)
 
-	// Reset condition duration tracking — after execution the cycle restarts
+	// Reset condition duration tracking 鈥?after execution the cycle restarts
 	s.resetPolicyCondStates(p)
+}
+
+func (s *Scheduler) recordPolicyExecution(policyID uint64, triggerSource string, executedAt *time.Time, decision, reason string, commandID *uint64) {
+	exec := PolicyExecution{
+		PolicyID:       policyID,
+		TriggerSource:  triggerSource,
+		Decision:       decision,
+		DecisionReason: reason,
+		CommandID:      commandID,
+	}
+	if executedAt != nil && decision == "EXECUTED" {
+		exec.ExecutedAt = executedAt
+	}
+	if err := s.db.Create(&exec).Error; err != nil {
+		s.log.Error("scheduler: failed to create policy execution", "policy_id", policyID, "decision", decision, "error", err)
+	}
+}
+
+func (s *Scheduler) withinEffectiveWindow(p ControlPolicy, scheduledFor time.Time) bool {
+	if p.EffectiveFrom != nil && scheduledFor.Before(p.EffectiveFrom.UTC()) {
+		return false
+	}
+	if p.EffectiveTo != nil && scheduledFor.After(p.EffectiveTo.UTC()) {
+		return false
+	}
+	return true
+}
+
+func (s *Scheduler) findDueScheduledFor(p ControlPolicy, now time.Time) (*time.Time, bool, error) {
+	if p.ScheduleMode == nil {
+		return nil, false, fmt.Errorf("schedule mode not configured")
+	}
+
+	loc := time.UTC
+	if p.Timezone != "" {
+		loaded, err := time.LoadLocation(p.Timezone)
+		if err != nil {
+			return nil, false, err
+		}
+		loc = loaded
+	}
+
+	switch *p.ScheduleMode {
+	case "ONCE":
+		if p.RunOnceAt == nil {
+			return nil, false, fmt.Errorf("run_once_at required")
+		}
+		slot := p.RunOnceAt.UTC()
+		return &slot, !slot.After(now), nil
+	case "DAILY":
+		if p.TimeOfDay == nil {
+			return nil, false, fmt.Errorf("time_of_day required")
+		}
+		slot, err := buildLatestDailyScheduleSlot(now, loc, *p.TimeOfDay)
+		if err != nil {
+			return nil, false, err
+		}
+		return &slot, true, nil
+	case "WEEKLY":
+		if p.TimeOfDay == nil || p.WeekdaysMask == nil || *p.WeekdaysMask == 0 {
+			return nil, false, fmt.Errorf("weekly schedule requires time_of_day and weekdays_mask")
+		}
+		slot, ok, err := buildLatestWeeklyScheduleSlot(now, loc, *p.TimeOfDay, *p.WeekdaysMask)
+		if err != nil {
+			return nil, false, err
+		}
+		if !ok {
+			return nil, false, nil
+		}
+		return &slot, true, nil
+	default:
+		return nil, false, fmt.Errorf("unsupported schedule mode %q", *p.ScheduleMode)
+	}
+}
+
+func buildLatestDailyScheduleSlot(now time.Time, loc *time.Location, timeOfDay string) (time.Time, error) {
+	slotClock, err := time.ParseInLocation("15:04:05", timeOfDay, loc)
+	if err != nil {
+		return time.Time{}, err
+	}
+	nowLocal := now.In(loc)
+	slotLocal := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), slotClock.Hour(), slotClock.Minute(), slotClock.Second(), 0, loc)
+	if slotLocal.After(nowLocal) {
+		slotLocal = slotLocal.AddDate(0, 0, -1)
+	}
+	return slotLocal.UTC(), nil
+}
+
+func buildLatestWeeklyScheduleSlot(now time.Time, loc *time.Location, timeOfDay string, weekdaysMask uint8) (time.Time, bool, error) {
+	slotClock, err := time.ParseInLocation("15:04:05", timeOfDay, loc)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	nowLocal := now.In(loc)
+	for offset := 0; offset < 7; offset++ {
+		candidateDate := nowLocal.AddDate(0, 0, -offset)
+		if !weekdayMatched(weekdaysMask, candidateDate.Weekday()) {
+			continue
+		}
+		slotLocal := time.Date(candidateDate.Year(), candidateDate.Month(), candidateDate.Day(), slotClock.Hour(), slotClock.Minute(), slotClock.Second(), 0, loc)
+		if slotLocal.After(nowLocal) {
+			continue
+		}
+		return slotLocal.UTC(), true, nil
+	}
+	return time.Time{}, false, nil
+}
+
+func (s *Scheduler) claimScheduleSlot(policyID uint64, scheduledFor time.Time) (bool, error) {
+	result := s.db.Model(&ControlPolicy{}).
+		Where("id = ? AND (last_scheduled_for IS NULL OR last_scheduled_for < ?)", policyID, scheduledFor).
+		Update("last_scheduled_for", scheduledFor)
+	return result.RowsAffected > 0, result.Error
+}
+
+func (s *Scheduler) restoreScheduleSlotClaim(policyID uint64, previous *time.Time) {
+	updates := map[string]interface{}{"last_scheduled_for": previous}
+	if err := s.db.Model(&ControlPolicy{}).Where("id = ?", policyID).Updates(updates).Error; err != nil {
+		s.log.Error("scheduler: failed to restore schedule slot claim", "policy_id", policyID, "error", err)
+	}
+}
+
+func weekdayMatched(mask uint8, weekday time.Weekday) bool {
+	if weekday == time.Sunday {
+		return mask&(1<<6) != 0
+	}
+	if weekday < time.Monday || weekday > time.Saturday {
+		return false
+	}
+	return mask&(1<<(weekday-1)) != 0
 }
 
 func (s *Scheduler) evaluateCondition(cond PolicyCondition, evtData map[string]interface{}) bool {
@@ -243,12 +435,12 @@ func (s *Scheduler) evaluateCondition(cond PolicyCondition, evtData map[string]i
 	now := time.Now().UTC()
 
 	if !rawResult {
-		// Condition no longer holds → reset tracking
+		// Condition no longer holds 鈫?reset tracking
 		s.resetCondState(key)
 		return false
 	}
 
-	// Condition holds → check / advance duration
+	// Condition holds 鈫?check / advance duration
 	return s.trackCondDuration(key, *cond.RequiredDurationSec, now)
 }
 
@@ -303,11 +495,17 @@ func (s *Scheduler) evaluateConditionFromDB(cond PolicyCondition) bool {
 }
 
 func (s *Scheduler) executeTarget(t PolicyTarget, p ControlPolicy) (uint64, error) {
+	creatorID, err := s.resolveCommandCreator(p)
+	if err != nil {
+		return 0, err
+	}
+
 	cmd := command.ControlCommand{
 		ActuatorChannelID: t.ActuatorChannelID,
 		CommandType:       t.CommandType,
 		Payload:           t.CommandPayload,
 		Status:            "PENDING",
+		CreatedBy:         creatorID,
 	}
 
 	if err := s.db.Create(&cmd).Error; err != nil {
@@ -382,6 +580,26 @@ func (s *Scheduler) executeTarget(t PolicyTarget, p ControlPolicy) (uint64, erro
 	return cmd.ID, nil
 }
 
+func (s *Scheduler) resolveCommandCreator(p ControlPolicy) (uint64, error) {
+	if p.PublishedBy != nil && *p.PublishedBy != 0 {
+		return *p.PublishedBy, nil
+	}
+	if p.CreatedBy != nil && *p.CreatedBy != 0 {
+		return *p.CreatedBy, nil
+	}
+
+	var fallback struct {
+		ID uint64
+	}
+	if err := s.db.Table("users").Select("id").Order("id asc").Limit(1).Scan(&fallback).Error; err != nil {
+		return 0, fmt.Errorf("resolve command creator: %w", err)
+	}
+	if fallback.ID == 0 {
+		return 0, fmt.Errorf("resolve command creator: no available user")
+	}
+	return fallback.ID, nil
+}
+
 func (s *Scheduler) lookupActuatorTarget(actuatorChannelID uint64) (string, string, error) {
 	var result struct {
 		DeviceCode  string
@@ -417,7 +635,7 @@ func (s *Scheduler) setCooldown(key string) {
 	s.cooldowns[key] = time.Now().UTC()
 }
 
-// ── RequiredDurationSec tracking ──
+// 鈹€鈹€ RequiredDurationSec tracking 鈹€鈹€
 
 // trackCondDuration records the first-true time for a condition and returns
 // whether the required duration has elapsed.

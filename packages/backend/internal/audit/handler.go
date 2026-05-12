@@ -1,6 +1,8 @@
 package audit
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,13 +19,20 @@ type Handler struct {
 	db *gorm.DB
 }
 
+type listRow struct {
+	AuditLog
+	Username string `gorm:"column:username"`
+}
+
 func NewHandler(db *gorm.DB) *Handler {
 	return &Handler{db: db}
 }
 
 func (h *Handler) List(c *gin.Context) {
 	page, size := parsePage(c)
-	q := h.db.Model(&AuditLog{})
+	q := h.db.Table("audit_logs").
+		Select("audit_logs.*, users.username").
+		Joins("LEFT JOIN users ON users.id = audit_logs.user_id")
 
 	if v := strings.TrimSpace(c.Query("user_id")); v != "" {
 		q = q.Where("user_id = ?", v)
@@ -55,9 +64,9 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	items := []AuditLog{}
+	items := []listRow{}
 	if total > 0 {
-		if err := q.Order("id desc").Limit(size).Offset((page - 1) * size).Find(&items).Error; err != nil {
+		if err := q.Order("audit_logs.id desc").Limit(size).Offset((page - 1) * size).Scan(&items).Error; err != nil {
 			response.Error(c, http.StatusInternalServerError, platformErrors.CodeConflict, "query_failed", nil)
 			return
 		}
@@ -68,10 +77,12 @@ func (h *Handler) List(c *gin.Context) {
 		rows = append(rows, gin.H{
 			"id":          it.ID,
 			"user_id":     it.UserID,
+			"username":    it.Username,
 			"action":      it.Action,
 			"target_type": it.TargetType,
 			"target_id":   it.TargetID,
-			"detail":      it.Detail,
+			"detail":      stringifyJSON(it.Detail),
+			"request_id":  it.RequestID,
 			"created_at":  it.CreatedAt,
 		})
 	}
@@ -113,4 +124,22 @@ func parseTime(v string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return t.UTC(), nil
+}
+
+func stringifyJSON(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+
+	var out bytes.Buffer
+	if err := json.Compact(&out, raw); err == nil {
+		return out.String()
+	}
+
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		return text
+	}
+
+	return string(raw)
 }

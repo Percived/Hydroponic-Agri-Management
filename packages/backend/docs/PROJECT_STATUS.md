@@ -1,8 +1,8 @@
 # 项目状态
 
-最后更新: 2026-05-07
+最后更新: 2026-05-12
 负责人: 后端团队
-版本: v2.3.0（阶段三四完成：SSE 实时推送、序列化统一、策略调度器、Handler 拆分、enabled 类型统一）
+版本: v2.3.2（SCHEDULE 真正到点执行、气候联动触发源单通道化）
 
 ## 1. 项目概述
 
@@ -12,6 +12,13 @@
 ## 2. 当前交付状态
 
 总体评估：v2.3.0 阶段三四已完成。全量整合 18 个领域模块，对外暴露 193 个 API 端点 + 2 个 SSE 实时推送端点，分布至 21 个模块路由组。API 路径采用扁平命名规范：`/api/sensor-devices`、`/api/actuator-devices`、`/api/commands`、`/api/policies` 等。
+
+### v2.3.2 最新完成项（策略调度语义升级）
+
+- **SCHEDULE 真正到点执行**：`control_policies` 新增 `schedule_mode/run_once_at/time_of_day/weekdays_mask/timezone/last_scheduled_for`，`SCHEDULE` 支持 `ONCE/DAILY/WEEKLY` 三种结构化计划。
+- **发布门槛收敛**：策略调度器只扫描 `published_at IS NOT NULL` 的定时策略，前端“发布”与自动调度生效语义一致。
+- **可观测性增强**：历史未配置计划不再静默跳过，而是写 `policy_executions`，原因为 `schedule_not_configured`；同一计划点通过 `last_scheduled_for` 幂等去重。
+- **测试补齐**：新增 `internal/policy/scheduler_test.go` 覆盖 `ONCE` 幂等、`DAILY` 命中、`WEEKLY` 星期过滤、未发布忽略等路径。
 
 ### v2.3.0 阶段三完成项（实时性与自动化）
 
@@ -38,8 +45,8 @@
 - **device** (`internal/device/`) — 传感器/执行器设备管理，含设备通道（channels）与拓扑查询。
 - **metric** (`internal/metric/`) — 测点定义字典，支持通道级别的测点绑定。
 - **telemetry** (`internal/telemetry/`) — 遥测数据采集、实时/历史查询、通道级别历史数据拉取。
-- **command** (`internal/command/`) — 控制命令下发与回执（receipts）追踪，命令状态机统一为 `queued/sent/acked/failed/timeout/cancelled`。
-- **policy** (`internal/policy/`) — 控制策略引擎：支持阈值（threshold）、定时（schedule）、持续时长（duration）三类策略，含条件（conditions）、目标（targets）与执行记录（executions）。
+- **command** (`internal/command/`) — 控制命令下发与回执（receipts）追踪，命令状态机统一为 `PENDING/QUEUED/SENT/ACKED/TIMEOUT/FAILED`。
+- **policy** (`internal/policy/`) — 控制策略引擎：支持阈值（threshold）、定时（schedule）、持续时长（duration）三类策略；其中 `SCHEDULE` 已升级为真正的到点执行模型，支持 `ONCE/DAILY/WEEKLY` 结构化计划，含条件（conditions）、目标（targets）与执行记录（executions）。
 - **alert** (`internal/alert/`) — 告警管理与处置闭环：告警列表/统计、指派/接管/关闭动作、时间线事件追溯。
 - **notification** (`internal/notification/`) — 通知渠道 CRUD（EMAIL/SMS/WEBHOOK）+ Webhook 测试发送（HMAC-SHA256 签名）。
 - **audit** (`internal/audit/`) — 审计日志查询，支持 request_id / trace_id 追踪。

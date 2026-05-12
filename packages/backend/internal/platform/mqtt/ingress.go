@@ -440,25 +440,51 @@ func (s *IngressService) handleState(deviceCode string, payload []byte) {
 		if ch.ChannelCode == "" {
 			continue
 		}
-		// Resolve channel ID via JOIN on actuator_devices
-		sub := s.db.Table("actuator_channels ac").
-			Select("ac.id").
-			Joins("JOIN actuator_devices ad ON ad.id = ac.actuator_device_id").
-			Where("ad.device_code = ? AND ac.channel_code = ?", deviceCode, ch.ChannelCode)
+
+		channelID, found, err := s.resolveActuatorChannelID(deviceCode, ch.ChannelCode)
+		if err != nil {
+			s.log.Error("ingress: failed to resolve actuator channel", "device", deviceCode, "channel", ch.ChannelCode, "error", err)
+			continue
+		}
+		if !found {
+			s.log.Warn("ingress: state for unknown channel", "device", deviceCode, "channel", ch.ChannelCode)
+			continue
+		}
+
 		updates := map[string]interface{}{"current_state": ch.State}
 		if ch.Level != nil {
 			updates["current_level"] = *ch.Level
 		}
 		result := s.db.Model(&device.ActuatorChannel{}).
-			Where("id IN (?)", sub).
+			Where("id = ?", channelID).
 			Updates(updates)
+		if result.Error != nil {
+			s.log.Error("ingress: failed to update actuator channel state", "device", deviceCode, "channel", ch.ChannelCode, "channel_id", channelID, "error", result.Error)
+			continue
+		}
 		if result.RowsAffected > 0 {
 			updated++
-		} else {
-			s.log.Warn("ingress: state for unknown channel", "device", deviceCode, "channel", ch.ChannelCode)
 		}
 	}
 	s.log.Debug("ingress: state updated", "device", deviceCode, "channels_updated", updated)
+}
+
+func (s *IngressService) resolveActuatorChannelID(deviceCode, channelCode string) (uint64, bool, error) {
+	var row struct {
+		ID uint64
+	}
+	err := s.db.Table("actuator_channels").
+		Select("actuator_channels.id").
+		Joins("JOIN actuator_devices ON actuator_devices.id = actuator_channels.actuator_device_id").
+		Where("actuator_devices.device_code = ? AND actuator_channels.channel_code = ?", deviceCode, channelCode).
+		Take(&row).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return 0, false, nil
+		}
+		return 0, false, err
+	}
+	return row.ID, true, nil
 }
 
 // handleAck processes command acknowledgements
