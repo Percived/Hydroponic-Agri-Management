@@ -6,6 +6,21 @@
 
 ## 最新变更 (2026-05-12)
 
+### Overview 活跃策略查询对齐当前 schema
+
+- **问题**
+  - `internal/overview/handler.go` 在组装温室 `active_strategies` 时，仍按旧字段查询 `climate_profiles.status` 与 `nutrient_recipes.greenhouse_id/is_active`
+  - 线上库实际 schema 中，`climate_profiles` 以 `enabled` 表示启用状态；`nutrient_recipes` 不直接归属温室，活跃配方应通过运行中批次的 `active_recipe_id` 关联
+  - 这会导致 dashboard 查询打出 `Unknown column 'status'` 和 `Unknown column 'greenhouse_id'` 错误日志
+- **修复**
+  - 抽出 `loadGreenhouseActiveStrategies()`，统一按当前 schema 查询温室活跃策略
+  - 气候策略改为按 `climate_profiles.greenhouse_id + enabled=true` 查询
+  - 营养配方改为按 `crop_batches.status='RUNNING' + active_recipe_id` 关联 `nutrient_recipes.status='ACTIVE'`
+  - 两类策略都做 `DISTINCT` 去重，避免同一运行批次重复追加同名配方
+- **测试**
+  - 新增 `internal/overview/handler_test.go`
+  - 回归覆盖当前 schema 下的活跃气候策略筛选、运行中批次活跃配方关联以及重复配方去重
+
 ### 用户管理列表补齐资料字段，创建接口支持手机号/邮箱
 
 - **问题**

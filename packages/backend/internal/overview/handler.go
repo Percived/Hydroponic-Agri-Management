@@ -416,17 +416,9 @@ func queryGreenhouseMetrics(db *gorm.DB, out *[]DashboardGreenhouse) error {
 			healthScore = "warning"
 		}
 
-		// Fetch active strategies
-		var strategies []string
-		if db.Migrator().HasTable("climate_profiles") {
-			db.Table("climate_profiles").Select("name").Where("greenhouse_id = ? AND status = 'ACTIVE'", r.ID).Pluck("name", &strategies)
-		}
-		if db.Migrator().HasTable("nutrient_recipes") {
-			var recipeName string
-			db.Table("nutrient_recipes").Select("name").Where("greenhouse_id = ? AND is_active = ?", r.ID, true).Pluck("name", &recipeName)
-			if recipeName != "" {
-				strategies = append(strategies, recipeName)
-			}
+		strategies, err := loadGreenhouseActiveStrategies(db, r.ID)
+		if err != nil {
+			return err
 		}
 
 		gh := DashboardGreenhouse{
@@ -447,4 +439,36 @@ func queryGreenhouseMetrics(db *gorm.DB, out *[]DashboardGreenhouse) error {
 		*out = append(*out, gh)
 	}
 	return nil
+}
+
+func loadGreenhouseActiveStrategies(db *gorm.DB, greenhouseID uint64) ([]string, error) {
+	strategies := make([]string, 0, 4)
+
+	if db.Migrator().HasTable("climate_profiles") {
+		var climateNames []string
+		if err := db.Table("climate_profiles").
+			Distinct("name").
+			Where("greenhouse_id = ? AND enabled = ?", greenhouseID, true).
+			Order("name ASC").
+			Pluck("name", &climateNames).Error; err != nil {
+			return nil, err
+		}
+		strategies = append(strategies, climateNames...)
+	}
+
+	if db.Migrator().HasTable("crop_batches") && db.Migrator().HasTable("nutrient_recipes") {
+		var recipeNames []string
+		if err := db.Table("crop_batches AS cb").
+			Joins("JOIN nutrient_recipes nr ON nr.id = cb.active_recipe_id").
+			Distinct("nr.name").
+			Where("cb.greenhouse_id = ? AND cb.status = ?", greenhouseID, "RUNNING").
+			Where("nr.status = ?", "ACTIVE").
+			Order("nr.name ASC").
+			Pluck("nr.name", &recipeNames).Error; err != nil {
+			return nil, err
+		}
+		strategies = append(strategies, recipeNames...)
+	}
+
+	return strategies, nil
 }
