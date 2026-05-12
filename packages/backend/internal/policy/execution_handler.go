@@ -15,12 +15,13 @@ import (
 
 // Handler holds dependencies for policy HTTP handlers.
 type Handler struct {
-	db *gorm.DB
+	db        *gorm.DB
+	scheduler *Scheduler
 }
 
 // NewHandler creates a new policy Handler.
-func NewHandler(db *gorm.DB) *Handler {
-	return &Handler{db: db}
+func NewHandler(db *gorm.DB, scheduler *Scheduler) *Handler {
+	return &Handler{db: db, scheduler: scheduler}
 }
 
 // --- PolicyExecution handlers ---

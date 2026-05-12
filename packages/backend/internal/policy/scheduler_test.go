@@ -360,6 +360,62 @@ func TestScheduleFailureDoesNotReopenClaimedSlot(t *testing.T) {
 	}
 }
 
+func TestThresholdPolicyRequiresPublishedState(t *testing.T) {
+	db := openPolicySchedulerTestDB(t)
+
+	policyID := seedThresholdPolicy(t, db, false)
+	s := NewScheduler(db, event.NewHub(), &fakeMQTTClient{connected: true}, testLogger())
+
+	s.evaluateThresholdPolicies("TEMP", 35, map[string]interface{}{
+		"metric_code": "TEMP",
+		"value":       35.0,
+	})
+
+	var executions []PolicyExecution
+	if err := db.Where("policy_id = ?", policyID).Find(&executions).Error; err != nil {
+		t.Fatalf("load executions: %v", err)
+	}
+	if len(executions) != 0 {
+		t.Fatalf("expected unpublished threshold policy to be ignored, got %+v", executions)
+	}
+
+	var commands []command.ControlCommand
+	if err := db.Find(&commands).Error; err != nil {
+		t.Fatalf("load commands: %v", err)
+	}
+	if len(commands) != 0 {
+		t.Fatalf("expected no commands for unpublished threshold policy, got %d", len(commands))
+	}
+}
+
+func TestPublishedThresholdPolicyStillAutoExecutes(t *testing.T) {
+	db := openPolicySchedulerTestDB(t)
+
+	policyID := seedThresholdPolicy(t, db, true)
+	s := NewScheduler(db, event.NewHub(), &fakeMQTTClient{connected: true}, testLogger())
+
+	s.evaluateThresholdPolicies("TEMP", 35, map[string]interface{}{
+		"metric_code": "TEMP",
+		"value":       35.0,
+	})
+
+	var executions []PolicyExecution
+	if err := db.Where("policy_id = ?", policyID).Find(&executions).Error; err != nil {
+		t.Fatalf("load executions: %v", err)
+	}
+	if len(executions) != 1 || executions[0].Decision != "EXECUTED" {
+		t.Fatalf("expected published threshold policy to execute, got %+v", executions)
+	}
+
+	var commands []command.ControlCommand
+	if err := db.Find(&commands).Error; err != nil {
+		t.Fatalf("load commands: %v", err)
+	}
+	if len(commands) != 1 {
+		t.Fatalf("expected 1 command for published threshold policy, got %d", len(commands))
+	}
+}
+
 func openPolicySchedulerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -441,6 +497,70 @@ func seedPublishedSchedulePolicy(t *testing.T, db *gorm.DB, mutate func(*Control
 	}
 
 	return policy.ID, channel.ID
+}
+
+func seedThresholdPolicy(t *testing.T, db *gorm.DB, published bool) uint64 {
+	t.Helper()
+
+	actuator := device.ActuatorDevice{
+		DeviceCode:   "ACT-TH-001",
+		Name:         "threshold actuator",
+		GreenhouseID: 1,
+	}
+	if err := db.Create(&actuator).Error; err != nil {
+		t.Fatalf("create threshold actuator: %v", err)
+	}
+
+	channel := device.ActuatorChannel{
+		ActuatorDeviceID: actuator.ID,
+		ChannelCode:      "fan-1",
+		ActuatorType:     device.ActuatorTypeFan,
+		Enabled:          true,
+	}
+	if err := db.Create(&channel).Error; err != nil {
+		t.Fatalf("create threshold channel: %v", err)
+	}
+
+	policy := ControlPolicy{
+		PolicyCode:   "POL-TH-001",
+		Name:         "threshold policy",
+		PolicyType:   "THRESHOLD",
+		GreenhouseID: 1,
+		Enabled:      true,
+	}
+	if published {
+		now := time.Now().UTC().Add(-1 * time.Minute)
+		policy.PublishedAt = &now
+	}
+	if err := db.Create(&policy).Error; err != nil {
+		t.Fatalf("create threshold policy: %v", err)
+	}
+
+	condition := PolicyCondition{
+		PolicyID:       policy.ID,
+		MetricCode:     "TEMP",
+		Operator:       ">",
+		ThresholdValue: 30,
+		Aggregation:    "last",
+		Enabled:        true,
+	}
+	if err := db.Create(&condition).Error; err != nil {
+		t.Fatalf("create threshold condition: %v", err)
+	}
+
+	target := PolicyTarget{
+		PolicyID:          policy.ID,
+		ActuatorChannelID: channel.ID,
+		CommandType:       "SWITCH",
+		CommandPayload:    `{"state":"ON"}`,
+		ExecutionOrder:    1,
+		Enabled:           true,
+	}
+	if err := db.Create(&target).Error; err != nil {
+		t.Fatalf("create threshold target: %v", err)
+	}
+
+	return policy.ID
 }
 
 func testLogger() *slog.Logger {

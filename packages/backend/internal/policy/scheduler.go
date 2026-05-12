@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -97,6 +98,7 @@ func (s *Scheduler) evaluateThresholdPolicies(triggerMetric string, triggerValue
 			return db.Where("enabled = true").Order("execution_order asc, id asc")
 		}).
 		Where("control_policies.enabled = true AND policy_type = ?", "THRESHOLD").
+		Where("published_at IS NOT NULL").
 		Where("(effective_from IS NULL OR effective_from <= ?)", now).
 		Where("(effective_to IS NULL OR effective_to >= ?)", now).
 		Joins("JOIN policy_conditions pc ON pc.policy_id = control_policies.id AND pc.enabled = true AND pc.metric_code = ?", triggerMetric).
@@ -633,6 +635,23 @@ func (s *Scheduler) setCooldown(key string) {
 	s.cooldownsMu.Lock()
 	defer s.cooldownsMu.Unlock()
 	s.cooldowns[key] = time.Now().UTC()
+}
+
+func (s *Scheduler) ResetPolicyRuntime(policyID uint64) {
+	cooldownKey := fmt.Sprintf("%d", policyID)
+
+	s.cooldownsMu.Lock()
+	delete(s.cooldowns, cooldownKey)
+	s.cooldownsMu.Unlock()
+
+	prefix := fmt.Sprintf("%d:", policyID)
+	s.condStatesMu.Lock()
+	for key := range s.condStates {
+		if strings.HasPrefix(key, prefix) {
+			delete(s.condStates, key)
+		}
+	}
+	s.condStatesMu.Unlock()
 }
 
 // 鈹€鈹€ RequiredDurationSec tracking 鈹€鈹€

@@ -31,11 +31,20 @@
             <el-tag :type="isPolicyEnabled(row) ? 'success' : 'info'">{{ isPolicyEnabled(row) ? '启用' : '停用' }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="发布状态" width="110">
+          <template #default="{ row }">
+            <el-tag :type="isPolicyPublished(row) ? 'success' : 'warning'">
+              {{ isPolicyPublished(row) ? '已发布' : '未发布' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="version" label="版本" width="100" />
         <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="openEditDialog(row)">编辑</el-button>
-            <el-button type="warning" link @click="handlePublish(row)">发布</el-button>
+            <el-button type="warning" link :disabled="isPolicyPublished(row)" @click="handlePublish(row)">
+              {{ isPolicyPublished(row) ? '已发布' : '发布' }}
+            </el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -633,6 +642,10 @@ function isPolicyEnabled(policy: ControlPolicy) {
   return policy.enabled === true || policy.enabled === 1
 }
 
+function isPolicyPublished(policy: ControlPolicy) {
+  return Boolean(policy.published_at)
+}
+
 function encodeWeekdaysMask(weekdays: number[]): number | undefined {
   if (!weekdays.length) return undefined
   return weekdays.reduce((mask, day) => {
@@ -1021,7 +1034,7 @@ async function handleSubmit() {
         })
       }
 
-      ElMessage.success('策略更新成功')
+      ElMessage.success('策略更新成功，当前为未发布状态，请重新发布后生效')
     } else {
       // Create new policy
       const createPayload = {
@@ -1062,7 +1075,7 @@ async function handleSubmit() {
         })
       }
 
-      ElMessage.success('策略创建成功')
+      ElMessage.success('策略创建成功，请发布后生效')
     }
     dialogVisible.value = false
     fetchData()
@@ -1072,6 +1085,7 @@ async function handleSubmit() {
 }
 
 async function handlePublish(policy: ControlPolicy) {
+  if (isPolicyPublished(policy)) return
   try {
     await policyApi.publishPolicy(policy.id)
     ElMessage.success('策略已发布')

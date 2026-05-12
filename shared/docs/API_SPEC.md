@@ -926,18 +926,22 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 响应：分页列表，items 为 User[]
 
+- `items[*]` 返回完整用户资料字段：`id`、`username`、`nickname`、`phone`、`email`、`status`、`roles`、`created_at`
+
 **POST /api/users**
 
 鉴权：ADMIN
 
 请求体：
 
-| 字段     | 类型     | 必填 | 规则          | 示例         |
-| -------- | -------- | ---- | ------------- | ------------ |
-| username | string   | 是   | 3-32 字符     | "operator1"  |
-| password | string   | 是   | 6-64 字符     | "pass1234"   |
-| nickname | string   | 否   | 最多 64 字符  | "操作员"     |
-| roles    | string[] | 是   | 至少 1 个角色 | ["OPERATOR"] |
+| 字段     | 类型     | 必填 | 规则          | 示例                    |
+| -------- | -------- | ---- | ------------- | ----------------------- |
+| username | string   | 是   | 3-32 字符     | "operator1"             |
+| password | string   | 是   | 6-64 字符     | "pass1234"              |
+| nickname | string   | 否   | 最多 64 字符  | "操作员"                |
+| phone    | string   | 否   | 最多 32 字符  | "13800138000"           |
+| email    | string   | 否   | 最多 64 字符  | "operator1@example.com" |
+| roles    | string[] | 是   | 至少 1 个角色 | ["OPERATOR"]            |
 
 响应：
 
@@ -1596,7 +1600,9 @@ ID 类型：`BIGINT`，响应中以数字返回
 - `SCHEDULE` 策略支持 `ONCE / DAILY / WEEKLY` 三种结构化计划
 - `SCHEDULE` 允许无条件执行，命中计划点后直接执行 targets
 - `effective_from / effective_to` 对 `SCHEDULE` 仅表示生效窗口，不表示执行时刻
-- 调度器只扫描已发布（`published_at IS NOT NULL`）的 `SCHEDULE` 策略
+- 自动执行统一要求策略已发布（`published_at IS NOT NULL`）
+- `SCHEDULE` 只在命中计划点且已发布时自动执行
+- `THRESHOLD` 只在条件命中且已发布时自动执行
 
 **POST /api/policies/full**
 
@@ -1630,6 +1636,8 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 - 若 `policy_type` 从 `SCHEDULE` 切换为其他类型，后端会清空调度字段
 - 历史未配置计划的 `SCHEDULE` 会在执行记录中标记为 `schedule_not_configured`
+- 当前前端策略编辑页保存成功后，策略会自动回到未发布状态（清空 `published_at / published_by`）
+- 保存后需重新调用发布接口，策略才会重新参与自动执行
 
 **DELETE /api/policies/:id**
 
@@ -1645,13 +1653,18 @@ ID 类型：`BIGINT`，响应中以数字返回
 
 **POST /api/policies/:id/publish**
 
-鉴权：ADMIN
+鉴权：ADMIN / OPERATOR
 
 请求体：
 
 | 字段    | 类型   | 必填 | 规则      |
 | ------- | ------ | ---- | --------- |
 | version | string | 否   | 1-32 字符 |
+
+说明：
+
+- 重新发布会写入新的 `published_at / published_by`
+- 若策略类型为 `THRESHOLD`，重新发布后会清空该策略已有的 cooldown 与条件累计运行时状态
 
 **POST /api/policies/:id/archive**
 

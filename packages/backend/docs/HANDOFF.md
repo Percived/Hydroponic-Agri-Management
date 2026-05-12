@@ -6,7 +6,21 @@
 
 ## 最新变更 (2026-05-12)
 
-### MQTT ingress 执行器状态更新兼容 MySQL
+### 用户管理列表补齐资料字段，创建接口支持手机号/邮箱
+
+- **问题**
+  - `internal/auth/handler.go` 的 `GET /api/users` 仅返回 `id/username/roles/status`，导致前端用户管理页的昵称、邮箱、手机号以及创建时间列始终为空
+  - `internal/auth/dto.go` 的 `CreateUserRequest` 未声明 `phone/email`，前端新建用户时即使提交了这两个字段，后端也不会落库
+- **修复**
+  - 用户列表响应补齐 `nickname`、`phone`、`email`、`created_at`
+  - 创建用户 DTO 与落库逻辑补齐 `phone/email`
+  - 创建用户审计 `detail/after_data` 同步记录手机号与邮箱
+- **测试**
+  - 新增 `internal/auth/handler_test.go`
+  - 覆盖 `ListUsers()` 返回完整资料字段
+  - 覆盖 `CreateUser()` 会持久化手机号与邮箱
+
+
 
 - **问题**
   - `internal/platform/mqtt/ingress.go` 处理 `state` 上报时，使用 `UPDATE actuator_channels ... WHERE id IN (SELECT ... FROM actuator_channels JOIN actuator_devices ...)`
@@ -74,6 +88,23 @@
   - 新增 `internal/policy/scheduler_test.go`
   - 新增 `internal/policy/policy_handler_test.go`
   - 覆盖 `ONCE` 单次幂等、`DAILY` 命中、`WEEKLY` 星期过滤、未发布忽略、未配置计划写跳过记录、计划变更清游标、部分失败不重复补发
+
+### 策略编辑后需重新发布
+
+- **`internal/policy/policy_handler.go`**
+  - 当前前端策略编辑页保存时，`UpdatePolicy()` 会统一清空 `published_at / published_by`
+  - 这意味着 `THRESHOLD` 与 `SCHEDULE` 只要在编辑页保存成功，就会回到未发布状态
+- **`internal/policy/scheduler.go`**
+  - `THRESHOLD` 自动触发补齐已发布门槛，只扫描 `published_at IS NOT NULL` 的策略
+  - `PublishPolicy()` 成功后会通过注入的 `Scheduler` 清理对应阈值策略的运行时缓存
+  - 缓存重置范围包括 cooldown 和条件持续命中状态，确保重新发布后从全新周期重新评估
+- **`internal/policy/routes.go`**
+  - `/api/policies/:id/publish` 权限放宽为 `ADMIN / OPERATOR`
+  - `publish` / `archive` 动作已接入策略审计包装，便于追踪关键运维操作
+- **测试**
+  - 补充已发布策略编辑后清空发布状态
+  - 补充未发布 `THRESHOLD` 不自动触发
+  - 补充重新发布后重置 cooldown / 条件累计状态
 
 ### 营养液槽传感器绑定语义说明：`temp_sensor_channel_id` 约定绑定水温通道
 

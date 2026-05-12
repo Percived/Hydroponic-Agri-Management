@@ -31,6 +31,17 @@
   - `ControlPolicy`、`CreatePolicyRequest` 补齐 `SCHEDULE` 调度字段
   - `enabled` 放宽为 `number | boolean`，兼容后端 `bool` 返回
 
+### 策略控制页：发布状态可视化与重新发布提示
+
+- **`src/views/controls/rules.vue`**
+  - 列表新增“发布状态”列，按 `published_at` 区分“已发布 / 未发布”
+  - 操作区发布按钮会根据状态显示“发布 / 已发布”，已发布策略不可重复点击
+  - 新建成功提示改为“策略创建成功，请发布后生效”
+  - 编辑页保存成功提示改为“策略更新成功，当前为未发布状态，请重新发布后生效”
+- **契约依赖**
+  - 前端不额外推导发布状态，统一以接口返回的 `published_at` 为准
+  - 编辑页保存后通过重新拉取列表读取最新状态，不依赖 `PUT /api/policies/:id` 的空响应体
+
 ### 营养液槽温度绑定语义调整：前端改为只选择水温通道
 
 - **`src/views/nutrient/tanks.vue`**

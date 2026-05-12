@@ -146,10 +146,14 @@ func (h *Handler) ListUsers(c *gin.Context) {
 			roles = append(roles, r.Name)
 		}
 		items = append(items, gin.H{
-			"id":       u.ID,
-			"username": u.Username,
-			"roles":    roles,
-			"status":   u.Status,
+			"id":         u.ID,
+			"username":   u.Username,
+			"nickname":   u.Nickname,
+			"phone":      u.Phone,
+			"email":      u.Email,
+			"roles":      roles,
+			"status":     u.Status,
+			"created_at": u.CreatedAt,
 		})
 	}
 
@@ -190,6 +194,8 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		Username:     req.Username,
 		PasswordHash: hash,
 		Nickname:     req.Nickname,
+		Phone:        req.Phone,
+		Email:        req.Email,
 		Status:       UserStatusEnabled,
 	}
 
@@ -215,6 +221,8 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		Detail: gin.H{
 			"username": user.Username,
 			"nickname": user.Nickname,
+			"phone":    user.Phone,
+			"email":    user.Email,
 			"status":   user.Status,
 			"roles":    req.Roles,
 		},
@@ -222,6 +230,8 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		AfterData: gin.H{
 			"username": user.Username,
 			"nickname": user.Nickname,
+			"phone":    user.Phone,
+			"email":    user.Email,
 			"status":   user.Status,
 			"roles":    req.Roles,
 		},

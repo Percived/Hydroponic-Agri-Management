@@ -953,7 +953,7 @@ paths:
           type: string
     post:
       tags: [policies]
-      summary: Publish policy (ADMIN)
+      summary: Publish policy (ADMIN / OPERATOR)
       security:
         - bearerAuth: []
       responses:

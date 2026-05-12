@@ -293,6 +293,8 @@ func (h *Handler) UpdatePolicy(c *gin.Context) {
 		"weekdays_mask":      candidate.WeekdaysMask,
 		"timezone":           candidate.Timezone,
 		"last_scheduled_for": candidate.LastScheduledFor,
+		"published_by":       nil,
+		"published_at":       nil,
 	}
 
 	result := h.db.Model(&ControlPolicy{}).Where("id = ?", id).Updates(updates)
@@ -437,6 +439,9 @@ func (h *Handler) PublishPolicy(c *gin.Context) {
 	if result.RowsAffected == 0 {
 		response.Error(c, http.StatusNotFound, platformErrors.CodeNotFound, "not_found", nil)
 		return
+	}
+	if h.scheduler != nil {
+		h.scheduler.ResetPolicyRuntime(id)
 	}
 
 	response.Success(c, gin.H{

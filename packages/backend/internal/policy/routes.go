@@ -17,10 +17,10 @@ import (
 
 // RegisterRoutes registers all policy module routes.
 func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
-	h := NewHandler(deps.MySQL)
-
 	// Start policy auto-scheduler (event-driven + timer-scan)
-	NewScheduler(deps.MySQL, deps.EventHub, deps.MQTT, deps.Log).Start()
+	scheduler := NewScheduler(deps.MySQL, deps.EventHub, deps.MQTT, deps.Log)
+	scheduler.Start()
+	h := NewHandler(deps.MySQL, scheduler)
 
 	pol := r.Group("/policies")
 	// ControlPolicy CRUD - Admin/Operator for writes, all roles for reads
@@ -32,8 +32,8 @@ func RegisterRoutes(r *gin.RouterGroup, deps di.Deps) {
 	pol.DELETE("/:id", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin), withPolicyAudit(deps.MySQL, "DELETE_RULE", true, h.DeletePolicy))
 
 	// Publish and Archive actions
-	pol.POST("/:id/publish", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin), h.PublishPolicy)
-	pol.POST("/:id/archive", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin), h.ArchivePolicy)
+	pol.POST("/:id/publish", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), withPolicyAudit(deps.MySQL, "PUBLISH_RULE", true, h.PublishPolicy))
+	pol.POST("/:id/archive", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin), withPolicyAudit(deps.MySQL, "ARCHIVE_RULE", true, h.ArchivePolicy))
 
 	// Policy manual execution
 	pol.POST("/:id/execute", auth.AuthRequired(deps.Config.Auth, deps.MySQL, auth.RoleAdmin, auth.RoleOperator), h.ExecutePolicy)
