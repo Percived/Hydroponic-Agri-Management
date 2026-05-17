@@ -19,15 +19,156 @@ type simulation struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	sensor   *sensorSim
-	actuator *actuatorSim
-	env      *Environment
-	mqtt     *mqttManager
-	rng      *rand.Rand
+	sensors     []*sensorSim
+	actuators   []*actuatorSim
+	env         *Environment
+	mqtt        *mqttManager
+	rng         *rand.Rand
+	fixedMu     sync.RWMutex
+	fixedValues map[uint64]float64
+	anomalyMu   sync.RWMutex
+	anomalyRate float64
+	batchID     *uint64
 
-	startTime      time.Time
-	telemetryCount int64
-	cmdACKCount    int64
+	startTime time.Time
+}
+
+func (sim *simulation) BuildStatusResponse() statusResponse {
+	resp := statusResponse{
+		Running:        true,
+		UptimeSec:      int64(time.Since(sim.startTime).Seconds()),
+		TelemetryCount: sim.totalTelemetryCount(),
+	}
+	for _, sensor := range sim.sensors {
+		device := sensorDeviceStatusDTO{DeviceCode: sensor.deviceCode}
+		for _, ch := range sensor.channels {
+			channel := sensorChannelDTO{
+				ChannelID:  ch.ID,
+				MetricCode: ch.MetricCode,
+				Unit:       ch.Unit,
+			}
+			if fixed, ok := sim.lookupFixedOverride(ch.ID); ok {
+				fixedCopy := fixed
+				channel.FixedValue = &fixedCopy
+			}
+			device.Channels = append(device.Channels, channel)
+			resp.SensorChannels = append(resp.SensorChannels, channel)
+		}
+		resp.SensorDevices = append(resp.SensorDevices, device)
+	}
+	for _, actuator := range sim.actuators {
+		device := actuatorDeviceStatusDTO{
+			DeviceCode:   actuator.deviceCode,
+			ChannelCount: len(actuator.channels),
+		}
+		for _, ch := range actuator.channels {
+			device.Channels = append(device.Channels, actuatorChannelDTO{
+				ChannelID:    ch.ID,
+				ChannelCode:  ch.ChannelCode,
+				ActuatorType: ch.ActuatorType,
+				State:        ch.CurrentState,
+				Level:        ch.CurrentLevel,
+			})
+		}
+		resp.ActuatorDevices = append(resp.ActuatorDevices, device)
+	}
+	if len(resp.SensorDevices) > 0 {
+		resp.SensorDevice = resp.SensorDevices[0].DeviceCode
+	}
+	if len(resp.ActuatorDevices) > 0 {
+		resp.ActuatorDevice = resp.ActuatorDevices[0].DeviceCode
+	}
+	return resp
+}
+
+func (sim *simulation) TriggerTelemetry(anomalyRate float64, overrides map[uint64]float64) int64 {
+	var count int64
+	for _, sensor := range sim.sensors {
+		count += sensor.sendTelemetryWithOverrides(anomalyRate, overrides)
+	}
+	return count
+}
+
+func (sim *simulation) publishStatusAll(status string) {
+	for _, actuator := range sim.actuators {
+		actuator.publishStatus(status)
+	}
+	for _, sensor := range sim.sensors {
+		sensor.publishStatus(status)
+	}
+}
+
+func (sim *simulation) publishHeartbeatAll() {
+	for _, sensor := range sim.sensors {
+		sensor.publishHeartbeat()
+	}
+	for _, actuator := range sim.actuators {
+		actuator.publishHeartbeat()
+	}
+}
+
+func (sim *simulation) subscribeAllCommands() error {
+	for _, actuator := range sim.actuators {
+		if err := sim.mqtt.subscribe(cmdTopic(actuator.deviceCode), actuator.onCommand); err != nil {
+			return fmt.Errorf("执行器 %s: %w", actuator.deviceCode, err)
+		}
+	}
+	for _, sensor := range sim.sensors {
+		if err := sim.mqtt.subscribe(cmdTopic(sensor.deviceCode), sensor.onCommand); err != nil {
+			return fmt.Errorf("传感器 %s: %w", sensor.deviceCode, err)
+		}
+	}
+	return nil
+}
+
+func (sim *simulation) totalTelemetryCount() int64 {
+	var total int64
+	for _, sensor := range sim.sensors {
+		total += sensor.totalTelemetry
+	}
+	return total
+}
+
+func (sim *simulation) totalCmdACKCount() int64 {
+	var total int64
+	for _, actuator := range sim.actuators {
+		total += actuator.totalCmdACK
+	}
+	return total
+}
+
+func (sim *simulation) SetFixedOverride(channelID uint64, value float64) {
+	sim.fixedMu.Lock()
+	defer sim.fixedMu.Unlock()
+	if sim.fixedValues == nil {
+		sim.fixedValues = make(map[uint64]float64)
+	}
+	sim.fixedValues[channelID] = value
+}
+
+func (sim *simulation) ClearFixedOverride(channelID uint64) {
+	sim.fixedMu.Lock()
+	defer sim.fixedMu.Unlock()
+	delete(sim.fixedValues, channelID)
+}
+
+func (sim *simulation) lookupFixedOverride(channelID uint64) (float64, bool) {
+	sim.fixedMu.RLock()
+	defer sim.fixedMu.RUnlock()
+	value, ok := sim.fixedValues[channelID]
+	return value, ok
+}
+
+func (sim *simulation) SetAnomalyRate(rate float64) {
+	sim.anomalyMu.Lock()
+	defer sim.anomalyMu.Unlock()
+	sim.anomalyRate = rate
+}
+
+func (sim *simulation) GetAnomalyRate() float64 {
+	sim.anomalyMu.RLock()
+	defer sim.anomalyMu.RUnlock()
+	return sim.anomalyRate
 }
 
 // ──────────────────── HTTP 服务 ────────────────────
@@ -60,7 +201,7 @@ func NewSimServer() *SimServer {
 		} else {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		}
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		if c.Request.Method == http.MethodOptions {
@@ -75,6 +216,9 @@ func NewSimServer() *SimServer {
 	engine.POST("/start", s.handleStart)
 	engine.POST("/stop", s.handleStop)
 	engine.POST("/trigger-telemetry", s.handleTriggerTelemetry)
+	engine.POST("/anomaly-rate", s.handleUpdateAnomalyRate)
+	engine.POST("/fixed-overrides", s.handleSetFixedOverride)
+	engine.DELETE("/fixed-overrides/:channelId", s.handleDeleteFixedOverride)
 	engine.GET("/events", s.handleEvents)
 
 	return s
@@ -98,27 +242,7 @@ func (s *SimServer) handleStatus(c *gin.Context) {
 		return
 	}
 
-	sim := s.sim
-	resp := statusResponse{
-		Running:        true,
-		UptimeSec:      int64(time.Since(sim.startTime).Seconds()),
-		TelemetryCount: sim.sensor.totalTelemetry,
-	}
-	if sim.sensor != nil {
-		resp.SensorDevice = sim.sensor.deviceCode
-		for _, ch := range sim.sensor.channels {
-			resp.SensorChannels = append(resp.SensorChannels, sensorChannelDTO{
-				ChannelID:  ch.ID,
-				MetricCode: ch.MetricCode,
-				Unit:       ch.Unit,
-			})
-		}
-	}
-	if sim.actuator != nil {
-		resp.ActuatorDevice = sim.actuator.deviceCode
-	}
-
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, s.sim.BuildStatusResponse())
 }
 
 // ──────────────────── POST /start ────────────────────
@@ -138,13 +262,12 @@ func (s *SimServer) handleStart(c *gin.Context) {
 		return
 	}
 
-	// Validate required field
-	if cfg.SensorDeviceCode == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 10001, "message": "sensor_device_code 不能为空"})
+	sensorCodes, actuatorCodes, err := cfg.NormalizeDeviceCodes()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 10001, "message": err.Error()})
 		return
 	}
 
-	// Set defaults
 	if cfg.APIBaseURL == "" {
 		cfg.APIBaseURL = "http://127.0.0.1:3000"
 	}
@@ -155,7 +278,7 @@ func (s *SimServer) handleStart(c *gin.Context) {
 		cfg.Password = "admin123"
 	}
 	if cfg.MqttBroker == "" {
-		cfg.MqttBroker = "tcp://127.0.0.1:1883"
+		cfg.MqttBroker = "tcp://127.0.0.1:18830"
 	}
 	if cfg.GreenhouseID == 0 {
 		cfg.GreenhouseID = 1
@@ -170,7 +293,6 @@ func (s *SimServer) handleStart(c *gin.Context) {
 		cfg.EnvTickMs = 1000
 	}
 
-	// ── Phase 1: Login ──
 	s.hub.PublishLog("info", "正在登录后端 API...")
 	api := newAPIClient(cfg.APIBaseURL)
 	if err := api.login(cfg.Username, cfg.Password); err != nil {
@@ -180,47 +302,9 @@ func (s *SimServer) handleStart(c *gin.Context) {
 	}
 	s.hub.PublishLog("info", fmt.Sprintf("登录成功: %s", cfg.Username))
 
-	// ── Phase 2: Discover sensor device ──
-	s.hub.PublishLog("info", fmt.Sprintf("正在发现传感器设备: %s", cfg.SensorDeviceCode))
-	ds, err := api.discoverSensorDevice(cfg.SensorDeviceCode)
-	if err != nil {
-		s.hub.PublishLog("error", fmt.Sprintf("发现传感器失败: %v", err))
-		c.JSON(http.StatusBadRequest, gin.H{"code": 10004, "message": "发现传感器失败: " + err.Error()})
-		return
-	}
-
-	cfgByChan := make(map[uint64]metricConfig, len(ds.Channels))
-	for _, ch := range ds.Channels {
-		cfg := metricConfig{Code: ch.MetricCode, Unit: ch.Unit, Base: 25, Range: 5}
-		for _, def := range defaultMetrics {
-			if def.Code == ch.MetricCode {
-				cfg = def
-				break
-			}
-		}
-		cfgByChan[ch.ID] = cfg
-	}
-	s.hub.PublishLog("info", fmt.Sprintf("传感器通道: %d", len(ds.Channels)))
-
-	// ── Phase 2b: Discover actuator device (optional) ──
-	var actuatorChannels []actuatorChannelDetail
-	if cfg.ActuatorDeviceCode != "" {
-		s.hub.PublishLog("info", fmt.Sprintf("正在发现执行器设备: %s", cfg.ActuatorDeviceCode))
-		da, err := api.discoverActuatorDevice(cfg.ActuatorDeviceCode)
-		if err != nil {
-			s.hub.PublishLog("error", fmt.Sprintf("发现执行器失败: %v", err))
-			c.JSON(http.StatusBadRequest, gin.H{"code": 10004, "message": "发现执行器失败: " + err.Error()})
-			return
-		}
-		actuatorChannels = da.Channels
-		s.hub.PublishLog("info", fmt.Sprintf("执行器通道: %d", len(actuatorChannels)))
-	}
-
-	// ── Phase 3: Create Environment ──
 	sharedRNG := rand.New(rand.NewSource(time.Now().UnixNano()))
 	env := NewEnvironment(sharedRNG)
 
-	// ── Phase 4: Connect MQTT ──
 	s.hub.PublishLog("info", fmt.Sprintf("正在连接 MQTT: %s", cfg.MqttBroker))
 	mqttClientID := fmt.Sprintf("sim-srv-%d", time.Now().UnixNano())
 	mqttMgr, err := newMQTTManager(cfg.MqttBroker, cfg.MqttUser, cfg.MqttPass, mqttClientID)
@@ -231,84 +315,75 @@ func (s *SimServer) handleStart(c *gin.Context) {
 	}
 	s.hub.PublishLog("info", "MQTT 已连接")
 
-	// Create simulators with hub injected
-	sen := newSensorSim(cfg.SensorDeviceCode, ds.Channels, cfgByChan, mqttMgr, env, sharedRNG, s.hub)
-	var act *actuatorSim
-	if len(actuatorChannels) > 0 {
-		act = newActuatorSim(cfg.ActuatorDeviceCode, actuatorChannels, mqttMgr, env, s.hub)
-
-		// Initialize actuator states from backend data
-		initCount := 0
-		for _, ch := range actuatorChannels {
-			state := ch.CurrentState
-			if state == "" {
-				state = "OFF"
-			}
-			value := 0.0
-			if ch.CurrentLevel != nil {
-				value = *ch.CurrentLevel
-			} else if state == "ON" {
-				value = 100.0
-			}
-			env.UpdateActuatorState(ch.ID, ch.ActuatorType, state, value)
-			initCount++
-		}
-		s.hub.PublishLog("info", fmt.Sprintf("执行器状态已从后端同步: %d 个通道", initCount))
-	}
-
-	// ── Phase 5: Subscribe to commands ──
-	if act != nil {
-		topic := cmdTopic(act.deviceCode)
-		if err := mqttMgr.subscribe(topic, act.onCommand); err != nil {
-			s.hub.PublishLog("error", fmt.Sprintf("执行器命令订阅失败: %v", err))
+	sensors := make([]*sensorSim, 0, len(sensorCodes))
+	for _, sensorCode := range sensorCodes {
+		s.hub.PublishLog("info", fmt.Sprintf("正在发现传感器设备: %s", sensorCode))
+		ds, discoverErr := api.discoverSensorDevice(sensorCode)
+		if discoverErr != nil {
+			s.hub.PublishLog("error", fmt.Sprintf("发现传感器失败: %v", discoverErr))
 			mqttMgr.disconnect(500)
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 10006, "message": "执行器命令订阅失败: " + err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"code": 10004, "message": fmt.Sprintf("发现传感器失败(%s): %v", sensorCode, discoverErr)})
 			return
 		}
-		s.hub.PublishLog("info", fmt.Sprintf("已订阅执行器命令: %s", topic))
+		sensors = append(sensors, newSensorSim(sensorCode, ds.Channels, buildMetricConfigMap(ds.Channels), mqttMgr, env, sharedRNG, s.hub, cfg.BatchID))
+		s.hub.PublishLog("info", fmt.Sprintf("传感器通道: %s (%d)", sensorCode, len(ds.Channels)))
 	}
-	topic := cmdTopic(sen.deviceCode)
-	if err := mqttMgr.subscribe(topic, sen.onCommand); err != nil {
-		s.hub.PublishLog("error", fmt.Sprintf("传感器命令订阅失败: %v", err))
+
+	actuators := make([]*actuatorSim, 0, len(actuatorCodes))
+	for _, actuatorCode := range actuatorCodes {
+		s.hub.PublishLog("info", fmt.Sprintf("正在发现执行器设备: %s", actuatorCode))
+		da, discoverErr := api.discoverActuatorDevice(actuatorCode)
+		if discoverErr != nil {
+			s.hub.PublishLog("error", fmt.Sprintf("发现执行器失败: %v", discoverErr))
+			mqttMgr.disconnect(500)
+			c.JSON(http.StatusBadRequest, gin.H{"code": 10004, "message": fmt.Sprintf("发现执行器失败(%s): %v", actuatorCode, discoverErr)})
+			return
+		}
+		actuators = append(actuators, newActuatorSim(actuatorCode, da.Channels, mqttMgr, env, s.hub))
+		initializeActuatorStates(env, da.Channels)
+		s.hub.PublishLog("info", fmt.Sprintf("执行器通道: %s (%d)", actuatorCode, len(da.Channels)))
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	sim := &simulation{
+		ctx:         ctx,
+		cancel:      cancel,
+		sensors:     sensors,
+		actuators:   actuators,
+		env:         env,
+		mqtt:        mqttMgr,
+		rng:         sharedRNG,
+		fixedValues: make(map[uint64]float64),
+		anomalyRate: cfg.AnomalyRate,
+		startTime:   time.Now(),
+	}
+	for _, sensor := range sim.sensors {
+		sensor.fixedValueProvider = sim.lookupFixedOverride
+	}
+
+	if err := sim.subscribeAllCommands(); err != nil {
+		s.hub.PublishLog("error", fmt.Sprintf("命令订阅失败: %v", err))
 		mqttMgr.disconnect(500)
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 10006, "message": "传感器命令订阅失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 10006, "message": "命令订阅失败: " + err.Error()})
 		return
 	}
-	s.hub.PublishLog("info", fmt.Sprintf("已订阅传感器命令: %s", topic))
-
-	// ── Phase 6: Publish ONLINE ──
-	if act != nil {
-		act.publishStatus("ONLINE")
+	for _, actuator := range sim.actuators {
+		s.hub.PublishLog("info", fmt.Sprintf("已订阅执行器命令: %s", cmdTopic(actuator.deviceCode)))
 	}
-	sen.publishStatus("ONLINE")
-
-	// ── Phase 7: Start simulation loop ──
-	ctx, cancel := context.WithCancel(context.Background())
-
-	sim := &simulation{
-		ctx:       ctx,
-		cancel:    cancel,
-		sensor:    sen,
-		actuator:  act,
-		env:       env,
-		mqtt:      mqttMgr,
-		rng:       sharedRNG,
-		startTime: time.Now(),
+	for _, sensor := range sim.sensors {
+		s.hub.PublishLog("info", fmt.Sprintf("已订阅传感器命令: %s", cmdTopic(sensor.deviceCode)))
 	}
 
-	// Launch goroutines
+	sim.publishStatusAll("ONLINE")
+
 	go sim.runEnvTicker(cfg.EnvTickMs)
-	go sim.runTelemetryTicker(cfg.TelemetrySec, cfg.AnomalyRate)
+	go sim.runTelemetryTicker(cfg.TelemetrySec)
 	go sim.runHeartbeatTicker(cfg.HeartbeatSec)
 
-	// Send initial telemetry and heartbeat immediately
 	go func() {
 		time.Sleep(200 * time.Millisecond)
-		sen.sendTelemetry(cfg.AnomalyRate)
-		sen.publishHeartbeat()
-		if act != nil {
-			act.publishHeartbeat()
-		}
+		sim.TriggerTelemetry(sim.GetAnomalyRate(), nil)
+		sim.publishHeartbeatAll()
 	}()
 
 	s.mu.Lock()
@@ -321,13 +396,7 @@ func (s *SimServer) handleStart(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code":    0,
 		"message": "模拟器已启动",
-		"data": statusResponse{
-			Running:        true,
-			SensorDevice:   cfg.SensorDeviceCode,
-			ActuatorDevice: cfg.ActuatorDeviceCode,
-			UptimeSec:      0,
-			TelemetryCount: 0,
-		},
+		"data":    sim.BuildStatusResponse(),
 	})
 }
 
@@ -345,31 +414,13 @@ func (s *SimServer) handleStop(c *gin.Context) {
 	}
 
 	s.hub.PublishLog("info", "正在停止模拟器...")
-
-	// Cancel context to stop goroutines
 	sim.cancel()
-
-	// Publish OFFLINE
-	if sim.actuator != nil {
-		sim.actuator.publishStatus("OFFLINE")
-	}
-	if sim.sensor != nil {
-		sim.sensor.publishStatus("OFFLINE")
-	}
-
-	// Disconnect MQTT
+	sim.publishStatusAll("OFFLINE")
 	sim.mqtt.disconnect(500)
 
-	// Compute stats
 	uptime := int64(time.Since(sim.startTime).Seconds())
-	telemetryCount := int64(0)
-	cmdACKCount := int64(0)
-	if sim.sensor != nil {
-		telemetryCount = sim.sensor.totalTelemetry
-	}
-	if sim.actuator != nil {
-		cmdACKCount = sim.actuator.totalCmdACK
-	}
+	telemetryCount := sim.totalTelemetryCount()
+	cmdACKCount := sim.totalCmdACKCount()
 
 	s.hub.PublishStatus("stopped")
 	s.hub.PublishLog("info", fmt.Sprintf("模拟器已停止，运行时长: %ds", uptime))
@@ -392,7 +443,7 @@ func (s *SimServer) handleTriggerTelemetry(c *gin.Context) {
 	sim := s.sim
 	s.mu.Unlock()
 
-	if sim == nil || sim.sensor == nil {
+	if sim == nil || len(sim.sensors) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 10001, "message": "模拟器未运行"})
 		return
 	}
@@ -405,7 +456,7 @@ func (s *SimServer) handleTriggerTelemetry(c *gin.Context) {
 		overrides[ov.ChannelID] = ov.Value
 	}
 
-	count := sim.sensor.sendTelemetryWithOverrides(req.AnomalyRate, overrides)
+	count := sim.TriggerTelemetry(req.AnomalyRate, overrides)
 
 	s.hub.PublishLog("info", fmt.Sprintf("手动遥测触发 (%d 通道)", count))
 
@@ -414,6 +465,69 @@ func (s *SimServer) handleTriggerTelemetry(c *gin.Context) {
 		"message": "ok",
 		"data":    triggerTelemetryResp{ChannelCount: count},
 	})
+}
+
+func (s *SimServer) handleUpdateAnomalyRate(c *gin.Context) {
+	s.mu.Lock()
+	sim := s.sim
+	s.mu.Unlock()
+
+	if sim == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 10001, "message": "模拟器未运行"})
+		return
+	}
+
+	var req anomalyRateReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 10001, "message": "请求参数无效"})
+		return
+	}
+
+	sim.SetAnomalyRate(req.AnomalyRate)
+	s.hub.PublishLog("info", fmt.Sprintf("已更新异常率: %.4f", req.AnomalyRate))
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
+}
+
+func (s *SimServer) handleSetFixedOverride(c *gin.Context) {
+	s.mu.Lock()
+	sim := s.sim
+	s.mu.Unlock()
+
+	if sim == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 10001, "message": "模拟器未运行"})
+		return
+	}
+
+	var req fixedOverrideReq
+	if err := c.ShouldBindJSON(&req); err != nil || req.ChannelID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 10001, "message": "请求参数无效"})
+		return
+	}
+
+	sim.SetFixedOverride(req.ChannelID, req.Value)
+	s.hub.PublishLog("info", fmt.Sprintf("已设置通道固定值: channel=%d value=%.2f", req.ChannelID, req.Value))
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
+}
+
+func (s *SimServer) handleDeleteFixedOverride(c *gin.Context) {
+	s.mu.Lock()
+	sim := s.sim
+	s.mu.Unlock()
+
+	if sim == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 10001, "message": "模拟器未运行"})
+		return
+	}
+
+	var channelID uint64
+	if _, err := fmt.Sscan(c.Param("channelId"), &channelID); err != nil || channelID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 10001, "message": "channel_id 无效"})
+		return
+	}
+
+	sim.ClearFixedOverride(channelID)
+	s.hub.PublishLog("info", fmt.Sprintf("已清除通道固定值: channel=%d", channelID))
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
 }
 
 // ──────────────────── GET /events (SSE) ────────────────────
@@ -460,17 +574,16 @@ func (sim *simulation) runEnvTicker(envTickMs int) {
 			dt := float64(envTickMs) / 1000.0
 			sim.env.Tick(dt)
 
-			// Emit env snapshot via SSE (hub is injected into simulators)
-			if sim.sensor != nil && sim.sensor.hub != nil {
+			if len(sim.sensors) > 0 && sim.sensors[0].hub != nil {
 				snapshot := sim.env.GetSnapshot()
 				snapshot.TS = time.Now().UTC().Format(time.RFC3339)
-				sim.sensor.hub.PublishEnv(snapshot)
+				sim.sensors[0].hub.PublishEnv(snapshot)
 			}
 		}
 	}
 }
 
-func (sim *simulation) runTelemetryTicker(intervalSec int, anomalyRate float64) {
+func (sim *simulation) runTelemetryTicker(intervalSec int) {
 	ticker := time.NewTicker(time.Duration(intervalSec) * time.Second)
 	defer ticker.Stop()
 
@@ -479,7 +592,7 @@ func (sim *simulation) runTelemetryTicker(intervalSec int, anomalyRate float64) 
 		case <-sim.ctx.Done():
 			return
 		case <-ticker.C:
-			sim.sensor.sendTelemetry(anomalyRate)
+			sim.TriggerTelemetry(sim.GetAnomalyRate(), nil)
 		}
 	}
 }
@@ -493,10 +606,38 @@ func (sim *simulation) runHeartbeatTicker(intervalSec int) {
 		case <-sim.ctx.Done():
 			return
 		case <-ticker.C:
-			sim.sensor.publishHeartbeat()
-			if sim.actuator != nil {
-				sim.actuator.publishHeartbeat()
+			sim.publishHeartbeatAll()
+		}
+	}
+}
+
+func buildMetricConfigMap(channels []sensorChannelDetail) map[uint64]metricConfig {
+	cfgByChan := make(map[uint64]metricConfig, len(channels))
+	for _, ch := range channels {
+		cfg := metricConfig{Code: ch.MetricCode, Unit: ch.Unit, Base: 25, Range: 5}
+		for _, def := range defaultMetrics {
+			if def.Code == ch.MetricCode {
+				cfg = def
+				break
 			}
 		}
+		cfgByChan[ch.ID] = cfg
+	}
+	return cfgByChan
+}
+
+func initializeActuatorStates(env *Environment, channels []actuatorChannelDetail) {
+	for _, ch := range channels {
+		state := ch.CurrentState
+		if state == "" {
+			state = "OFF"
+		}
+		value := 0.0
+		if ch.CurrentLevel != nil {
+			value = *ch.CurrentLevel
+		} else if state == "ON" {
+			value = 100.0
+		}
+		env.UpdateActuatorState(ch.ID, ch.ActuatorType, state, value)
 	}
 }

@@ -25,13 +25,13 @@ influx:
   bucket: telemetry
 
 mqtt:
-  broker: "tcp://127.0.0.1:1883"
+  broker: "tcp://127.0.0.1:18830"
   username: "emqx"
   password: "public"
   client_id: "hamb-backend"
 
 log:
-  level: warn
+  level: info
 
 device:
   heartbeat_timeout_sec: 600

@@ -96,6 +96,9 @@ func (s *BatchStageScheduler) processBatch(now time.Time, batchID uint64) {
 		Order("stage_start_at ASC").
 		First(&plan).Error
 	if err != nil {
+		if err != gorm.ErrRecordNotFound && s.log != nil {
+			s.log.Warn("batch stage scheduler: query stage plan failed", "batch_id", batchID, "error", err)
+		}
 		return
 	}
 

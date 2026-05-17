@@ -2052,24 +2052,53 @@ ID 类型：`BIGINT`，响应中以数字返回
 {
   "code": 0,
   "data": {
-    "sensors_online": 10,
-    "sensors_offline": 2,
-    "sensors_total": 12,
-    "actuators_online": 8,
-    "actuators_offline": 1,
-    "actuators_total": 9,
-    "alerts_open": 5,
-    "alerts_critical": 2,
-    "alerts_today": 3,
-    "greenhouse_summary": [
+    "stats": {
+      "active_batches_count": 3,
+      "unresolved_alerts": 5,
+      "devices_online": 18,
+      "devices_offline": 3,
+      "energy_kwh_today": 42.6,
+      "water_l_today": 680
+    },
+    "greenhouses": [
       {
-        "greenhouse_id": 1,
+        "id": "1",
         "name": "一号温室",
-        "sensor_count": 6,
-        "actuator_count": 4,
-        "zone_count": 4,
-        "avg_temp": 25.5,
-        "avg_humidity": 65.0
+        "health_score": "good",
+        "last_collected_at": "2026-05-16T08:10:00Z",
+        "metrics": {
+          "temperature": 25.5,
+          "humidity": 65.0,
+          "ec": 1.8,
+          "ph": 6.2,
+          "do": 7.1,
+          "co2": 520,
+          "lux": 18000
+        },
+        "active_strategies": ["Climate A", "Recipe Active"]
+      }
+    ],
+    "trends": {
+      "timestamps": ["09:00", "10:00"],
+      "ec_avg": [1.7, 1.8],
+      "ph_avg": [6.1, 6.2]
+    },
+    "active_batches": [
+      {
+        "batch_id": "12",
+        "crop_name": "生菜",
+        "stage": "育苗期",
+        "day": 6,
+        "greenhouse_id": "1"
+      }
+    ],
+    "recent_alerts": [
+      {
+        "alert_id": "88",
+        "severity": "CRITICAL",
+        "message": "温度过高",
+        "timestamp": "2026-05-16T08:12:00Z",
+        "greenhouse_name": "一号温室"
       }
     ],
     "recent_commands": [
@@ -2084,6 +2113,11 @@ ID 类型：`BIGINT`，响应中以数字返回
   }
 }
 ```
+
+说明：
+
+- `greenhouses[].last_collected_at` 表示该温室全部遥测指标中最近一条采集记录的时间
+- 当温室还没有任何遥测数据时，`last_collected_at` 返回 `null`
 
 ### 3.17 审计日志 (Audit Logs)
 

@@ -21,13 +21,16 @@ type sensorSim struct {
 	env        *Environment
 	rngSource  *rand.Rand
 	hub        *SSEHub // optional, nil in CLI mode
+	batchID    *uint64
+
+	fixedValueProvider func(channelID uint64) (float64, bool)
 
 	// Stats
 	totalTelemetry int64
 }
 
 // newSensorSim creates a new sensor simulator.
-func newSensorSim(deviceCode string, channels []sensorChannelDetail, cfgByChan map[uint64]metricConfig, mqtt *mqttManager, env *Environment, rng *rand.Rand, hub *SSEHub) *sensorSim {
+func newSensorSim(deviceCode string, channels []sensorChannelDetail, cfgByChan map[uint64]metricConfig, mqtt *mqttManager, env *Environment, rng *rand.Rand, hub *SSEHub, batchID *uint64) *sensorSim {
 	return &sensorSim{
 		deviceCode: deviceCode,
 		channels:   channels,
@@ -36,6 +39,7 @@ func newSensorSim(deviceCode string, channels []sensorChannelDetail, cfgByChan m
 		env:        env,
 		rngSource:  rng,
 		hub:        hub,
+		batchID:    batchID,
 	}
 }
 
@@ -60,7 +64,9 @@ func (s *sensorSim) sendTelemetryWithOverrides(anomalyRate float64, overrides ma
 
 	for _, ch := range s.channels {
 		var val float64
-		if ov, ok := overrides[ch.ID]; ok {
+		if fixed, ok := s.lookupFixedValue(ch.ID); ok {
+			val = fixed
+		} else if ov, ok := overrides[ch.ID]; ok {
 			val = ov
 		} else {
 			val = s.env.GetSensorReading(ch.MetricCode)
@@ -85,6 +91,7 @@ func (s *sensorSim) sendTelemetryWithOverrides(anomalyRate float64, overrides ma
 			Value:           round(val, 2),
 			QualityFlag:     qualityFlag,
 			CollectedAt:     now,
+			BatchID:         s.batchID,
 		})
 		sentCount++
 	}
@@ -107,6 +114,13 @@ func (s *sensorSim) sendTelemetryWithOverrides(anomalyRate float64, overrides ma
 	}
 
 	return sentCount
+}
+
+func (s *sensorSim) lookupFixedValue(channelID uint64) (float64, bool) {
+	if s.fixedValueProvider == nil {
+		return 0, false
+	}
+	return s.fixedValueProvider(channelID)
 }
 
 // publishHeartbeat publishes a sensor device heartbeat.

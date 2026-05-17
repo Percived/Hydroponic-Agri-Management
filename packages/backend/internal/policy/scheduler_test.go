@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"hydroponic-backend/internal/alert"
 	"hydroponic-backend/internal/auth"
 	"hydroponic-backend/internal/command"
 	"hydroponic-backend/internal/device"
@@ -416,6 +417,89 @@ func TestPublishedThresholdPolicyStillAutoExecutes(t *testing.T) {
 	}
 }
 
+func TestPublishedThresholdPolicyAlsoCreatesSystemAlert(t *testing.T) {
+	db := openPolicySchedulerTestDB(t)
+
+	policyID := seedThresholdPolicy(t, db, true)
+	s := NewScheduler(db, event.NewHub(), &fakeMQTTClient{connected: true}, testLogger())
+
+	s.evaluateThresholdPolicies("TEMP", 35, map[string]interface{}{
+		"metric_code":       "TEMP",
+		"value":             35.0,
+		"sensor_channel_id": uint64(101),
+		"device_code":       "SENSOR-001",
+	})
+
+	var executions []PolicyExecution
+	if err := db.Where("policy_id = ?", policyID).Find(&executions).Error; err != nil {
+		t.Fatalf("load executions: %v", err)
+	}
+	if len(executions) != 1 || executions[0].Decision != "EXECUTED" {
+		t.Fatalf("expected published threshold policy to execute, got %+v", executions)
+	}
+
+	var alerts []alert.Alert
+	if err := db.Order("id asc").Find(&alerts).Error; err != nil {
+		t.Fatalf("load alerts: %v", err)
+	}
+	if len(alerts) != 1 {
+		t.Fatalf("expected 1 alert for published threshold policy, got %d", len(alerts))
+	}
+	if alerts[0].Type != alert.TypeThreshold {
+		t.Fatalf("expected alert type %s, got %s", alert.TypeThreshold, alerts[0].Type)
+	}
+	if alerts[0].Status != alert.StatusOpen {
+		t.Fatalf("expected alert status %s, got %s", alert.StatusOpen, alerts[0].Status)
+	}
+	if alerts[0].MetricCode != "TEMP" {
+		t.Fatalf("expected alert metric code TEMP, got %s", alerts[0].MetricCode)
+	}
+	if alerts[0].SensorChannelID == nil || *alerts[0].SensorChannelID != 101 {
+		t.Fatalf("expected alert sensor_channel_id 101, got %+v", alerts[0].SensorChannelID)
+	}
+}
+
+func TestThresholdPolicyEventDrivenWithTypedTelemetryPayload(t *testing.T) {
+	db := openPolicySchedulerTestDB(t)
+	hub := event.NewHub()
+	policyID := seedThresholdPolicy(t, db, true)
+	s := NewScheduler(db, hub, &fakeMQTTClient{connected: true}, testLogger())
+	s.Start()
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		hub.Publish(event.SSEEvent{
+			Type: "telemetry:received",
+			Data: event.TelemetrySSEDataV1{
+				SchemaVersion:   1,
+				SensorChannelID: 101,
+				MetricCode:      "TEMP",
+				Value:           35,
+				QualityFlag:     "normal",
+				CollectedAt:     time.Now().UTC().Format(time.RFC3339),
+				DeviceCode:      "SENSOR-001",
+			},
+		})
+
+		var execCount int64
+		if err := db.Model(&PolicyExecution{}).Where("policy_id = ?", policyID).Count(&execCount).Error; err != nil {
+			t.Fatalf("count executions: %v", err)
+		}
+		if execCount > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	var executions []PolicyExecution
+	if err := db.Where("policy_id = ?", policyID).Find(&executions).Error; err != nil {
+		t.Fatalf("load executions: %v", err)
+	}
+	if len(executions) != 1 || executions[0].Decision != "EXECUTED" {
+		t.Fatalf("expected typed telemetry event to execute threshold policy, got %+v", executions)
+	}
+}
+
 func openPolicySchedulerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -424,6 +508,8 @@ func openPolicySchedulerTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	if err := db.AutoMigrate(
+		&alert.Alert{},
+		&alert.AlertTimelineEvent{},
 		&auth.User{},
 		&ControlPolicy{},
 		&PolicyCondition{},

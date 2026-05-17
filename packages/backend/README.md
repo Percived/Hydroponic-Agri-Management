@@ -58,7 +58,7 @@ From `configs/config.yaml`:
 - API: `http://127.0.0.1:8080`
 - MySQL: `127.0.0.1:3307` (container internal `3306`)
 - InfluxDB: `http://127.0.0.1:8086`
-- MQTT: `tcp://127.0.0.1:1883`
+- MQTT: `tcp://127.0.0.1:18830`
 
 Default seeded admin account:
 - username: `admin`
@@ -79,4 +79,5 @@ GOCACHE=/tmp/gocache go test ./...
 
 ## Notes
 - If local MySQL also runs on `3306`, this project uses host `3307` to avoid conflicts.
+- If local port `1883` is unavailable, Docker maps EMQX host port `18830` to container port `1883`.
 - Influx write failures are logged as warnings and do not block telemetry ingestion.

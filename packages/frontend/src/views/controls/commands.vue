@@ -80,15 +80,54 @@
             <el-option v-for="ch in filteredChannels" :key="ch.id" :label="`${ch.channel_code} (${ch.actuator_type})`" :value="ch.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="命令类型" prop="command_type">
-          <el-select v-model="formData.command_type" placeholder="请选择命令类型" style="width: 100%">
+        <el-form-item label="命令类型" prop="command_type" required>
+          <el-select v-model="formData.command_type" placeholder="请选择命令类型" style="width: 100%" @change="onCommandTypeChange">
             <el-option label="开关" value="SWITCH" />
             <el-option label="设置值" value="SET_VALUE" />
             <el-option label="校准" value="CALIBRATE" />
           </el-select>
         </el-form-item>
-        <el-form-item label="命令负载" prop="payload">
-          <el-input v-model="payloadStr" type="textarea" :rows="4" placeholder='请输入 JSON 格式负载，如 {"state":"ON"}' />
+        <el-form-item label="命令负载" required>
+          <!-- SWITCH: ON/OFF select -->
+          <el-select
+            v-if="formData.command_type === 'SWITCH'"
+            v-model="switchState"
+            style="width: 100%"
+          >
+            <el-option label="开启 ON" value="ON" />
+            <el-option label="关闭 OFF" value="OFF" />
+          </el-select>
+          <!-- SET_VALUE: key + value -->
+          <el-row v-else-if="formData.command_type === 'SET_VALUE'" :gutter="8">
+            <el-col :span="8">
+              <el-select
+                v-model="payloadKey"
+                filterable
+                allow-create
+                default-first-option
+                placeholder="参数名"
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="p in paramSuggestions"
+                  :key="p"
+                  :label="p"
+                  :value="p"
+                />
+              </el-select>
+            </el-col>
+            <el-col :span="16">
+              <el-input v-model="payloadValue" placeholder="参数值" />
+            </el-col>
+          </el-row>
+          <!-- CALIBRATE / fallback: raw JSON -->
+          <el-input
+            v-else
+            v-model="payloadRaw"
+            type="textarea"
+            :rows="3"
+            placeholder='{"param":"value"}'
+          />
           <div v-if="payloadError" class="payload-error">{{ payloadError }}</div>
         </el-form-item>
       </el-form>
@@ -142,7 +181,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { commandApi, deviceApi, greenhouseApi } from '@/api'
@@ -178,8 +217,13 @@ const pagination = reactive({
 const createDialogVisible = ref(false)
 const formRef = ref<FormInstance>()
 const submitLoading = ref(false)
-const payloadStr = ref('{"state": "ON"}')
 const payloadError = ref('')
+// 结构化负载字段
+const switchState = ref('ON')
+const payloadKey = ref('')
+const payloadValue = ref('')
+const payloadRaw = ref('{}')
+const paramSuggestions = ['state', 'value', 'speed', 'angle', 'level', 'mode', 'target_temp', 'target_humidity']
 // 四级联动选择
 const selectedGreenhouseId = ref<number | null>(null)
 const selectedZoneId = ref<number | null>(null)
@@ -217,16 +261,18 @@ const currentCommand = ref<ControlCommand | null>(null)
 const receipts = ref<ControlCommandReceipt[]>([])
 const receiptSummary = ref('')
 
-// 监听命令类型变化，更新默认负载
-watch(() => formData.command_type, (type) => {
-  if (type === 'SWITCH') {
-    payloadStr.value = '{"state": "ON"}'
-  } else if (type === 'SET_VALUE') {
-    payloadStr.value = '{"value": 50}'
+// 命令类型变化时重置负载字段
+function onCommandTypeChange() {
+  payloadError.value = ''
+  if (formData.command_type === 'SWITCH') {
+    switchState.value = 'ON'
+  } else if (formData.command_type === 'SET_VALUE') {
+    payloadKey.value = ''
+    payloadValue.value = ''
   } else {
-    payloadStr.value = '{}'
+    payloadRaw.value = '{}'
   }
-})
+}
 
 // 级联清空：上级变动时清空所有下级
 function onGreenhouseChange() {
@@ -285,7 +331,10 @@ async function loadCascadeData() {
 function openCreateDialog() {
   formData.actuator_channel_id = null
   formData.command_type = 'SWITCH'
-  payloadStr.value = '{"state": "ON"}'
+  switchState.value = 'ON'
+  payloadKey.value = ''
+  payloadValue.value = ''
+  payloadRaw.value = '{}'
   payloadError.value = ''
   selectedGreenhouseId.value = null
   selectedZoneId.value = null
@@ -302,13 +351,23 @@ async function handleSubmit() {
     return
   }
 
-  // 验证 JSON 格式
-  try {
-    formData.payload = JSON.parse(payloadStr.value)
-    payloadError.value = ''
-  } catch {
-    payloadError.value = 'JSON 格式错误'
-    return
+  // 根据命令类型构建负载
+  payloadError.value = ''
+  if (formData.command_type === 'SWITCH') {
+    formData.payload = { state: switchState.value }
+  } else if (formData.command_type === 'SET_VALUE') {
+    if (!payloadKey.value.trim()) {
+      payloadError.value = '请输入参数名'
+      return
+    }
+    formData.payload = { [payloadKey.value.trim()]: payloadValue.value }
+  } else {
+    try {
+      formData.payload = JSON.parse(payloadRaw.value)
+    } catch {
+      payloadError.value = 'JSON 格式错误'
+      return
+    }
   }
 
   if (!formData.actuator_channel_id) return

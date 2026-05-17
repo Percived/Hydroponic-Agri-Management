@@ -216,77 +216,75 @@
         <template v-if="formData.policy_type === 'THRESHOLD'">
           <el-divider>策略条件</el-divider>
 
-          <template>
-            <div v-for="(cond, index) in conditions" :key="index" class="target-item">
-              <div class="target-item-header">
-                <span class="target-item-title">触发条件 {{ index + 1 }}</span>
-                <el-button
-                  v-if="conditions.length > 1"
-                  type="danger"
-                  size="small"
-                  plain
-                  @click="removeCondition(index)"
-                >
-                  删除
-                </el-button>
-              </div>
-              <el-form-item label="指标代码" required>
-                <el-select v-model="cond.metric_code" placeholder="选择指标" style="width: 100%">
-                  <el-option v-for="m in metrics" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
-                </el-select>
-              </el-form-item>
-              <el-row :gutter="12">
-                <el-col :span="12">
-                  <el-form-item label="运算符" required>
-                    <el-select v-model="cond.operator" style="width: 100%">
-                      <el-option label="大于 >" value=">" />
-                      <el-option label="大于等于 >=" value=">=" />
-                      <el-option label="小于 <" value="<" />
-                      <el-option label="小于等于 <=" value="<=" />
-                      <el-option label="等于 =" value="=" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="阈值" required>
-                    <el-input-number v-model="cond.threshold_value" style="width: 100%" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-              <el-row :gutter="12">
-                <el-col :span="12">
-                  <el-form-item label="滞后值">
-                    <el-input-number v-model="cond.hysteresis" :min="0" :precision="2" style="width: 100%" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="窗口(秒)">
-                    <el-input-number v-model="cond.window_sec" :min="0" style="width: 100%" />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-              <el-row :gutter="12">
-                <el-col :span="12">
-                  <el-form-item label="持续(秒)">
-                    <el-input-number v-model="cond.required_duration_sec" :min="0" style="width: 100%" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="聚合方式">
-                    <el-select v-model="cond.aggregation" placeholder="默认 last" clearable style="width: 100%">
-                      <el-option label="最新 last" value="last" />
-                      <el-option label="平均 avg" value="avg" />
-                      <el-option label="最大 max" value="max" />
-                      <el-option label="最小 min" value="min" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-              </el-row>
+          <div v-for="(cond, index) in conditions" :key="index" class="target-item">
+            <div class="target-item-header">
+              <span class="target-item-title">触发条件 {{ index + 1 }}</span>
+              <el-button
+                v-if="conditions.length > 1"
+                type="danger"
+                size="small"
+                plain
+                @click="removeCondition(index)"
+              >
+                删除
+              </el-button>
             </div>
-            <el-button type="primary" plain @click="addCondition" style="width: 100%; margin-bottom: 16px;">
-              + 添加触发条件 (满足所有条件时触发)
-            </el-button>
-          </template>
+            <el-form-item label="指标代码" required>
+              <el-select v-model="cond.metric_code" placeholder="选择指标" style="width: 100%">
+                <el-option v-for="m in metrics" :key="m.code" :label="`${m.name} (${m.code})`" :value="m.code" />
+              </el-select>
+            </el-form-item>
+            <el-row :gutter="12">
+              <el-col :span="12">
+                <el-form-item label="运算符" required>
+                  <el-select v-model="cond.operator" style="width: 100%">
+                    <el-option label="大于 >" value=">" />
+                    <el-option label="大于等于 >=" value=">=" />
+                    <el-option label="小于 <" value="<" />
+                    <el-option label="小于等于 <=" value="<=" />
+                    <el-option label="等于 =" value="=" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="阈值" required>
+                  <el-input-number v-model="cond.threshold_value" style="width: 100%" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="12">
+              <el-col :span="12">
+                <el-form-item label="滞后值">
+                  <el-input-number v-model="cond.hysteresis" :min="0" :precision="2" style="width: 100%" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="窗口(秒)">
+                  <el-input-number v-model="cond.window_sec" :min="0" style="width: 100%" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="12">
+              <el-col :span="12">
+                <el-form-item label="持续(秒)">
+                  <el-input-number v-model="cond.required_duration_sec" :min="0" style="width: 100%" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="聚合方式">
+                  <el-select v-model="cond.aggregation" placeholder="默认 last" clearable style="width: 100%">
+                    <el-option label="最新 last" value="last" />
+                    <el-option label="平均 avg" value="avg" />
+                    <el-option label="最大 max" value="max" />
+                    <el-option label="最小 min" value="min" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </div>
+          <el-button type="primary" plain @click="addCondition" style="width: 100%; margin-bottom: 16px;">
+            + 添加触发条件 (满足所有条件时触发)
+          </el-button>
         </template>
 
         <el-divider>目标动作</el-divider>
@@ -799,8 +797,8 @@ async function loadGrowingZones(greenhouseId?: number) {
   }
 }
 
-function disabledPastDate(date: Date): boolean {
-  return date.getTime() < Date.now() - 60 * 1000
+function disabledPastDate(_date: Date): boolean {
+  return false
 }
 
 function disabledInvalidToDate(date: Date): boolean {

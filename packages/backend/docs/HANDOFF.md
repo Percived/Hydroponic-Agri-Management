@@ -1,8 +1,181 @@
 # 交接文档
 
-最后更新: 2026-05-12
+最后更新: 2026-05-16
 当前分支: version2
 当前重点: v2.3.2 气候联动触发源单通道化
+
+## 最新变更 (2026-05-16)
+
+### 阈值策略 WindowSec 条件评估修复
+
+- **问题**
+  - `internal/policy/scheduler.go` 的 `evaluateCondition` 存在两处 bug：
+    1. 事件驱动路径完全忽略 `WindowSec`，只用单点遥测值做比较，不做时间窗口聚合评估
+    2. `evaluateConditionFromDB` 中 `Select()` 在 `Where()` 之后链式调用，GORM 生成 SQL 时 `SELECT` 列会在 `WHERE` 子句之前，导致聚合查询（如 `AVG(value)`）在 MySQL 报错
+  - 表现为：策略配置了 `window_sec=60, aggregation=avg`，遥测值持续满足阈值，但 `policy_executions` 全是 `CONDITION_NOT_MET`
+- **修复**
+  - `evaluateCondition`：当 `WindowSec > 0` 时，直接走 DB 窗口聚合路径，不再用单点事件值
+  - `evaluateConditionFromDB`：按 `Select() → Where() → Where(window)` 顺序构建 chain，避免 GORM SQL 生成顺序错误
+- **测试**
+  - 回归执行 `go test ./internal/policy -count=1`
+
+### 阈值策略命中后同步记录系统告警
+
+- **问题**
+  - `internal/policy/scheduler.go` 之前在 `THRESHOLD` 策略命中时只会写 `policy_executions` 并执行 `policy_targets`
+  - 即使策略已经触发了自动控制或物理声光报警，也不会在 `alerts` / `alert_timeline_events` 中留下系统告警记录
+  - 前端告警页因此看不到阈值策略触发历史，只能看到离线等其他来源的告警
+- **修复**
+  - `internal/policy/scheduler.go` 在阈值策略执行成功后，自动创建一条 `THRESHOLD` 类型、`OPEN` 状态的系统告警
+  - 告警会带上 `metric_code`、`trigger_value`、`sensor_channel_id` 等触发信息，并补写 `TRIGGERED` 时间线事件
+  - 事件驱动链路会继续透传遥测元信息，便于 SSE 实时推送时回显设备与测点上下文
+- **测试**
+  - `internal/policy/scheduler_test.go` 新增 `TestPublishedThresholdPolicyAlsoCreatesSystemAlert`
+  - 覆盖已发布阈值策略命中后，除了执行命令外，还会新增一条系统告警记录
+  - 回归执行 `go test ./internal/policy -count=1`
+
+### 气候联动恢复强类型遥测触发，并补齐自动命令创建人
+
+- **问题**
+  - `internal/platform/mqtt/ingress.go` 发布的 `telemetry:received` 真实载荷是 `event.TelemetrySSEDataV1`
+  - `internal/climate/profile_scheduler.go` 的事件驱动循环仍按 `map[string]interface{}` 断言载荷，导致强类型遥测事件被直接跳过，气候联动不会进入阶段判定
+  - 同时，气候联动自动创建 `control_commands` 时未写 `created_by`，在 MySQL 真库上会因 `NOT NULL + FK users.id` 约束导致命令创建失败
+- **修复**
+  - `internal/climate/profile_scheduler.go` 新增遥测触发提取逻辑，兼容 `event.TelemetrySSEDataV1` 与旧 `map[string]interface{}` 载荷
+  - 气候联动自动命令新增创建人兜底，统一取 `users` 表首个可用用户 ID，避免写入 `0`
+  - 修复后，事件驱动阶段联动可以恢复命中，且命令创建满足 `control_commands.created_by` 约束
+- **测试**
+  - 新增 `internal/climate/profile_scheduler_test.go`
+  - 覆盖强类型遥测事件可触发气候联动执行，以及自动命令会写入合法 `created_by`
+  - 回归执行 `go test ./internal/climate -count=1`
+
+### 阈值策略事件驱动恢复强类型遥测触发
+
+- **问题**
+  - MQTT 入站在 `internal/platform/mqtt/ingress.go` 中发布 `telemetry:received` 时，`Data` 实际使用 `event.TelemetrySSEDataV1` 强类型结构体
+  - `internal/policy/scheduler.go` 的事件驱动循环却仍按 `map[string]interface{}` 断言事件载荷，导致断言失败后直接 `continue`
+  - 结果是已发布的 `THRESHOLD` 策略虽然有实时遥测进入数据库，但不会进入实时评估，也不会生成 `policy_executions` / `control_commands`
+- **修复**
+  - `internal/policy/scheduler.go` 新增遥测触发提取逻辑，兼容当前真实发布的 `event.TelemetrySSEDataV1` 与旧 `map[string]interface{}` 载荷
+  - 事件驱动阈值评估恢复正常，实时遥测命中后可继续进入条件判定与目标执行链路
+- **测试**
+  - `internal/policy/scheduler_test.go` 新增 `TestThresholdPolicyEventDrivenWithTypedTelemetryPayload`
+  - 先复现“强类型遥测事件发布后阈值策略不执行”的失败场景，再验证修复后会写入执行记录并自动下发命令
+  - 回归执行 `go test ./internal/policy -count=1`
+
+### 模拟器默认无参启动改为 HTTP 控制服务
+
+- **问题**
+  - `cmd/simulator/main.go` 之前必须显式加 `--server` 才会启动前端可连接的 HTTP 控制服务
+  - 直接执行 `go run cmd/simulator/main.go` 会走旧 CLI 模式，并因为缺少设备参数而不适合前端联动模拟
+- **修复**
+  - `cmd/simulator/main.go` 新增启动决策逻辑：无参数默认启动 HTTP 控制服务
+  - 仅在显式传入 `-sensor-device` 或 `-actuator-device` 时，才进入旧 CLI 单设备模拟模式
+  - `--server` 仍然保留，作为显式强制启动 HTTP 服务的兼容参数
+- **测试**
+  - 新增 `cmd/simulator/main_test.go`
+  - 覆盖默认无参启动走 HTTP 服务、显式设备参数走 CLI、`--server` 优先级最高
+  - 回归执行 `go test ./cmd/simulator -count=1`
+
+### 模拟器支持按采集通道固定上报值
+
+- **问题**
+  - `cmd/simulator` 之前只支持“本次手动遥测临时覆写”，无法让某个采集通道持续固定上报为指定值
+  - 前端 HTML 面板也无法查看或清除某个通道当前生效的固定值
+- **修复**
+  - `cmd/simulator/server.go` 的 `simulation` 新增固定值表，按 `sensor_channel_id` 保存持续生效的固定上报值
+  - `cmd/simulator/sensor.go` 的遥测取值优先级改为：`固定值 > 本次手动覆写 > 环境模型值`
+  - 新增 `POST /fixed-overrides` 与 `DELETE /fixed-overrides/:channelId` 两个接口，分别用于设置和清除固定值
+  - `cmd/simulator/types.go` 的 `/status` 通道 DTO 新增 `fixed_value`，页面刷新后可回显当前固定值
+  - `cmd/simulator/simulator.html` 的“通道覆写”表格新增固定值输入框，以及“设为固定 / 清除固定”操作
+- **测试**
+  - `cmd/simulator/server_test.go` 新增固定值优先级、状态回显、设置/清除固定值接口用例
+  - 回归执行 `go test ./cmd/simulator -count=1`
+
+### 模拟器异常率支持运行中更新，前端保留 0 值传递
+
+- **问题**
+  - 联动模拟面板启动请求里用 `parseFloat(...) || 0.03` 组装 `anomaly_rate`，导致显式输入 `0` 时会被错误回退为 `0.03`
+  - 后端自动遥测定时器只在启动时读取一次异常率，运行中修改前端输入框不会影响后续自动上报
+- **修复**
+  - `cmd/simulator/simulator.html` 新增异常率解析 helper，仅在 `NaN` 时回退默认值，保证 `0` 能正常透传
+  - 联动模拟面板新增“更新异常率”按钮，运行中可通过新接口即时修改当前模拟实例的异常率
+  - `cmd/simulator/server.go` 的 `simulation` 增加运行时异常率读写方法，自动遥测 ticker 每次触发都读取当前值
+  - 新增 `POST /anomaly-rate`，用于更新运行中的异常率
+- **测试**
+  - `cmd/simulator/server_test.go` 新增运行时异常率 setter/getter 与更新接口用例
+  - 回归执行 `go test ./cmd/simulator -count=1`
+
+### 模拟器 HTTP 面板支持单实例多设备绑定
+
+- **问题**
+  - `cmd/simulator/server.go` 与 `simulator.html` 之前只支持 `1 个传感器 + 1 个执行器`
+  - 用户无法在前端 HTML 面板中分多次绑定多个传感器设备和多个执行器设备
+  - 手动遥测覆写、状态查询和执行器展示也都默认按单设备建模
+- **修复**
+  - `cmd/simulator/types.go` 的 `StartConfig` 新增 `sensor_device_codes` / `actuator_device_codes`，并兼容旧单值字段归一化
+  - `cmd/simulator/server.go` 的运行时模型改为单实例持有多个 `sensorSim` 与 `actuatorSim`，共享一套 `Environment`
+  - `/status` 返回多设备结构：`sensor_devices[]`、`actuator_devices[]`
+  - `/trigger-telemetry` 改为遍历全部传感器，按全局唯一 `channel_id` 处理覆写
+  - `cmd/simulator/simulator.html` 改成“可反复添加/移除”的设备绑定列表，并按设备分组展示执行器状态
+- **测试**
+  - 新增 `cmd/simulator/server_test.go`
+  - 覆盖设备编码归一化、多设备状态汇总、跨多个传感器的手动遥测触发
+  - 回归执行 `go test ./cmd/simulator -count=1`
+
+### Dashboard 温室卡片补齐最后采集时间
+
+- **问题**
+  - `GET /api/overview/dashboard` 返回的温室卡片只有最新指标值，没有对应的最后采集时间
+  - 前端 dashboard 的“温室实时监控”无法区分当前数值是刚更新还是历史残留
+- **修复**
+  - `internal/overview/dto.go` 为 `DashboardGreenhouse` 新增 `last_collected_at`
+  - `internal/overview/handler.go` 新增 `loadGreenhouseLastCollectedAt()`，按温室关联的全部采集通道，从 `telemetry_records` 中取最近一条 `collected_at`
+  - `queryGreenhouseMetrics()` 在组装每个温室卡片时同步返回该时间，空数据温室保持 `null`
+- **测试**
+  - `internal/overview/handler_test.go` 新增回归用例
+  - 覆盖跨指标取该温室最新采集时间的口径
+
+### 告警时间线 `event_payload` 空值统一归一化为合法 JSON
+
+- **问题**
+  - `alert_timeline_events.event_payload` 在 MySQL 中是 `JSON` 列
+  - 离线检测、未知设备发现、设备错误告警等系统自动写时间线时，未显式设置 `event_payload`
+  - GORM 最终会把零值字符串落成 `''`，触发 `Error 3140 (22032): Invalid JSON text: "The document is empty."`
+- **修复**
+  - 在 `internal/alert/model.go` 为 `AlertTimelineEvent` 增加模型级兜底
+  - 当 `event_payload` 为空或仅空白字符时，统一归一化为 `{}` 再持久化
+  - 这样所有通过 GORM 创建/更新时间线事件的路径都会自动满足 MySQL `JSON` 列约束
+- **测试**
+  - 新增 `internal/alert/model_test.go`
+  - 覆盖未传 `event_payload` 时，时间线事件会默认持久化为 `{}`
+  - 回归执行 `go test ./internal/alert ./internal/platform/mqtt -count=1`
+
+### 本地 MQTT 宿主机端口改为 18830
+
+- **问题**
+  - Windows 本机无法绑定 `0.0.0.0:1883`，导致 `docker compose up` 启动 EMQX 时直接报端口占用或权限拒绝
+  - 后端默认配置与模拟器默认参数仍指向 `tcp://127.0.0.1:1883`，即使手工调整 compose，也会继续连接旧端口
+- **修复**
+  - `docker-compose.yml` 将 EMQX 映射从 `1883:1883` 调整为 `18830:1883`
+  - `configs/config.yaml` 默认 MQTT Broker 地址改为 `tcp://127.0.0.1:18830`
+  - `cmd/simulator/main.go` 与 `cmd/simulator/server.go` 的默认 MQTT Broker 地址同步改为 `tcp://127.0.0.1:18830`
+  - `README.md` 与 `README_CN.md` 补充本地端口映射说明，避免新环境继续按旧端口连接
+- **测试**
+  - 待在本机执行 `docker compose up -d emqx` 与后端/模拟器启动冒烟验证端口连通性
+
+### 关闭 GORM 默认慢 SQL 日志
+
+- **问题**
+  - `internal/platform/db/mysql.go` 直接使用 `gorm.Open(..., &gorm.Config{})`，未显式配置 GORM logger
+  - 运行时会回退到 GORM 默认 logger，`SlowThreshold=200ms`，导致超过阈值的 SQL 以 `warn` 打印 `SLOW SQL`
+- **修复**
+  - 新增 `newGormLogger()`，显式为 MySQL 连接注入 GORM logger
+  - 将 `SlowThreshold` 设为 `0`，仅关闭慢 SQL 日志
+  - 保持 `LogLevel=Warn`，不影响 SQL 错误日志输出
+- **测试**
+  - 新增 `internal/platform/db/mysql_test.go`
+  - 校验数据库层使用的 GORM logger 已将 `SlowThreshold` 设为 `0`，并维持 `Warn` 级别
 
 ## 最新变更 (2026-05-12)
 

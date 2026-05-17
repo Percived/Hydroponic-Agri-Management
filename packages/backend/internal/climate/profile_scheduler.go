@@ -59,20 +59,13 @@ func (s *ProfileScheduler) runEventDriven() {
 	defer s.hub.Unsubscribe(sub)
 
 	for evt := range sub.Events {
-		data, ok := evt.Data.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		sensorChannelID, ok := toUint64(data["sensor_channel_id"])
-		if !ok {
-			continue
-		}
-		metricCode, _ := data["metric_code"].(string)
-		value, _ := toFloat64(data["value"])
+		sensorChannelID, metricCode, value, collectedAt, ok := extractClimateTelemetryTrigger(evt.Data)
 		if metricCode == "" || value == nil {
 			continue
 		}
-		collectedAt := parseRFC3339Time(data["collected_at"])
+		if !ok {
+			continue
+		}
 		s.evaluateProfilesByChannel(sensorChannelID, metricCode, *value, collectedAt)
 	}
 }
@@ -200,11 +193,17 @@ func (s *ProfileScheduler) executeStageActions(stage *ClimateStage, profileID ui
 
 // executeAction creates a control command and publishes it via MQTT.
 func (s *ProfileScheduler) executeAction(action ClimateStageAction) (uint64, error) {
+	creatorID, err := s.resolveCommandCreator()
+	if err != nil {
+		return 0, err
+	}
+
 	cmd := command.ControlCommand{
 		ActuatorChannelID: action.ActuatorChannelID,
 		CommandType:       action.CommandType,
 		Payload:           action.CommandPayload,
 		Status:            "PENDING",
+		CreatedBy:         creatorID,
 	}
 
 	if err := s.db.Create(&cmd).Error; err != nil {
@@ -277,6 +276,19 @@ func (s *ProfileScheduler) executeAction(action ClimateStageAction) (uint64, err
 	})
 
 	return cmd.ID, nil
+}
+
+func (s *ProfileScheduler) resolveCommandCreator() (uint64, error) {
+	var fallback struct {
+		ID uint64
+	}
+	if err := s.db.Table("users").Select("id").Order("id asc").Limit(1).Scan(&fallback).Error; err != nil {
+		return 0, fmt.Errorf("resolve command creator: %w", err)
+	}
+	if fallback.ID == 0 {
+		return 0, fmt.Errorf("resolve command creator: no available user")
+	}
+	return fallback.ID, nil
 }
 
 // lookupActuatorDeviceCode resolves an actuator channel ID to its device code.
@@ -373,6 +385,36 @@ func toFloat64(v interface{}) (*float64, bool) {
 		return &f, true
 	default:
 		return nil, false
+	}
+}
+
+func extractClimateTelemetryTrigger(data interface{}) (uint64, string, *float64, *time.Time, bool) {
+	switch payload := data.(type) {
+	case event.TelemetrySSEDataV1:
+		value := payload.Value
+		collectedAt := parseRFC3339Time(payload.CollectedAt)
+		return payload.SensorChannelID, payload.MetricCode, &value, collectedAt, true
+	case *event.TelemetrySSEDataV1:
+		if payload == nil {
+			return 0, "", nil, nil, false
+		}
+		value := payload.Value
+		collectedAt := parseRFC3339Time(payload.CollectedAt)
+		return payload.SensorChannelID, payload.MetricCode, &value, collectedAt, true
+	case map[string]interface{}:
+		sensorChannelID, ok := toUint64(payload["sensor_channel_id"])
+		if !ok {
+			return 0, "", nil, nil, false
+		}
+		metricCode, _ := payload["metric_code"].(string)
+		value, ok := toFloat64(payload["value"])
+		if !ok {
+			return 0, "", nil, nil, false
+		}
+		collectedAt := parseRFC3339Time(payload["collected_at"])
+		return sensorChannelID, metricCode, value, collectedAt, true
+	default:
+		return 0, "", nil, nil, false
 	}
 }
 

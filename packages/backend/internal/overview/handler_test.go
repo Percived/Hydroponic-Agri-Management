@@ -3,6 +3,7 @@ package overview
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -61,5 +62,60 @@ func TestLoadGreenhouseActiveStrategies_UsesCurrentSchema(t *testing.T) {
 	want := []string{"Climate Enabled", "Recipe Active"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("expected strategies %v, got %v", want, names)
+	}
+}
+
+func TestLoadGreenhouseLastCollectedAt_PicksLatestTelemetryAcrossMetrics(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+
+	statements := []string{
+		`CREATE TABLE sensor_devices (
+			id INTEGER PRIMARY KEY,
+			greenhouse_id INTEGER NOT NULL
+		)`,
+		`CREATE TABLE sensor_channels (
+			id INTEGER PRIMARY KEY,
+			sensor_device_id INTEGER NOT NULL
+		)`,
+		`CREATE TABLE telemetry_records (
+			id INTEGER PRIMARY KEY,
+			sensor_channel_id INTEGER NOT NULL,
+			metric_code TEXT NOT NULL,
+			value REAL NOT NULL,
+			collected_at DATETIME NOT NULL
+		)`,
+		`INSERT INTO sensor_devices (id, greenhouse_id) VALUES
+			(1, 7),
+			(2, 8)`,
+		`INSERT INTO sensor_channels (id, sensor_device_id) VALUES
+			(11, 1),
+			(12, 1),
+			(21, 2)`,
+		`INSERT INTO telemetry_records (id, sensor_channel_id, metric_code, value, collected_at) VALUES
+			(100, 11, 'TEMP', 24.5, '2026-05-16 08:00:00'),
+			(101, 12, 'EC', 1.8, '2026-05-16 08:05:00'),
+			(102, 11, 'HUMIDITY', 65.0, '2026-05-16 08:10:00'),
+			(103, 21, 'TEMP', 21.0, '2026-05-16 08:20:00')`,
+	}
+	for _, stmt := range statements {
+		if err := db.Exec(stmt).Error; err != nil {
+			t.Fatalf("exec %q: %v", stmt, err)
+		}
+	}
+
+	got, err := loadGreenhouseLastCollectedAt(db, 7)
+	if err != nil {
+		t.Fatalf("load last collected at: %v", err)
+	}
+
+	want := time.Date(2026, 5, 16, 8, 10, 0, 0, time.UTC)
+	if got == nil {
+		t.Fatalf("expected timestamp %s, got nil", want.Format(time.RFC3339))
+	}
+	if !got.Equal(want) {
+		t.Fatalf("expected %s, got %s", want.Format(time.RFC3339), got.Format(time.RFC3339))
 	}
 }

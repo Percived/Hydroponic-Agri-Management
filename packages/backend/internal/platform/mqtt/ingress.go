@@ -144,6 +144,32 @@ func (s *IngressService) createUnknownDeviceAlert(deviceCode string) {
 	})
 }
 
+// lookupActiveBatchByDevice looks up the active batch_id for a device.
+// Returns the batch_id if the device is bound to an active batch, 0 otherwise.
+func (s *IngressService) lookupActiveBatchByDevice(deviceCode string) uint64 {
+	var dev device.SensorDevice
+	if err := s.db.Model(&device.SensorDevice{}).
+		Select("id").
+		Where("device_code = ?", deviceCode).
+		First(&dev).Error; err != nil {
+		return 0
+	}
+
+	var result struct {
+		BatchID uint64 `gorm:"column:batch_id"`
+	}
+	err := s.db.Table("batch_devices").
+		Select("batch_id").
+		Where("device_type = 'sensor' AND device_id = ? AND is_active = 1", dev.ID).
+		Order("bound_at DESC").
+		Limit(1).
+		Take(&result).Error
+	if err != nil {
+		return 0
+	}
+	return result.BatchID
+}
+
 // handleTelemetry processes telemetry data: InfluxDB + MySQL + cache + event
 func (s *IngressService) handleTelemetry(deviceCode string, payload []byte) {
 	sensorFound, _ := s.lookupDevicePresence(deviceCode)
@@ -155,7 +181,6 @@ func (s *IngressService) handleTelemetry(deviceCode string, payload []byte) {
 
 	var items []telemetry.IngestTelemetryRequest
 	if err := json.Unmarshal(payload, &items); err != nil {
-		// Try single record
 		var single telemetry.IngestTelemetryRequest
 		if err2 := json.Unmarshal(payload, &single); err2 != nil {
 			s.log.Error("ingress: invalid telemetry payload", "device", deviceCode, "error", err)
@@ -163,6 +188,8 @@ func (s *IngressService) handleTelemetry(deviceCode string, payload []byte) {
 		}
 		items = []telemetry.IngestTelemetryRequest{single}
 	}
+
+	autoBatchID := s.lookupActiveBatchByDevice(deviceCode)
 
 	records := make([]telemetry.TelemetryRecord, 0, len(items))
 	now := time.Now().UTC()
@@ -182,6 +209,12 @@ func (s *IngressService) handleTelemetry(deviceCode string, payload []byte) {
 			qualityFlag = telemetry.QualityFlagNormal
 		}
 
+		batchID := item.BatchID
+		if batchID == nil && autoBatchID != 0 {
+			bid := autoBatchID
+			batchID = &bid
+		}
+
 		rec := telemetry.TelemetryRecord{
 			SensorChannelID: item.SensorChannelID,
 			MetricCode:      item.MetricCode,
@@ -189,7 +222,7 @@ func (s *IngressService) handleTelemetry(deviceCode string, payload []byte) {
 			RawValue:        item.RawValue,
 			QualityFlag:     qualityFlag,
 			CollectedAt:     collectedAt,
-			BatchID:         item.BatchID,
+			BatchID:         batchID,
 		}
 		records = append(records, rec)
 	}
@@ -252,6 +285,9 @@ func (s *IngressService) writeToInflux(records []telemetry.TelemetryRecord) {
 
 		if rec.RawValue != nil {
 			p.AddField("raw_value", *rec.RawValue)
+		}
+		if rec.BatchID != nil {
+			p.AddTag("batch_id", fmt.Sprintf("%d", *rec.BatchID))
 		}
 		writeAPI.WritePoint(p)
 	}

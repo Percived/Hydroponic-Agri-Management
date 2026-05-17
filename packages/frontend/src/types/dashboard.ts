@@ -21,6 +21,7 @@ export interface DashboardGreenhouse {
   id: string
   name: string
   health_score: string
+  last_collected_at: string | null
   metrics: GreenhouseMetrics
   active_strategies: string[]
 }

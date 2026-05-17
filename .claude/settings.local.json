@@ -36,7 +36,8 @@
       "Bash(powershell:*)",
       "Bash(go vet:*)",
       "Bash(powershell.exe:*)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(cmd.exe:*)"
     ]
   }
 }

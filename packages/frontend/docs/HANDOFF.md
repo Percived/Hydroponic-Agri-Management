@@ -1,10 +1,39 @@
 # 交接文档
 
-最后更新: 2026-05-12
+最后更新: 2026-05-16
 当前分支: version2
 当前重点: v0.8.1 — 气候联动触发源单通道化
 
+## 最新变更 (2026-05-16)
+
+### Dashboard 首页移除 24 小时水质趋势卡片
+
+- **`src/views/dashboard/index.vue`**
+  - 删除首页右侧“24小时水质趋势 (EC / pH)”卡片
+  - 清理该卡片关联的 ECharts 初始化、更新、窗口缩放与销毁逻辑
+  - 保留首页其余概览、批次、告警和指令区域不变
+  - 统一“温室实时监控 / 活跃批次进度 / 最近未处理告警 / 最近下发指令”四个卡片的容器样式与拉伸布局，减少上下两排视觉不齐
+
 ## 最新变更 (2026-05-12)
+
+### 控制策略新增表单恢复阈值条件区显示
+
+- **`src/views/controls/rules.vue`**
+  - 删除 `THRESHOLD` 条件区内部多余的裸 `template` 包装
+  - 修复“新增策略”弹窗在阈值策略下只显示“策略条件”分割线、不显示条件表单与“添加触发条件”按钮的问题
+- **`tests/controls/rules-threshold-form.test.mjs`**
+  - 新增最小回归测试，约束阈值条件区不再被额外 `template` 包裹
+
+### Dashboard 温室实时监控补齐最后采集时间
+
+- **`src/views/dashboard/index.vue`**
+  - 每个温室卡片新增“最后采集”展示，复用 `formatDateTime()` 渲染后端返回时间
+  - 当温室暂无任何遥测数据时，显示“暂无数据”
+- **`src/types/dashboard.ts`**
+  - `DashboardGreenhouse` 新增 `last_collected_at: string | null`
+- **契约依赖**
+  - 字段口径为该温室所有监测指标中最近一条遥测记录的 `collected_at`
+  - 由 `/api/overview/dashboard` 的 `greenhouses[].last_collected_at` 提供
 
 ### 审计日志页对齐后端最小可用审计返回
 

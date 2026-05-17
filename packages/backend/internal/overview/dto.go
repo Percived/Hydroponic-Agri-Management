@@ -28,6 +28,7 @@ type DashboardGreenhouse struct {
 	ID               string            `json:"id"`
 	Name             string            `json:"name"`
 	HealthScore      string            `json:"health_score"`
+	LastCollectedAt  *time.Time        `json:"last_collected_at"`
 	Metrics          GreenhouseMetrics `json:"metrics"`
 	ActiveStrategies []string          `json:"active_strategies"`
 }
@@ -75,5 +76,3 @@ type DashboardResponse struct {
 	RecentAlerts   []DashboardRecentAlert `json:"recent_alerts"`
 	RecentCommands []RecentCommand        `json:"recent_commands"`
 }
-
-

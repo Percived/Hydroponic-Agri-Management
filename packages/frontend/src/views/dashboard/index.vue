@@ -50,7 +50,7 @@
 
     <div class="main-content-grid">
       <!-- 左侧：温室环境与水培核心参数 -->
-      <div class="left-column">
+      <div class="left-column section-card section-card--monitor">
         <div class="section-header">
           <h2 class="section-title">温室实时监控</h2>
         </div>
@@ -89,23 +89,21 @@
               </div>
             </div>
             <div class="gh-footer">
-              <span class="strategy-label">运行策略：</span>
+              <span class="meta-label">最后采集：</span>
+              <span class="meta-val">{{ gh.last_collected_at ? formatDateTime(gh.last_collected_at) : '暂无数据' }}</span>
+            </div>
+            <div class="gh-footer">
+              <span class="meta-label">运行策略：</span>
               <span class="strategy-val">{{ gh.active_strategies?.join(', ') || '暂无' }}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 右侧：业务趋势与策略调度 -->
+      <!-- 右侧：业务与策略调度 -->
       <div class="right-column">
-        <!-- 24小时趋势图 -->
-        <div class="chart-card">
-          <h2 class="chart-title">24小时水质趋势 (EC / pH)</h2>
-          <div ref="trendChartRef" class="chart-container" role="img"></div>
-        </div>
-
         <!-- 当前活跃批次 -->
-        <div class="section-card">
+        <div class="section-card section-card--table">
           <div class="section-header">
             <h2 class="section-title">活跃批次进度</h2>
           </div>
@@ -124,7 +122,7 @@
     <!-- 底部：快捷操作与设备交互 -->
     <div class="bottom-grid">
       <!-- 最近未处理告警 -->
-      <div class="section-card">
+      <div class="section-card section-card--table">
         <div class="section-header">
           <h2 class="section-title">最近未处理告警</h2>
           <el-button type="primary" link @click="router.push('/alerts/overview')">查看全部</el-button>
@@ -151,7 +149,7 @@
       </div>
 
       <!-- 最近下发指令 -->
-      <div class="section-card">
+      <div class="section-card section-card--table">
         <div class="section-header">
           <h2 class="section-title">最近下发指令</h2>
           <el-button type="primary" link @click="router.push('/controls/commands')">查看全部</el-button>
@@ -176,9 +174,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, shallowRef } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import * as echarts from 'echarts'
 import { Monitor, Bell, DataLine, Clock } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { dashboardApi } from '@/api'
@@ -202,9 +199,6 @@ const overview = ref<DashboardData>({
   recent_alerts: [],
   recent_commands: []
 })
-
-const trendChartRef = ref<HTMLElement>()
-const trendChart = shallowRef<echarts.ECharts | null>(null)
 
 const currentDate = computed(() => {
   const now = new Date()
@@ -231,60 +225,11 @@ async function fetchData() {
   try {
     const data = await dashboardApi.getDashboardData()
     overview.value = data
-    updateTrendChart()
   } catch (error) {
     console.error('[Dashboard] Failed to fetch data:', error)
   } finally {
     loading.value = false
   }
-}
-
-function initCharts() {
-  if (trendChartRef.value) {
-    trendChart.value = echarts.init(trendChartRef.value)
-  }
-}
-
-function updateTrendChart() {
-  if (!trendChart.value) return
-  const trends = overview.value.trends
-  if (!trends || !trends.timestamps || trends.timestamps.length === 0) return
-
-  trendChart.value.setOption({
-    tooltip: { trigger: 'axis' },
-    legend: { data: ['EC值', 'pH值'], bottom: 0 },
-    grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
-    xAxis: {
-      type: 'category',
-      boundaryGap: false,
-      data: trends.timestamps
-    },
-    yAxis: [
-      { type: 'value', name: 'EC', position: 'left' },
-      { type: 'value', name: 'pH', position: 'right', min: 0, max: 14 }
-    ],
-    series: [
-      {
-        name: 'EC值',
-        type: 'line',
-        smooth: true,
-        data: trends.ec_avg,
-        itemStyle: { color: '#409EFF' }
-      },
-      {
-        name: 'pH值',
-        type: 'line',
-        smooth: true,
-        yAxisIndex: 1,
-        data: trends.ph_avg,
-        itemStyle: { color: '#67C23A' }
-      }
-    ]
-  })
-}
-
-function handleResize() {
-  trendChart.value?.resize()
 }
 
 // SSE Integration
@@ -320,14 +265,10 @@ function setupSSE() {
 
 onMounted(() => {
   fetchData()
-  initCharts()
   setupSSE()
-  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
-  trendChart.value?.dispose()
   if (deviceEventSource) deviceEventSource.close()
   if (commandEventSource) commandEventSource.close()
 })
@@ -407,6 +348,7 @@ onUnmounted(() => {
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     margin-bottom: 20px;
+    align-items: stretch;
 
     @media (max-width: 1200px) {
       grid-template-columns: 1fr;
@@ -430,6 +372,7 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    flex: 1;
   }
 
   .greenhouse-card {
@@ -466,20 +409,10 @@ onUnmounted(() => {
 
     .gh-footer {
       font-size: 13px;
-      .strategy-label { color: var(--color-text-secondary); }
+      .meta-label { color: var(--color-text-secondary); }
+      .meta-val { color: var(--color-text-secondary); }
       .strategy-val { color: var(--color-success); font-weight: 500; }
     }
-  }
-
-  .chart-card {
-    background: var(--bg-card);
-    border-radius: var(--radius-md);
-    padding: 20px;
-    box-shadow: var(--shadow-card);
-    margin-bottom: 20px;
-
-    .chart-title { font-size: 16px; font-weight: 600; margin: 0 0 16px 0; }
-    .chart-container { height: 260px; }
   }
 
   .section-card {
@@ -487,12 +420,27 @@ onUnmounted(() => {
     border-radius: var(--radius-md);
     padding: 20px;
     box-shadow: var(--shadow-card);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+  }
+
+  .section-card--monitor {
+    justify-content: flex-start;
+  }
+
+  .section-card--table {
+    .el-table {
+      flex: 1;
+    }
   }
 
   .bottom-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
+    align-items: stretch;
 
     @media (max-width: 1200px) {
       grid-template-columns: 1fr;

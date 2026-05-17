@@ -204,6 +204,15 @@ button:active { transform: scale(0.97); }
 .api-fields.open { display: block; }
 .ov-cur-val { font-family: 'SF Mono','Fira Code','Consolas',monospace; font-size:0.82rem; text-align:right; color:var(--text-secondary); padding:4px 8px; }
 .btn-override-active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.device-bind-row { display:flex; gap:8px; align-items:center; }
+.device-bind-row input { flex:1; }
+.device-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.device-chip {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:4px 8px; border-radius:16px; background:#f5f8f5; border:1px solid var(--border);
+  font-size:0.76rem; font-family:'SF Mono','Fira Code','Consolas',monospace;
+}
+.device-chip button { padding:2px 6px; }
 </style>
 </head>
 <body>
@@ -437,11 +446,19 @@ button:active { transform: scale(0.97); }
       <div class="card-body">
         <div class="form-group" style="margin-bottom:8px;">
           <label>传感器设备编码 *</label>
-          <input id="linkedSensorCode" placeholder="GH1-SAFE-DWC-01" style="font-family:monospace;">
+          <div class="device-bind-row">
+            <input id="linkedSensorCodeInput" placeholder="GH1-SAFE-DWC-01" style="font-family:monospace;">
+            <button class="btn-outline btn-sm" id="btnAddLinkedSensor" onclick="linkedAddDevice('sensor')">+ 添加</button>
+          </div>
+          <div id="linkedSensorList" class="device-list"></div>
         </div>
         <div class="form-group" style="margin-bottom:8px;">
           <label>执行器设备编码（可选）</label>
-          <input id="linkedActuatorCode" placeholder="留空则仅模拟传感器" style="font-family:monospace;">
+          <div class="device-bind-row">
+            <input id="linkedActuatorCodeInput" placeholder="留空则仅模拟传感器" style="font-family:monospace;">
+            <button class="btn-outline btn-sm" id="btnAddLinkedActuator" onclick="linkedAddDevice('actuator')">+ 添加</button>
+          </div>
+          <div id="linkedActuatorList" class="device-list"></div>
         </div>
         <div class="form-group">
           <label>温室 ID</label>
@@ -458,6 +475,7 @@ button:active { transform: scale(0.97); }
           <div class="form-group"><label>心跳间隔 (秒)</label><input id="linkedHeartbeatSec" type="number" value="30" min="1" style="width:70px;"></div>
           <div class="form-group"><label>环境 Tick (ms)</label><input id="linkedEnvTickMs" type="number" value="1000" min="100" style="width:80px;"></div>
           <div class="form-group"><label>异常率</label><input id="linkedAnomalyRate" type="number" value="0.03" min="0" max="1" step="0.01" style="width:70px;"></div>
+          <div class="form-group" style="flex:0;min-width:auto;"><label>&nbsp;</label><button id="btnLinkedUpdateAnomaly" class="btn-outline btn-sm" onclick="linkedUpdateAnomalyRate()" disabled>更新异常率</button></div>
         </div>
         <div class="toggle-row" onclick="toggleLinkedApi()"><span class="toggle-arrow" id="linkedApiArrow">▶</span> 后端 API 凭据</div>
         <div class="api-fields" id="linkedApiFields">
@@ -495,11 +513,14 @@ button:active { transform: scale(0.97); }
         <table class="telemetry-table">
           <thead>
             <tr>
+              <th>设备编码</th>
               <th>通道 ID</th>
               <th>指标代码</th>
               <th>单位</th>
               <th>当前环境值</th>
-              <th>覆写值</th>
+              <th>临时覆写</th>
+              <th>固定值</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody id="linkedOverrideRows"></tbody>
@@ -592,6 +613,7 @@ const $cmdBadge = document.getElementById('cmdBadge');
 function init() {
   loadSettings();
   linkedLoadConfig();
+  linkedRenderDeviceLists();
   setCollectedAtNow();
   addTelemetryRow();
 }
@@ -1116,6 +1138,9 @@ let linkedRunning = false;
 let linkedUptimeTimer = null;
 let linkedStartTime = null;
 let linkedSensorChannels = [];
+let linkedSensorDeviceCodes = [];
+let linkedActuatorDeviceCodes = [];
+let linkedActuatorChannelMap = {};
 
 const linkedEnvFields = ['temp','humidity','ph','ec','co2','light','water_temp','do','level','orp','tds','o3','turbidity','flow_rate'];
 const linkedEnvRanges = {
@@ -1145,18 +1170,71 @@ function linkedUpdateServerStatus(online) {
   document.getElementById('linkedServerLabel').textContent = online?'已连接':'未连接';
 }
 
+function linkedAddDevice(type) {
+  const inputId = type === 'sensor' ? 'linkedSensorCodeInput' : 'linkedActuatorCodeInput';
+  const input = document.getElementById(inputId);
+  const code = input.value.trim();
+  if (!code) return;
+  const list = type === 'sensor' ? linkedSensorDeviceCodes : linkedActuatorDeviceCodes;
+  if (list.includes(code)) {
+    linkedLog(`⚠️ ${type === 'sensor' ? '传感器' : '执行器'}设备已绑定: ${code}`, 'info');
+    input.value = '';
+    return;
+  }
+  list.push(code);
+  input.value = '';
+  linkedRenderDeviceLists();
+  linkedSaveConfig();
+}
+
+function linkedRemoveDevice(type, index) {
+  const list = type === 'sensor' ? linkedSensorDeviceCodes : linkedActuatorDeviceCodes;
+  list.splice(index, 1);
+  linkedRenderDeviceLists();
+  linkedSaveConfig();
+}
+
+function linkedRenderDeviceLists() {
+  linkedRenderDeviceList('sensor', linkedSensorDeviceCodes, 'linkedSensorList');
+  linkedRenderDeviceList('actuator', linkedActuatorDeviceCodes, 'linkedActuatorList');
+}
+
+function linkedRenderDeviceList(type, values, containerId) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  if (values.length === 0) {
+    container.innerHTML = `<span style="font-size:0.75rem;color:var(--text-secondary);">${type === 'sensor' ? '暂未绑定传感器设备' : '暂未绑定执行器设备'}</span>`;
+    return;
+  }
+  values.forEach((code, index) => {
+    const chip = document.createElement('span');
+    chip.className = 'device-chip';
+    chip.innerHTML = `${escapeHtml(code)} <button class="btn-danger btn-xs" onclick="linkedRemoveDevice('${type}', ${index})">移除</button>`;
+    container.appendChild(chip);
+  });
+}
+
+function linkedSetBindingsDisabled(disabled) {
+  ['linkedSensorCodeInput', 'linkedActuatorCodeInput', 'btnAddLinkedSensor', 'btnAddLinkedActuator'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = disabled;
+  });
+  document.querySelectorAll('#linkedSensorList button, #linkedActuatorList button').forEach(btn => {
+    btn.disabled = disabled;
+  });
+}
+
 async function linkedStart() {
-  const code = document.getElementById('linkedSensorCode').value.trim();
-  if (!code) { alert('请输入传感器设备编码'); return; }
+  if (linkedSensorDeviceCodes.length === 0) { alert('请至少绑定一个传感器设备编码'); return; }
   const serverUrl = document.getElementById('linkedServerUrl').value.trim();
   const cfg = {
-    sensor_device_code: code,
-    actuator_device_code: document.getElementById('linkedActuatorCode').value.trim(),
+    sensor_device_codes: linkedSensorDeviceCodes,
+    actuator_device_codes: linkedActuatorDeviceCodes,
     greenhouse_id: parseInt(document.getElementById('linkedGreenhouseID').value)||1,
     telemetry_sec: parseInt(document.getElementById('linkedTelemetrySec').value)||10,
     heartbeat_sec: parseInt(document.getElementById('linkedHeartbeatSec').value)||30,
     env_tick_ms: parseInt(document.getElementById('linkedEnvTickMs').value)||1000,
-    anomaly_rate: parseFloat(document.getElementById('linkedAnomalyRate').value)||0.03,
+    anomaly_rate: getLinkedAnomalyRate(0.03),
     api_base_url: document.getElementById('linkedApiUrl').value.trim(),
     username: document.getElementById('linkedApiUser').value.trim(),
     password: document.getElementById('linkedApiPass').value.trim(),
@@ -1212,6 +1290,8 @@ function linkedSetRunning(running) {
   document.getElementById('btnLinkedStart').disabled = running;
   document.getElementById('btnLinkedStop').disabled = !running;
   document.getElementById('btnLinkedTrigger').disabled = !running;
+  document.getElementById('btnLinkedUpdateAnomaly').disabled = !running;
+  linkedSetBindingsDisabled(running);
   document.getElementById('linkedRunStatus').textContent = running?'运行中':'未运行';
   document.getElementById('linkedRunStatus').style.color = running?'var(--success)':'';
   if (running) {
@@ -1227,6 +1307,7 @@ function linkedSetRunning(running) {
     clearInterval(linkedUptimeTimer);
     linkedUptimeTimer = null; linkedStartTime = null;
     linkedSensorChannels = [];
+    linkedActuatorChannelMap = {};
     document.getElementById('linkedUptime').style.display = 'none';
     document.getElementById('linkedEnvTS').textContent = '';
     document.querySelectorAll('#linkedEnvGrid .env-card').forEach(c => {
@@ -1267,12 +1348,23 @@ function linkedUpdateEnv(data) {
     cards[i].querySelector('.env-value').textContent = Number(val).toFixed(2);
   }
   if (data.actuators && data.actuators.length>0) {
-    let html = '<table class="actuator-table"><thead><tr><th>ID</th><th>类型</th><th>状态</th><th>功率</th></tr></thead><tbody>';
+    const grouped = {};
     data.actuators.forEach(a => {
-      html += `<tr><td>${a.channel_id}</td><td>${escapeHtml(a.actuator_type)}</td><td class="${a.state==='ON'?'actuator-state-on':'actuator-state-off'}">${a.state}</td><td>${a.value.toFixed(0)}%</td></tr>`;
+      const meta = linkedActuatorChannelMap[a.channel_id] || {};
+      const deviceCode = meta.deviceCode || '未分组设备';
+      if (!grouped[deviceCode]) grouped[deviceCode] = [];
+      grouped[deviceCode].push({ ...a, channel_code: meta.channelCode || '-', actuator_type: a.actuator_type || meta.actuatorType || '-' });
     });
-    html += '</tbody></table>';
-    document.getElementById('linkedActuators').innerHTML = html;
+    let html = '';
+    Object.entries(grouped).forEach(([deviceCode, channels]) => {
+      html += `<div style="font-size:0.76rem;font-weight:600;margin:8px 0 4px;">${escapeHtml(deviceCode)}</div>`;
+      html += '<table class="actuator-table"><thead><tr><th>ID</th><th>通道</th><th>类型</th><th>状态</th><th>功率</th></tr></thead><tbody>';
+      channels.forEach(a => {
+        html += `<tr><td>${a.channel_id}</td><td>${escapeHtml(a.channel_code)}</td><td>${escapeHtml(a.actuator_type)}</td><td class="${a.state==='ON'?'actuator-state-on':'actuator-state-off'}">${a.state}</td><td>${a.value.toFixed(0)}%</td></tr>`;
+      });
+      html += '</tbody></table>';
+    });
+    document.getElementById('linkedActuators').innerHTML = html || '<div class="empty-hint">未运行或无执行器</div>';
   }
   if (data.ts) document.getElementById('linkedEnvTS').textContent = new Date(data.ts).toLocaleTimeString('zh-CN',{hour12:false});
   // Update override row current values
@@ -1287,7 +1379,7 @@ function linkedUpdateEnv(data) {
 function linkedTriggerTelemetry() {
   if (!linkedRunning) return;
   const serverUrl = document.getElementById('linkedServerUrl').value.trim();
-  const anomalyRate = parseFloat(document.getElementById('linkedAnomalyRate').value) || 0;
+  const anomalyRate = getLinkedAnomalyRate(0);
 
   const overrides = [];
   document.querySelectorAll('#linkedOverrideRows tr').forEach(row => {
@@ -1321,13 +1413,55 @@ function linkedTriggerTelemetry() {
   .catch(e => linkedLog(`❌ 请求失败: ${e.message}`, 'error'));
 }
 
+function getLinkedAnomalyRate(fallback) {
+  const parsed = parseFloat(document.getElementById('linkedAnomalyRate').value);
+  return Number.isNaN(parsed) ? fallback : parsed;
+}
+
+async function linkedUpdateAnomalyRate() {
+  if (!linkedRunning) return;
+  const serverUrl = document.getElementById('linkedServerUrl').value.trim();
+  const anomalyRate = getLinkedAnomalyRate(0.03);
+  try {
+    const resp = await fetch(serverUrl + '/anomaly-rate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ anomaly_rate: anomalyRate })
+    });
+    const data = await resp.json();
+    if (resp.ok && data.code === 0) {
+      linkedLog(`✅ 已更新运行中异常率: ${anomalyRate}`, 'success');
+    } else {
+      linkedLog(`❌ 更新异常率失败: ${data.message || resp.statusText}`, 'error');
+    }
+  } catch (e) {
+    linkedLog(`❌ 更新异常率请求失败: ${e.message}`, 'error');
+  }
+}
+
 async function linkedPollStatus() {
   const serverUrl = document.getElementById('linkedServerUrl').value.trim();
   try {
     const resp = await fetch(serverUrl + '/status');
     const data = await resp.json();
-    if (data.running && data.sensor_channels) {
-      linkedSensorChannels = data.sensor_channels;
+    if (data.running) {
+      if (Array.isArray(data.sensor_devices) && data.sensor_devices.length > 0) {
+        linkedSensorChannels = data.sensor_devices.flatMap(device =>
+          (device.channels || []).map(ch => ({ ...ch, device_code: device.device_code }))
+        );
+      } else {
+        linkedSensorChannels = (data.sensor_channels || []).map(ch => ({ ...ch, device_code: data.sensor_device || '' }));
+      }
+      linkedActuatorChannelMap = {};
+      (data.actuator_devices || []).forEach(device => {
+        (device.channels || []).forEach(ch => {
+          linkedActuatorChannelMap[ch.channel_id] = {
+            deviceCode: device.device_code,
+            channelCode: ch.channel_code,
+            actuatorType: ch.actuator_type,
+          };
+        });
+      });
       linkedRenderOverrideRows();
       linkedLog(`📡 获取通道列表: ${linkedSensorChannels.length} 个通道`, 'info');
     }
@@ -1347,15 +1481,28 @@ function linkedToggleOverrides() {
 
 function linkedRenderOverrideRows() {
   const tbody = document.getElementById('linkedOverrideRows');
+  const transientOverrides = {};
+  document.querySelectorAll('#linkedOverrideRows tr').forEach(row => {
+    const channelId = parseInt(row.querySelector('[data-field="channel_id"]')?.value || '', 10);
+    const input = row.querySelector('[data-field="override_value"]');
+    if (!isNaN(channelId) && input && input.value.trim() !== '') {
+      transientOverrides[channelId] = input.value;
+    }
+  });
   tbody.innerHTML = '';
   linkedSensorChannels.forEach(ch => {
+    const transientValue = transientOverrides[ch.channel_id] || '';
+    const fixedValue = ch.fixed_value == null ? '' : Number(ch.fixed_value).toString();
     const row = document.createElement('tr');
     row.innerHTML =
+      `<td>${escapeHtml(ch.device_code || '-')}</td>` +
       `<td><input type="hidden" data-field="channel_id" value="${ch.channel_id}">${ch.channel_id}</td>` +
       `<td>${escapeHtml(ch.metric_code)}</td>` +
       `<td>${escapeHtml(ch.unit || '-')}</td>` +
       `<td class="ov-cur-val" data-metric="${escapeHtml(ch.metric_code)}">--</td>` +
-      `<td><input type="number" data-field="override_value" step="any" placeholder="留空=环境值" style="width:120px;"></td>`;
+      `<td><input type="number" data-field="override_value" step="any" value="${escapeHtml(transientValue)}" placeholder="仅本次上报" style="width:120px;"></td>` +
+      `<td><input type="number" data-field="fixed_value" step="any" value="${escapeHtml(fixedValue)}" placeholder="持续固定值" style="width:120px;"></td>` +
+      `<td><div class="btn-group"><button class="btn-accent btn-xs" onclick="linkedSetFixedOverride(${ch.channel_id})">设为固定</button><button class="btn-outline btn-xs" onclick="linkedDeleteFixedOverride(${ch.channel_id})">清除固定</button></div></td>`;
     tbody.appendChild(row);
   });
 }
@@ -1365,6 +1512,52 @@ function linkedClearOverrides() {
     inp.value = '';
   });
   linkedLog('已清空所有覆写值', 'info');
+}
+
+async function linkedSetFixedOverride(channelId) {
+  if (!linkedRunning) return;
+  const row = Array.from(document.querySelectorAll('#linkedOverrideRows tr'))
+    .find(item => Number(item.querySelector('[data-field="channel_id"]')?.value) === Number(channelId));
+  const input = row?.querySelector('[data-field="fixed_value"]');
+  const value = parseFloat(input?.value ?? '');
+  if (!input || Number.isNaN(value)) {
+    linkedLog(`❌ 请先输入通道 ${channelId} 的固定值`, 'error');
+    return;
+  }
+  const serverUrl = document.getElementById('linkedServerUrl').value.trim();
+  try {
+    const resp = await fetch(serverUrl + '/fixed-overrides', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel_id: channelId, value })
+    });
+    const data = await resp.json();
+    if (resp.ok && data.code === 0) {
+      linkedLog(`✅ 已设置固定值: channel=${channelId} value=${value}`, 'success');
+      await linkedPollStatus();
+    } else {
+      linkedLog(`❌ 设置固定值失败: ${data.message || resp.statusText}`, 'error');
+    }
+  } catch (e) {
+    linkedLog(`❌ 设置固定值请求失败: ${e.message}`, 'error');
+  }
+}
+
+async function linkedDeleteFixedOverride(channelId) {
+  if (!linkedRunning) return;
+  const serverUrl = document.getElementById('linkedServerUrl').value.trim();
+  try {
+    const resp = await fetch(serverUrl + '/fixed-overrides/' + channelId, { method: 'DELETE' });
+    const data = await resp.json();
+    if (resp.ok && data.code === 0) {
+      linkedLog(`✅ 已清除固定值: channel=${channelId}`, 'success');
+      await linkedPollStatus();
+    } else {
+      linkedLog(`❌ 清除固定值失败: ${data.message || resp.statusText}`, 'error');
+    }
+  } catch (e) {
+    linkedLog(`❌ 清除固定值请求失败: ${e.message}`, 'error');
+  }
 }
 
 function toggleLinkedApi() {
@@ -1377,8 +1570,8 @@ function toggleLinkedApi() {
 function linkedSaveConfig() {
   const cfg = {
     serverUrl: document.getElementById('linkedServerUrl').value.trim(),
-    sensorCode: document.getElementById('linkedSensorCode').value.trim(),
-    actuatorCode: document.getElementById('linkedActuatorCode').value.trim(),
+    sensorCodes: linkedSensorDeviceCodes,
+    actuatorCodes: linkedActuatorDeviceCodes,
     greenhouseID: document.getElementById('linkedGreenhouseID').value,
     telemetrySec: document.getElementById('linkedTelemetrySec').value,
     heartbeatSec: document.getElementById('linkedHeartbeatSec').value,
@@ -1396,8 +1589,8 @@ function linkedLoadConfig() {
     const s = JSON.parse(localStorage.getItem('hydroponic_linked_config'));
     if (!s) return;
     if (s.serverUrl) document.getElementById('linkedServerUrl').value = s.serverUrl;
-    if (s.sensorCode) document.getElementById('linkedSensorCode').value = s.sensorCode;
-    if (s.actuatorCode) document.getElementById('linkedActuatorCode').value = s.actuatorCode;
+    linkedSensorDeviceCodes = Array.isArray(s.sensorCodes) ? s.sensorCodes : (s.sensorCode ? [s.sensorCode] : []);
+    linkedActuatorDeviceCodes = Array.isArray(s.actuatorCodes) ? s.actuatorCodes : (s.actuatorCode ? [s.actuatorCode] : []);
     if (s.greenhouseID) document.getElementById('linkedGreenhouseID').value = s.greenhouseID;
     if (s.telemetrySec) document.getElementById('linkedTelemetrySec').value = s.telemetrySec;
     if (s.heartbeatSec) document.getElementById('linkedHeartbeatSec').value = s.heartbeatSec;
@@ -1406,6 +1599,7 @@ function linkedLoadConfig() {
     if (s.apiUrl) document.getElementById('linkedApiUrl').value = s.apiUrl;
     if (s.apiUser) document.getElementById('linkedApiUser').value = s.apiUser;
     if (s.apiPass) document.getElementById('linkedApiPass').value = s.apiPass;
+    linkedRenderDeviceLists();
   } catch(_) {}
 }
 

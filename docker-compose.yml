@@ -32,7 +32,7 @@ services:
     container_name: hamb-emqx
     restart: unless-stopped
     ports:
-      - "1883:1883"
+      - "18830:1883"
       - "18083:18083"
     environment:
       EMQX_DASHBOARD__DEFAULT_USERNAME: admin

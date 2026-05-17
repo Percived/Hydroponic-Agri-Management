@@ -3,6 +3,7 @@ package policy
 import (
 	"encoding/json"
 	"fmt"
+	"hydroponic-backend/internal/alert"
 	"log/slog"
 	"strings"
 	"sync"
@@ -67,16 +68,16 @@ func (s *Scheduler) runEventDriven() {
 	defer s.hub.Unsubscribe(sub)
 
 	for evt := range sub.Events {
-		data, ok := evt.Data.(map[string]interface{})
+		evtData, ok := extractTelemetryTriggerData(evt.Data)
 		if !ok {
 			continue
 		}
-		metricCode, _ := data["metric_code"].(string)
-		value, _ := toFloat64(data["value"])
-		if metricCode == "" || value == nil {
+		metricCode, _ := evtData["metric_code"].(string)
+		value, ok := toFloat64(evtData["value"])
+		if !ok || metricCode == "" || value == nil {
 			continue
 		}
-		s.evaluateThresholdPolicies(metricCode, *value, data)
+		s.evaluateThresholdPolicies(metricCode, *value, evtData)
 	}
 }
 
@@ -275,6 +276,16 @@ func (s *Scheduler) evaluateAndExecute(p ControlPolicy, triggerSource, triggerMe
 	decision = "EXECUTED"
 	reason = fmt.Sprintf("%s_trigger", triggerSource)
 
+	if p.PolicyType == "THRESHOLD" {
+		if err := s.createThresholdAlert(p, triggerMetric, triggerValue, evtData, now); err != nil {
+			s.log.Error("scheduler: failed to create threshold alert",
+				"policy_id", p.ID,
+				"metric_code", triggerMetric,
+				"error", err,
+			)
+		}
+	}
+
 	// Record cooldown
 	s.setCooldown(cooldownKey)
 
@@ -413,22 +424,24 @@ func weekdayMatched(mask uint8, weekday time.Weekday) bool {
 }
 
 func (s *Scheduler) evaluateCondition(cond PolicyCondition, evtData map[string]interface{}) bool {
-	// Step 1: evaluate the raw condition (real-time event or DB fallback)
-	var rawResult bool
-	if evtData != nil {
-		metricCode, _ := evtData["metric_code"].(string)
-		if metricCode == cond.MetricCode {
-			val, ok := toFloat64(evtData["value"])
-			if ok {
-				rawResult = compareWithHysteresis(*val, cond)
-			}
-		}
-	}
-	if evtData == nil || evtData["metric_code"].(string) != cond.MetricCode {
-		rawResult = s.evaluateConditionFromDB(cond)
+	needsWindow := cond.WindowSec != nil && *cond.WindowSec > 0
+
+	if needsWindow || evtData == nil {
+		return s.evaluateConditionFromDB(cond)
 	}
 
-	// Step 2: apply RequiredDurationSec if set
+	metricCode, _ := evtData["metric_code"].(string)
+	if metricCode != cond.MetricCode {
+		return s.evaluateConditionFromDB(cond)
+	}
+
+	val, ok := toFloat64(evtData["value"])
+	if !ok {
+		return s.evaluateConditionFromDB(cond)
+	}
+
+	rawResult := compareWithHysteresis(*val, cond)
+
 	if cond.RequiredDurationSec == nil || *cond.RequiredDurationSec == 0 {
 		return rawResult
 	}
@@ -437,12 +450,10 @@ func (s *Scheduler) evaluateCondition(cond PolicyCondition, evtData map[string]i
 	now := time.Now().UTC()
 
 	if !rawResult {
-		// Condition no longer holds 鈫?reset tracking
 		s.resetCondState(key)
 		return false
 	}
 
-	// Condition holds 鈫?check / advance duration
 	return s.trackCondDuration(key, *cond.RequiredDurationSec, now)
 }
 
@@ -469,23 +480,23 @@ func (s *Scheduler) evaluateConditionFromDB(cond PolicyCondition) bool {
 		Value float64
 	}
 	var row telemetryRow
-	query := s.db.Table("telemetry_records").
-		Select("value").
-		Where("metric_code = ?", cond.MetricCode)
+
+	var query *gorm.DB
+	switch cond.Aggregation {
+	case "avg":
+		query = s.db.Table("telemetry_records").Select("AVG(value) as value")
+	case "max":
+		query = s.db.Table("telemetry_records").Select("MAX(value) as value")
+	case "min":
+		query = s.db.Table("telemetry_records").Select("MIN(value) as value")
+	case "last", "":
+		query = s.db.Table("telemetry_records").Select("value").Order("collected_at DESC").Limit(1)
+	}
+
+	query = query.Where("metric_code = ?", cond.MetricCode)
 
 	if cond.WindowSec != nil && *cond.WindowSec > 0 {
 		query = query.Where("collected_at >= ?", time.Now().UTC().Add(-time.Duration(*cond.WindowSec)*time.Second))
-	}
-
-	switch cond.Aggregation {
-	case "avg":
-		query = query.Select("AVG(value) as value")
-	case "max":
-		query = query.Select("MAX(value) as value")
-	case "min":
-		query = query.Select("MIN(value) as value")
-	case "last", "":
-		query = query.Order("collected_at DESC").Limit(1)
 	}
 
 	if err := query.Scan(&row).Error; err != nil {
@@ -580,6 +591,68 @@ func (s *Scheduler) executeTarget(t PolicyTarget, p ControlPolicy) (uint64, erro
 	})
 
 	return cmd.ID, nil
+}
+
+func (s *Scheduler) createThresholdAlert(
+	p ControlPolicy,
+	triggerMetric string,
+	triggerValue *float64,
+	evtData map[string]interface{},
+	triggeredAt time.Time,
+) error {
+	message := fmt.Sprintf("阈值策略触发: %s", p.Name)
+	if triggerMetric != "" && triggerValue != nil {
+		message = fmt.Sprintf("阈值策略触发: %s (%s=%.4f)", p.Name, triggerMetric, *triggerValue)
+	}
+
+	var sensorChannelID *uint64
+	if id, ok := toUint64(evtData["sensor_channel_id"]); ok {
+		sensorChannelID = &id
+	}
+
+	a := alert.Alert{
+		Type:            alert.TypeThreshold,
+		Level:           alert.LevelWarn,
+		MetricCode:      triggerMetric,
+		SensorChannelID: sensorChannelID,
+		TriggerValue:    triggerValue,
+		Message:         message,
+		Status:          alert.StatusOpen,
+		TriggeredAt:     triggeredAt,
+	}
+	if err := s.db.Create(&a).Error; err != nil {
+		return err
+	}
+
+	payload, _ := json.Marshal(map[string]interface{}{
+		"policy_id":      p.ID,
+		"policy_code":    p.PolicyCode,
+		"policy_name":    p.Name,
+		"trigger_metric": triggerMetric,
+		"trigger_value":  triggerValue,
+		"sensor_channel": sensorChannelID,
+		"trigger_source": "TELEMETRY",
+	})
+	timeline := alert.AlertTimelineEvent{
+		AlertID:      a.ID,
+		EventType:    alert.EventTriggered,
+		EventSource:  alert.SourceSystem,
+		EventPayload: string(payload),
+		EventTime:    triggeredAt,
+	}
+	if err := s.db.Create(&timeline).Error; err != nil {
+		return err
+	}
+
+	if s.hub != nil {
+		deviceCode, _ := evtData["device_code"].(string)
+		s.hub.Publish(event.SSEEvent{
+			Type: "alert:created",
+			Data: alert.BuildAlertSSEDataV1(a, deviceCode, 1),
+		})
+	}
+
+	return nil
 }
 
 func (s *Scheduler) resolveCommandCreator(p ControlPolicy) (uint64, error) {
@@ -724,6 +797,60 @@ func toFloat64(v interface{}) (*float64, bool) {
 			return nil, false
 		}
 		return &f, true
+	default:
+		return nil, false
+	}
+}
+
+func toUint64(v interface{}) (uint64, bool) {
+	switch val := v.(type) {
+	case uint64:
+		return val, true
+	case uint:
+		return uint64(val), true
+	case int:
+		if val < 0 {
+			return 0, false
+		}
+		return uint64(val), true
+	case int64:
+		if val < 0 {
+			return 0, false
+		}
+		return uint64(val), true
+	case float64:
+		if val < 0 {
+			return 0, false
+		}
+		return uint64(val), true
+	default:
+		return 0, false
+	}
+}
+
+func extractTelemetryTriggerData(data interface{}) (map[string]interface{}, bool) {
+	switch payload := data.(type) {
+	case event.TelemetrySSEDataV1:
+		return map[string]interface{}{
+			"metric_code":       payload.MetricCode,
+			"value":             payload.Value,
+			"sensor_channel_id": payload.SensorChannelID,
+			"device_code":       payload.DeviceCode,
+			"collected_at":      payload.CollectedAt,
+		}, true
+	case *event.TelemetrySSEDataV1:
+		if payload == nil {
+			return nil, false
+		}
+		return map[string]interface{}{
+			"metric_code":       payload.MetricCode,
+			"value":             payload.Value,
+			"sensor_channel_id": payload.SensorChannelID,
+			"device_code":       payload.DeviceCode,
+			"collected_at":      payload.CollectedAt,
+		}, true
+	case map[string]interface{}:
+		return payload, true
 	default:
 		return nil, false
 	}

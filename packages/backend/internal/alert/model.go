@@ -1,6 +1,11 @@
 package alert
 
-import "time"
+import (
+	"strings"
+	"time"
+
+	"gorm.io/gorm"
+)
 
 const (
 	TypeThreshold     = "THRESHOLD"
@@ -62,3 +67,10 @@ type AlertTimelineEvent struct {
 }
 
 func (AlertTimelineEvent) TableName() string { return "alert_timeline_events" }
+
+func (e *AlertTimelineEvent) BeforeSave(_ *gorm.DB) error {
+	if strings.TrimSpace(e.EventPayload) == "" {
+		e.EventPayload = "{}"
+	}
+	return nil
+}

@@ -136,6 +136,7 @@ type telemetryItem struct {
 	RawValue        *float64 `json:"raw_value,omitempty"`
 	QualityFlag     string   `json:"quality_flag,omitempty"`
 	CollectedAt     string   `json:"collected_at"`
+	BatchID         *uint64  `json:"batch_id,omitempty"`
 }
 
 type heartbeatPayload struct {
@@ -202,19 +203,33 @@ type cmdPayloadState struct {
 
 // StartConfig is the HTTP request body for POST /start.
 type StartConfig struct {
-	APIBaseURL         string  `json:"api_base_url"`
-	Username           string  `json:"username"`
-	Password           string  `json:"password"`
-	MqttBroker         string  `json:"mqtt_broker"`
-	MqttUser           string  `json:"mqtt_user"`
-	MqttPass           string  `json:"mqtt_pass"`
-	SensorDeviceCode   string  `json:"sensor_device_code"`
-	ActuatorDeviceCode string  `json:"actuator_device_code"`
-	GreenhouseID       uint64  `json:"greenhouse_id"`
-	TelemetrySec       int     `json:"telemetry_sec"`
-	HeartbeatSec       int     `json:"heartbeat_sec"`
-	EnvTickMs          int     `json:"env_tick_ms"`
-	AnomalyRate        float64 `json:"anomaly_rate"`
+	APIBaseURL          string   `json:"api_base_url"`
+	Username            string   `json:"username"`
+	Password            string   `json:"password"`
+	MqttBroker          string   `json:"mqtt_broker"`
+	MqttUser            string   `json:"mqtt_user"`
+	MqttPass            string   `json:"mqtt_pass"`
+	SensorDeviceCode    string   `json:"sensor_device_code"`
+	ActuatorDeviceCode  string   `json:"actuator_device_code"`
+	SensorDeviceCodes   []string `json:"sensor_device_codes"`
+	ActuatorDeviceCodes []string `json:"actuator_device_codes"`
+	GreenhouseID        uint64   `json:"greenhouse_id"`
+	TelemetrySec        int      `json:"telemetry_sec"`
+	HeartbeatSec        int      `json:"heartbeat_sec"`
+	EnvTickMs           int      `json:"env_tick_ms"`
+	AnomalyRate         float64  `json:"anomaly_rate"`
+	BatchID             *uint64  `json:"batch_id"`
+}
+
+// NormalizeDeviceCodes merges legacy single-value fields and the new list fields.
+// Empty values are ignored and duplicates are removed while preserving order.
+func (c StartConfig) NormalizeDeviceCodes() ([]string, []string, error) {
+	sensors := uniqueNonEmpty(append([]string{c.SensorDeviceCode}, c.SensorDeviceCodes...))
+	actuators := uniqueNonEmpty(append([]string{c.ActuatorDeviceCode}, c.ActuatorDeviceCodes...))
+	if len(sensors) == 0 {
+		return nil, nil, errNoSensorDeviceCodes
+	}
+	return sensors, actuators, nil
 }
 
 // SimSnapshot is a full environment + actuator state snapshot sent via SSE.
@@ -236,19 +251,41 @@ type ActuatorStateDTO struct {
 
 // statusResponse is returned by GET /status.
 type statusResponse struct {
-	Running        bool               `json:"running"`
-	SensorDevice   string             `json:"sensor_device,omitempty"`
-	ActuatorDevice string             `json:"actuator_device,omitempty"`
-	UptimeSec      int64              `json:"uptime_sec"`
-	TelemetryCount int64              `json:"telemetry_count"`
-	SensorChannels []sensorChannelDTO `json:"sensor_channels,omitempty"`
+	Running         bool                      `json:"running"`
+	SensorDevice    string                    `json:"sensor_device,omitempty"`
+	ActuatorDevice  string                    `json:"actuator_device,omitempty"`
+	UptimeSec       int64                     `json:"uptime_sec"`
+	TelemetryCount  int64                     `json:"telemetry_count"`
+	SensorChannels  []sensorChannelDTO        `json:"sensor_channels,omitempty"`
+	SensorDevices   []sensorDeviceStatusDTO   `json:"sensor_devices,omitempty"`
+	ActuatorDevices []actuatorDeviceStatusDTO `json:"actuator_devices,omitempty"`
 }
 
 // sensorChannelDTO is a channel summary used in /status.
 type sensorChannelDTO struct {
-	ChannelID  uint64 `json:"channel_id"`
-	MetricCode string `json:"metric_code"`
-	Unit       string `json:"unit"`
+	ChannelID  uint64   `json:"channel_id"`
+	MetricCode string   `json:"metric_code"`
+	Unit       string   `json:"unit"`
+	FixedValue *float64 `json:"fixed_value,omitempty"`
+}
+
+type sensorDeviceStatusDTO struct {
+	DeviceCode string             `json:"device_code"`
+	Channels   []sensorChannelDTO `json:"channels"`
+}
+
+type actuatorDeviceStatusDTO struct {
+	DeviceCode   string               `json:"device_code"`
+	ChannelCount int                  `json:"channel_count"`
+	Channels     []actuatorChannelDTO `json:"channels,omitempty"`
+}
+
+type actuatorChannelDTO struct {
+	ChannelID    uint64   `json:"channel_id"`
+	ChannelCode  string   `json:"channel_code"`
+	ActuatorType string   `json:"actuator_type"`
+	State        string   `json:"state,omitempty"`
+	Level        *float64 `json:"level,omitempty"`
 }
 
 // TriggerTelemetryReq is the request body for POST /trigger-telemetry.
@@ -266,9 +303,42 @@ type triggerTelemetryResp struct {
 	ChannelCount int64 `json:"channel_count"`
 }
 
+type fixedOverrideReq struct {
+	ChannelID uint64  `json:"channel_id"`
+	Value     float64 `json:"value"`
+}
+
+type anomalyRateReq struct {
+	AnomalyRate float64 `json:"anomaly_rate"`
+}
+
 // stopResponse is returned by POST /stop.
 type stopResponse struct {
 	UptimeSec      int64 `json:"uptime_sec"`
 	TelemetryCount int64 `json:"telemetry_count"`
 	CmdACKCount    int64 `json:"cmd_ack_count"`
+}
+
+var errNoSensorDeviceCodes = simpleError("sensor_device_codes 不能为空")
+
+type simpleError string
+
+func (e simpleError) Error() string {
+	return string(e)
+}
+
+func uniqueNonEmpty(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }

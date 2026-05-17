@@ -1,6 +1,6 @@
 # 项目状态
 
-最后更新: 2026-05-12
+最后更新: 2026-05-16
 负责人: 后端团队
 版本: v2.3.2（SCHEDULE 真正到点执行、气候联动触发源单通道化）
 
@@ -18,7 +18,9 @@
 - **SCHEDULE 真正到点执行**：`control_policies` 新增 `schedule_mode/run_once_at/time_of_day/weekdays_mask/timezone/last_scheduled_for`，`SCHEDULE` 支持 `ONCE/DAILY/WEEKLY` 三种结构化计划。
 - **发布门槛收敛**：策略调度器只扫描 `published_at IS NOT NULL` 的定时策略，前端“发布”与自动调度生效语义一致。
 - **可观测性增强**：历史未配置计划不再静默跳过，而是写 `policy_executions`，原因为 `schedule_not_configured`；同一计划点通过 `last_scheduled_for` 幂等去重。
+- **阈值告警补齐**：`THRESHOLD` 策略命中后除执行目标命令外，还会自动写入 `alerts` 与 `alert_timeline_events`，前端告警页可直接看到阈值触发历史。
 - **测试补齐**：新增 `internal/policy/scheduler_test.go` 覆盖 `ONCE` 幂等、`DAILY` 命中、`WEEKLY` 星期过滤、未发布忽略等路径。
+- **模拟器多设备绑定**：`cmd/simulator/` 的 HTTP 模式支持单实例绑定多个传感器与多个执行器并共享一套环境模型，前端 HTML 面板支持分多次添加/移除设备绑定并按设备分组展示状态。
 
 ### v2.3.0 阶段三完成项（实时性与自动化）
 

@@ -17,7 +17,7 @@ var (
 	apiBaseURL   = flag.String("url", "http://127.0.0.1:3000", "后端 API 地址")
 	username     = flag.String("user", "admin", "登录用户名")
 	password     = flag.String("pass", "admin123", "登录密码")
-	mqttBroker   = flag.String("broker", "tcp://127.0.0.1:1883", "MQTT Broker 地址")
+	mqttBroker   = flag.String("broker", "tcp://127.0.0.1:18830", "MQTT Broker 地址")
 	mqttUser     = flag.String("mqtt-user", "", "MQTT 用户名")
 	mqttPass     = flag.String("mqtt-pass", "", "MQTT 密码")
 	telemetrySec = flag.Int("interval", 10, "遥测上报间隔（秒）")
@@ -30,10 +30,16 @@ var (
 	sensorDevice   = flag.String("sensor-device", "", "已有 sensor 设备编码（必填）")
 	actuatorDevice = flag.String("actuator-device", "", "已有 actuator 设备编码（profile=actuator/both 时必填）")
 	envTickMs      = flag.Int("env-tick-ms", 1000, "环境模型 tick 间隔(ms)")
+	batchID        = flag.Uint64("batch-id", 0, "批次 ID（遥测数据将关联到此批次）")
 
 	// Server 模式
 	serverMode = flag.Bool("server", false, "启动 HTTP Server 模式（控制面板）")
 	serverPort = flag.Int("port", 3001, "HTTP Server 端口")
+)
+
+const (
+	launchModeServer = "server"
+	launchModeCLI    = "cli"
 )
 
 // ──────────────────── 入口 ────────────────────
@@ -41,12 +47,22 @@ var (
 func main() {
 	flag.Parse()
 
-	if *serverMode {
+	switch decideLaunchMode(*serverMode, *sensorDevice, *actuatorDevice) {
+	case launchModeServer:
 		runServerMode()
-		return
+	default:
+		runCLIMode()
 	}
+}
 
-	runCLIMode()
+func decideLaunchMode(server bool, sensorCode string, actuatorCode string) string {
+	if server {
+		return launchModeServer
+	}
+	if sensorCode != "" || actuatorCode != "" {
+		return launchModeCLI
+	}
+	return launchModeServer
 }
 
 // runServerMode starts the HTTP server for the control panel.
@@ -54,6 +70,7 @@ func runServerMode() {
 	log.Println("╔══════════════════════════════════════════════╗")
 	log.Println("║   水培农业 - 模拟器 HTTP 控制面板           ║")
 	log.Println("╚══════════════════════════════════════════════╝")
+	log.Printf("ℹ 默认无参启动即进入 HTTP 控制模式，监听端口: %d", *serverPort)
 	fmt.Println()
 
 	server := NewSimServer()
@@ -94,7 +111,7 @@ func runCLIMode() {
 	var actuator *actuatorSim
 
 	if runSensor {
-		s, err := setupSensor(api, sharedRNG)
+		s, err := setupSensor(api, sharedRNG, batchID)
 		if err != nil {
 			log.Fatalf("❌ 传感器初始化失败: %v", err)
 		}
@@ -265,7 +282,7 @@ loop:
 
 // ──────────────────── 传感器初始化 ────────────────────
 
-func setupSensor(api *apiClient, rng *rand.Rand) (*sensorSim, error) {
+func setupSensor(api *apiClient, rng *rand.Rand, batchID *uint64) (*sensorSim, error) {
 	if *sensorDevice == "" {
 		return nil, fmt.Errorf("必须指定传感器设备编码 (-sensor-device)")
 	}
@@ -293,7 +310,7 @@ func setupSensor(api *apiClient, rng *rand.Rand) (*sensorSim, error) {
 		cfgByChan[ch.ID] = cfg
 	}
 
-	return newSensorSim(deviceCode, channels, cfgByChan, nil, nil, rng, nil), nil
+	return newSensorSim(deviceCode, channels, cfgByChan, nil, nil, rng, nil, batchID), nil
 }
 
 // ──────────────────── 执行器初始化 ────────────────────

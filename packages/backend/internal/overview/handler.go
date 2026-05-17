@@ -421,10 +421,16 @@ func queryGreenhouseMetrics(db *gorm.DB, out *[]DashboardGreenhouse) error {
 			return err
 		}
 
+		lastCollectedAt, err := loadGreenhouseLastCollectedAt(db, r.ID)
+		if err != nil {
+			return err
+		}
+
 		gh := DashboardGreenhouse{
 			ID:               strconv.FormatUint(r.ID, 10),
 			Name:             r.Name,
 			HealthScore:      healthScore,
+			LastCollectedAt:  lastCollectedAt,
 			ActiveStrategies: strategies,
 			Metrics: GreenhouseMetrics{
 				Temperature: r.Temp,
@@ -439,6 +445,34 @@ func queryGreenhouseMetrics(db *gorm.DB, out *[]DashboardGreenhouse) error {
 		*out = append(*out, gh)
 	}
 	return nil
+}
+
+func loadGreenhouseLastCollectedAt(db *gorm.DB, greenhouseID uint64) (*time.Time, error) {
+	if !db.Migrator().HasTable("telemetry_records") ||
+		!db.Migrator().HasTable("sensor_channels") ||
+		!db.Migrator().HasTable("sensor_devices") {
+		return nil, nil
+	}
+
+	var result struct {
+		CollectedAt time.Time `gorm:"column:collected_at"`
+	}
+	if err := db.Table("telemetry_records AS tr").
+		Select("tr.collected_at").
+		Joins("JOIN sensor_channels sc ON sc.id = tr.sensor_channel_id").
+		Joins("JOIN sensor_devices sd ON sd.id = sc.sensor_device_id").
+		Where("sd.greenhouse_id = ?", greenhouseID).
+		Order("tr.collected_at DESC").
+		Limit(1).
+		Take(&result).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	t := result.CollectedAt.UTC()
+	return &t, nil
 }
 
 func loadGreenhouseActiveStrategies(db *gorm.DB, greenhouseID uint64) ([]string, error) {
