@@ -1,0 +1,500 @@
+﻿本科毕业论文（设计）
+水培农植信息管理系统后端的
+设计与实现
+哈尔滨工业大学
+2025
+ 
+年
+ 
+5
+ 
+月
+密级：公开
+本科毕业论文（设计）
+本
+   
+科
+   
+生
+：崔嘉航
+学
+        
+号
+：
+2021211989
+指
+ 
+导
+ 
+教
+ 
+师
+：万晓珑讲师
+专
+        
+业
+：软件工程
+学
+        
+院
+：软件学院
+答
+ 
+辩  日
+ 
+期
+：
+2025
+ 
+年
+ 
+5
+ 
+月
+学
+        
+校
+：哈尔滨工业大学
+摘
+ 
+要
+Abstract
+目
+  
+录
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="78" w:line="198" w:lineRule="auto"/><w:ind w:left="37"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark1&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-8"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>摘
+  
+要
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-81"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+I
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="151" w:line="190" w:lineRule="auto"/><w:ind w:left="30"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark2&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="3"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>Abstract
+ 
+</w:r><w:r><w:rPr><w:spacing w:val="-42"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+II
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="107" w:line="198" w:lineRule="auto"/><w:ind w:left="38"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark3&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-4"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>第
+1
+章
+  
+绪
+  
+论
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-37"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+1
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="306"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark4&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="5"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">1.1    
+课题背景及研究的目的和意义
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-37"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+1
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="306"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark5&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>1.2
+    
+国内外研究现状与分析
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-55"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+3
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="306"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark6&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="1"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>1.3
+    
+论文主要工作
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-56"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+7
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="306"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark7&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="1"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>1.4
+    
+论文组织架构
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-50"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+8
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="132" w:line="198" w:lineRule="auto"/><w:ind w:left="38"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark8&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="6"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>第
+2
+章  系统需求分析与总体设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-36"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+10
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="133" w:line="198" w:lineRule="auto"/><w:ind w:left="283"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark9&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="1"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>2.1
+    
+需求分析
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-36"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+10
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="132" w:line="198" w:lineRule="auto"/><w:ind w:left="530"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark10&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="3"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>2.1.1
+    
+系统功能需求
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-36"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+10
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="530"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark11&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="4"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>2.1.2
+    
+系统非功能需求
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-36"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+13
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="283"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark12&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="3"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>2.2
+    
+系统总体设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-36"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+13
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="530"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark13&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="3"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>2.2.1
+    
+系统架构设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-36"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+13
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="132" w:line="198" w:lineRule="auto"/><w:ind w:left="530"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark14&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>2.2.2
+    
+技术选型
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-36"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+14
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="133" w:line="198" w:lineRule="auto"/><w:ind w:left="530"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark15&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="3"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>2.2.3
+    
+模块划分
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-36"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+14
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="132" w:line="198" w:lineRule="auto"/><w:ind w:left="283"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark16&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="3"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>2.3
+    
+本章小结
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-36"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+18
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="38"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark17&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="3"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>第
+3
+章
+  
+系统详细设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-36"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+19
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="288"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark18&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="4"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">3.1    
+系统模块详细设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-36"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+19
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="535"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark19&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="5"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">3.1.1    
+登录与注册模块详细设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-36"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+19
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="132" w:line="198" w:lineRule="auto"/><w:ind w:left="535"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark20&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="6"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">3.1.2    
+医生端登记新孕妇模块
+详细设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-58"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+22
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="535"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark21&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="5"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">3.1.3    
+医生端个人信息模块详细设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-58"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+23
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="535"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark22&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="5"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">3.1.4    
+医生查看报告单模块详细设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-58"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+25
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="535"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark23&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="6"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">3.1.5    
+医生端录入与分析报告单模块详细设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-58"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+27
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="535"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark24&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="6"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">3.1.6    
+孕妇端孕期跟踪与检查提醒模块详细设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+31
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="535"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark25&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="6"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">3.1.7    
+孕妇端健康知识推送模块详细设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+33
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="535"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark26&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="6"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">3.1.8    
+孕妇端个人信息与报告单查看模块详细设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+36
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="135" w:line="198" w:lineRule="auto"/><w:ind w:left="288"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark27&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>3.2
+    
+数据库设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+38
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="535"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark28&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="4"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">3.2.1    
+数据库结构设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+38
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="535"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark29&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>3.2.2
+    
+表设计
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+39
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="233" w:lineRule="auto"/><w:ind w:left="535"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark30&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>3.2.3
+    
+数据关系
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-61"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+42
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="245" w:line="198" w:lineRule="auto"/><w:ind w:left="288"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark31&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>3.3
+    
+本章小结
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-61"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+43
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="38"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark32&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="6"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>第
+4
+章  系统环境搭建与实机演示
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-61"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+44
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="133" w:line="198" w:lineRule="auto"/><w:ind w:left="282"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark33&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="4"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>4.1
+    
+系统运行前配置
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-61"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+44
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="282"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark34&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="3"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>4.2
+    
+系统实机演示
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-61"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+45
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="529"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark35&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="3"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>4.2.1
+    
+主页面演示
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-61"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+45
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="529"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark36&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>4.2.2
+    
+医生端演示
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-61"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+47
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="529"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark37&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="3"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>4.2.3
+    
+孕妇端演示
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-53"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+55
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="132" w:line="198" w:lineRule="auto"/><w:ind w:left="282"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark38&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="3"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>4.3
+    
+本章小结
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-53"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+58
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="38"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark39&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="4"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>第
+5
+章
+  
+系统测试与优化
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-53"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+59
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="289"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark40&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="1"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>5.1
+    
+系统测试
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-53"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+59
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="537"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark41&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>5.1.1
+    
+测试环境
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-53"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+59
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="537"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark42&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>5.1.2
+    
+测试用例
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-53"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+59
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="537"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark43&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>5.1.3
+    
+测试方法
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+60
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="132" w:line="198" w:lineRule="auto"/><w:ind w:left="537"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark44&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>5.1.4
+    
+测试结果
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+60
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="289"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark45&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="-1"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>5.2
+    
+优化
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+63
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="537"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark46&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>5.2.1
+    
+登录页优化
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+64
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="537"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark47&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="1"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>5.2.2
+    
+医生端优化
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+64
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="537"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark48&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>5.2.3
+    
+孕妇端优化
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+64
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="289"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark49&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:spacing w:val="2"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>5.3
+    
+本章小结
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体" w:cs="宋体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+65
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="131" w:line="198" w:lineRule="auto"/><w:ind w:left="37"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark50&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-10"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>结
+  
+论
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+66
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="134" w:line="198" w:lineRule="auto"/><w:ind w:left="38"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark51&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="4"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>参考文献
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+67
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="132" w:line="198" w:lineRule="auto"/><w:ind w:left="53"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark52&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>哈尔滨工业大学本科毕业论文（设计）原创性声明和使用权限
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-54"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+69
+<w:tab w:val="right" w:leader="dot" w:pos="8235"/></w:tabs><w:spacing w:before="133" w:line="232" w:lineRule="auto"/><w:ind w:left="40"/><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr></w:pPr><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> HYPERLINK \l &quot;bookmark53&quot; </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-13"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t>致
+  
+谢
+ 
+</w:r><w:r><w:rPr><w:rFonts w:ascii="黑体" w:hAnsi="黑体" w:eastAsia="黑体" w:cs="黑体"/><w:spacing w:val="-55"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve"> 
+70
+第
+1
+章
+ 
+绪
+  
+论
+1.1   
+课题背景及研究的目的和意义
+1.2
+   
+国内外研究现状与分析
+1.3
+   
+论文主要工作
+1.4
+   
+论文组织架构
+第
+2
+章
+ 
+系统需求分析与总体设计
+2.1
+   
+需求分析
+2.1.1
+   
+系统功能需求
+2.1.2
+   
+系统非功能需求
+2.2
+   
+系统总体设计
+2.2.1
+   
+系统架构设计
+2.2.2
+   
+技术选型
+2.2.3
+   
+模块划分
+2.3
+   
+本章小结
+第
+3
+章
+ 
+系统详细设计
+3.1
+   
+系统模块详细设计
+3.1.1   
+登录与注册模块详细设计
+3.1.
+X
+   
+XX模块详细设计
+3.2
+   
+数据库设计
+3.2.1
+   
+数据库结构设计
+3.2.2
+   
+表设计
+3.2.3
+   
+数据关系
+3.3
+   
+本章小结
+第
+4
+章
+ 
+系统环境搭建与实机演示
+4.1
+   
+系统运行前配置
+4.2
+   
+系统实机演示
+4.3
+   
+本章小结
+第
+5
+章
+ 
+系统测试与优化
+5.1
+   
+系统测试
+5.1.1
+   
+测试环境
+5.1.2
+   
+测试用例
+5.1.3
+   
+测试方法
+5.1.4
+   
+测试结果
+5.2
+   
+优化
+5.3
+   
+本章小结
+结
+  
+论
+参考文献
+哈尔滨工业大学本科毕业论文（设计）
+原创性声明和使用权限
+本科毕业论文（设计）原创性声明
+致
+  
+谢
