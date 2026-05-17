@@ -40,8 +40,9 @@
             <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '是' : '否' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right">
+        <el-table-column label="操作" width="360" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" link @click="router.push(`/strategy/climate/${row.id}`)">详情</el-button>
             <el-button type="primary" link @click="openEditProfile(row)">编辑</el-button>
             <el-button type="success" link @click="openStagesDialog(row)">阶段</el-button>
             <el-button type="warning" link @click="openExecLogs(row)">日志</el-button>
@@ -332,6 +333,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { climateApi, greenhouseApi, deviceApi, metricApi } from '@/api'
@@ -341,6 +343,8 @@ import { actuatorChannelLabel, actuatorDeviceLabel, buildIdLabelMap, fallbackIdL
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import type { ClimateProfile, ClimateStage, ClimateStageAction, ClimateExecutionLog, Greenhouse, ActuatorChannel, ActuatorDevice, MetricDefinition, SensorDevice, SensorChannel } from '@/types'
 import { Role } from '@/types'
+
+const router = useRouter()
 
 // ── Profiles ──
 const loading = ref(false)

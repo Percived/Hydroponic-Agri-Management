@@ -100,10 +100,22 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '控制策略' }
   },
   {
+    path: '/strategy/policies/:id',
+    name: 'PolicyDetail',
+    component: () => import('@/views/controls/detail.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR, Role.VIEWER], title: '策略详情' }
+  },
+  {
     path: '/strategy/climate',
     name: 'ClimateProfiles',
     component: () => import('@/views/climate/index.vue'),
     meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '气候联动' }
+  },
+  {
+    path: '/strategy/climate/:id',
+    name: 'ClimateProfileDetail',
+    component: () => import('@/views/climate/detail.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR, Role.VIEWER], title: '气候配置详情' }
   },
   {
     path: '/strategy/commands',
