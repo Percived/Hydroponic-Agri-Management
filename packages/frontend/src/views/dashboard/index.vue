@@ -7,7 +7,7 @@
 
     <!-- 关键指标 (Quick Stats) -->
     <div class="stats-grid">
-      <div class="stat-card active-batches">
+      <div class="stat-card active-batches" @click="router.push('/batches/ledger')" title="查看批次台账">
         <div class="stat-icon">
           <el-icon size="32"><Monitor /></el-icon>
         </div>
@@ -16,7 +16,7 @@
           <div class="stat-label">活跃批次</div>
         </div>
       </div>
-      <div class="stat-card alert">
+      <div class="stat-card alert" @click="router.push('/alerts/list')" title="查看告警列表">
         <div class="stat-icon">
           <el-icon size="32"><Bell /></el-icon>
         </div>
@@ -25,7 +25,7 @@
           <div class="stat-label">活跃告警</div>
         </div>
       </div>
-      <div class="stat-card online">
+      <div class="stat-card online" @click="router.push('/assets/sensor-devices')" title="查看设备列表">
         <div class="stat-icon">
           <el-icon size="32"><DataLine /></el-icon>
         </div>
@@ -37,7 +37,7 @@
           <div class="stat-label">在线设备</div>
         </div>
       </div>
-      <div class="stat-card energy">
+      <div class="stat-card energy" @click="router.push('/energy/records')" title="查看能耗记录">
         <div class="stat-icon">
           <el-icon size="32"><Clock /></el-icon>
         </div>
@@ -55,7 +55,7 @@
           <h2 class="section-title">温室实时监控</h2>
         </div>
         <div class="greenhouse-list">
-          <div v-for="gh in overview.greenhouses" :key="gh.id" class="greenhouse-card">
+          <div v-for="gh in overview.greenhouses" :key="gh.id" class="greenhouse-card" @click="router.push(`/assets/sensor-devices?greenhouse_id=${gh.id}`)" title="查看温室设备">
             <div class="gh-header">
               <span class="gh-name">{{ gh.name }}</span>
               <el-tag :type="gh.health_score === 'good' ? 'success' : 'warning'" size="small">
@@ -108,7 +108,13 @@
             <h2 class="section-title">活跃批次进度</h2>
           </div>
           <el-table :data="overview.active_batches" stripe size="small" style="width: 100%">
-            <el-table-column prop="batch_id" label="批次" width="80" />
+            <el-table-column label="批次" width="80">
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="router.push(`/batches/${row.batch_id}`)">
+                  {{ row.batch_id }}
+                </el-button>
+              </template>
+            </el-table-column>
             <el-table-column prop="crop_name" label="作物" />
             <el-table-column prop="stage" label="阶段" width="100" />
             <el-table-column label="已运行" width="80">
@@ -309,6 +315,7 @@ onUnmounted(() => {
     align-items: center;
     gap: 16px;
     box-shadow: var(--shadow-card);
+    cursor: pointer;
     transition: transform var(--transition-fast);
 
     &:hover { transform: translateY(-2px); }
@@ -381,6 +388,10 @@ onUnmounted(() => {
     padding: 16px;
     box-shadow: var(--shadow-card);
     border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: border-color var(--transition-fast);
+
+    &:hover { border-color: var(--color-primary); }
 
     .gh-header {
       display: flex;

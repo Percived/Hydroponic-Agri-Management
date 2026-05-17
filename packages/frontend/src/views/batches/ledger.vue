@@ -48,7 +48,12 @@
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="batch_no" label="批次编号" width="160" />
         <el-table-column label="温室" width="160">
-          <template #default="{ row }">{{ greenhouseName(row.greenhouse_id) }}</template>
+          <template #default="{ row }">
+            <el-button v-if="row.greenhouse_id" type="primary" link size="small" @click="router.push('/assets/greenhouses')">
+              {{ greenhouseName(row.greenhouse_id) }}
+            </el-button>
+            <span v-else>-</span>
+          </template>
         </el-table-column>
         <el-table-column label="作物品种" width="160">
           <template #default="{ row }">{{ cropVarietyName(row.crop_variety_id, row.variety_name) }}</template>
@@ -73,7 +78,12 @@
           </template>
         </el-table-column>
         <el-table-column label="种植区" width="160">
-          <template #default="{ row }">{{ growingZoneName(row.growing_zone_id) }}</template>
+          <template #default="{ row }">
+            <el-button v-if="row.growing_zone_id" type="primary" link size="small" @click="router.push(`/assets/growing-zones?greenhouse_id=${row.greenhouse_id}`)">
+              {{ growingZoneName(row.growing_zone_id) }}
+            </el-button>
+            <span v-else>-</span>
+          </template>
         </el-table-column>
         <el-table-column prop="planting_density" label="定植密度(株/㎡)" width="120" />
         <el-table-column prop="total_plants" label="总株数" width="90" />

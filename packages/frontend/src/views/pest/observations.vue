@@ -34,7 +34,12 @@
           <template #default="{ row }">{{ growingZoneName(row.growing_zone_id) }}</template>
         </el-table-column>
         <el-table-column label="批次" width="160">
-          <template #default="{ row }">{{ batchName(row.batch_id) }}</template>
+          <template #default="{ row }">
+            <el-button v-if="row.batch_id" type="primary" link size="small" @click="router.push(`/batches/${row.batch_id}`)">
+              {{ batchName(row.batch_id) }}
+            </el-button>
+            <span v-else>-</span>
+          </template>
         </el-table-column>
         <el-table-column prop="pest_or_disease" label="病虫害" width="140" />
         <el-table-column prop="severity" label="严重程度" width="110">
@@ -262,6 +267,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { pestApi, greenhouseApi, cropApi } from '@/api'
@@ -269,6 +275,8 @@ import { formatDateTime } from '@/utils/format'
 import { buildIdLabelMap, cropBatchLabel, fallbackIdLabel, greenhouseLabel, growingZoneLabel } from '@/utils/labels'
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import type { PestDiseaseObservation, TreatmentRecord, Greenhouse, CropBatch, GrowingZone } from '@/types'
+
+const router = useRouter()
 
 // ── Observations ──
 const loading = ref(false)

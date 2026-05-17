@@ -5,7 +5,7 @@
     </div>
     <div class="header-right">
       <!-- 告警通知 -->
-      <el-badge :value="alertBadgeCount" :hidden="alertBadgeCount === 0" :max="99" class="alert-badge">
+      <el-badge :value="alertCount" :hidden="alertCount === 0" :max="99" class="alert-badge">
         <el-button link @click="goAlerts" aria-label="查看告警">
           <el-icon size="20"><Bell /></el-icon>
         </el-button>
@@ -30,19 +30,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAlertSSE, requestNotificationPermission } from '@/composables'
 import { User, ArrowDown, SwitchButton, Bell } from '@element-plus/icons-vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox, ElNotification } from 'element-plus'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 // Alert SSE - listen for CRITICAL alerts
-const alertBadgeCount = ref(0)
-const { connect: connectSSE, disconnect: disconnectSSE } = useAlertSSE({ level: 'CRITICAL' })
+const { connect: connectSSE, disconnect: disconnectSSE, alertCount, lastAlert } = useAlertSSE({ level: 'WARN,CRITICAL' })
+
+watch(lastAlert, (alert) => {
+  if (alert) {
+    ElNotification({
+      title: `告警通知 - ${alert.level}`,
+      message: alert.message,
+      type: alert.level === 'CRITICAL' ? 'error' : 'warning',
+      duration: 0,
+      position: 'top-right',
+      onClick: () => {
+        router.push('/alerts')
+      }
+    })
+  }
+})
 
 onMounted(() => {
   requestNotificationPermission()
@@ -54,7 +68,7 @@ onUnmounted(() => {
 })
 
 function goAlerts() {
-  alertBadgeCount.value = 0
+  alertCount.value = 0
   router.push('/alerts')
 }
 

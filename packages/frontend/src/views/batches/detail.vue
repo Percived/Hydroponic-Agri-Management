@@ -3,11 +3,16 @@
     <!-- Header -->
     <div class="page-header">
       <div class="header-left">
-        <el-button @click="$router.back()" :icon="'ArrowLeft'" text>返回</el-button>
+        <el-button @click="router.push('/batches/ledger')" text>
+          <el-icon><ArrowLeft /></el-icon>返回批次台账
+        </el-button>
         <h1 class="page-title">{{ dashboard?.batch.batch_no || '批次详情' }}</h1>
         <el-tag :type="statusTagType" size="large">{{ dashboard?.batch.status }}</el-tag>
       </div>
       <div class="header-right" v-if="dashboard && canControl">
+        <el-button type="default" @click="openEditDialog">
+          <el-icon><Edit /></el-icon>编辑
+        </el-button>
         <el-dropdown @command="handleStatusTransition" v-if="allowedTransitions.length > 0">
           <el-button type="primary">
             状态转换 <el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -37,7 +42,17 @@
         <el-col :span="6">
           <div class="info-card">
             <div class="info-label">温室 / 种植区</div>
-            <div class="info-value">{{ dashboard.greenhouse_name || '-' }} / {{ dashboard.zone_name || '-' }}</div>
+            <div class="info-value">
+              <el-button v-if="dashboard.batch.greenhouse_id" type="primary" link size="small" @click="router.push('/assets/greenhouses')">
+                {{ dashboard.greenhouse_name || '-' }}
+              </el-button>
+              <span v-else>{{ dashboard.greenhouse_name || '-' }}</span>
+              <span> / </span>
+              <el-button v-if="dashboard.batch.growing_zone_id" type="primary" link size="small" @click="router.push(`/assets/growing-zones?greenhouse_id=${dashboard.batch.greenhouse_id}`)">
+                {{ dashboard.zone_name || '-' }}
+              </el-button>
+              <span v-else>{{ dashboard.zone_name || '-' }}</span>
+            </div>
           </div>
         </el-col>
         <el-col :span="6">
@@ -91,6 +106,57 @@
         <el-empty v-else description="暂无阶段计划" :image-size="60" />
       </el-card>
 
+      <!-- Stage Plans Card -->
+      <el-card class="section-card">
+        <template #header>
+          <div class="card-header-row">
+            <span class="card-title">阶段计划 ({{ stagePlans.length }})</span>
+            <el-button v-if="canControl" size="small" type="primary" @click="openCreateStageDialog">新增阶段</el-button>
+          </div>
+        </template>
+        <el-alert
+          v-if="stageConflictMessage"
+          type="warning" :closable="false" show-icon
+          :title="stageConflictMessage"
+          class="conflict-alert"
+        />
+        <el-table v-if="stagePlans.length" :data="stagePlans" stripe v-loading="stageLoading" :row-class-name="stageRowClass" size="small">
+          <el-table-column label="生长阶段" min-width="140">
+            <template #default="{ row }">{{ growthStageLabelById[row.growth_stage_id] || fallbackIdLabel('阶段', row.growth_stage_id) }}</template>
+          </el-table-column>
+          <el-table-column label="配方" min-width="140">
+            <template #default="{ row }">{{ recipeLabelById[row.recipe_id] || fallbackIdLabel('配方', row.recipe_id) }}</template>
+          </el-table-column>
+          <el-table-column label="策略" min-width="140">
+            <template #default="{ row }">{{ policyLabelById[row.policy_id] || fallbackIdLabel('策略', row.policy_id) }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">
+              <el-tag :type="stageStatusTag(row)" size="small">{{ stageStatusText(row) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="开始时间" min-width="160">
+            <template #default="{ row }">{{ formatDateTime(row.stage_start_at) }}</template>
+          </el-table-column>
+          <el-table-column label="结束时间" min-width="160">
+            <template #default="{ row }">{{ formatDateTime(row.stage_end_at) }}</template>
+          </el-table-column>
+          <el-table-column label="EC目标" width="110">
+            <template #default="{ row }">{{ stageRange(row.target_ec_min, row.target_ec_max) }}</template>
+          </el-table-column>
+          <el-table-column label="pH目标" width="110">
+            <template #default="{ row }">{{ stageRange(row.target_ph_min, row.target_ph_max) }}</template>
+          </el-table-column>
+          <el-table-column v-if="canControl" label="操作" width="120" fixed="right">
+            <template #default="{ row }">
+              <el-button type="primary" link size="small" @click="openEditStageDialog(row)">编辑</el-button>
+              <el-button type="danger" link size="small" @click="removeStage(row.id)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-else-if="!stageLoading" description="暂无阶段计划" :image-size="60" />
+      </el-card>
+
       <el-row :gutter="16">
         <!-- Devices Card -->
         <el-col :span="12">
@@ -110,7 +176,9 @@
                 <el-tag :type="d.device_type === 'sensor' ? 'success' : 'warning'" size="small" effect="plain">
                   {{ d.device_type === 'sensor' ? '传感器' : '执行器' }}
                 </el-tag>
-                <span class="device-name">{{ d.device_name || d.device_code || `#${d.device_id}` }}</span>
+                <el-button type="primary" link size="small" class="device-name" @click="router.push(`/devices/${d.device_id}?type=${d.device_type}`)">
+                  {{ d.device_name || d.device_code || `#${d.device_id}` }}
+                </el-button>
                 <span class="device-code">{{ d.device_code }}</span>
                 <el-button
                   v-if="canControl"
@@ -159,7 +227,9 @@
               <div
                 v-for="a in dashboard.recent_alerts"
                 :key="a.id"
-                class="alert-item"
+                class="alert-item clickable"
+                @click="router.push(`/alerts/timeline?alertId=${a.id}`)"
+                title="查看告警时间线"
               >
                 <el-tag :type="alertLevelTag(a.level)" size="small">{{ a.level }}</el-tag>
                 <span class="alert-msg">{{ a.message }}</span>
@@ -243,6 +313,111 @@
         </template>
       </el-dialog>
 
+      <!-- Edit Batch Dialog -->
+      <el-dialog v-model="editDialogVisible" title="编辑批次" width="520px" @open="loadEditOptions">
+        <el-form :model="editForm" label-width="100px">
+          <el-form-item label="批次编号">
+            <el-input v-model="editForm.batch_no" placeholder="批次编号" maxlength="64" />
+          </el-form-item>
+          <el-form-item label="温室">
+            <el-select
+              v-model="editForm.greenhouse_id"
+              placeholder="选择温室"
+              style="width: 100%"
+              @change="onEditGreenhouseChange"
+            >
+              <el-option
+                v-for="g in greenhouseOptions"
+                :key="g.id"
+                :label="g.name"
+                :value="g.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="种植区">
+            <el-select
+              v-model="editForm.growing_zone_id"
+              placeholder="选择种植区"
+              clearable
+              style="width: 100%"
+            >
+              <el-option
+                v-for="z in zoneOptions"
+                :key="z.id"
+                :label="z.name"
+                :value="z.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="作物品种">
+            <el-select
+              v-model="editForm.crop_variety_id"
+              placeholder="选择品种"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="v in varietyOptions"
+                :key="v.id"
+                :label="`${v.name} (${v.code})`"
+                :value="v.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-row :gutter="12">
+            <el-col :span="12">
+              <el-form-item label="定植密度" label-width="80px">
+                <el-input-number v-model="editForm.planting_density" :min="0" :precision="1" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="总株数" label-width="70px">
+                <el-input-number v-model="editForm.total_plants" :min="0" style="width: 100%" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="12">
+            <el-col :span="12">
+              <el-form-item label="开始时间" label-width="80px">
+                <el-date-picker
+                  v-model="editForm.started_at"
+                  type="date"
+                  placeholder="选择日期"
+                  value-format="YYYY-MM-DD"
+                  style="width: 100%"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="预计采收" label-width="70px">
+                <el-date-picker
+                  v-model="editForm.expected_harvest_at"
+                  type="date"
+                  placeholder="选择日期"
+                  value-format="YYYY-MM-DD"
+                  style="width: 100%"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-form-item label="备注">
+            <el-input v-model="editForm.note" type="textarea" placeholder="备注信息" maxlength="500" show-word-limit />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="editDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="editing" @click="doEdit">保存</el-button>
+        </template>
+      </el-dialog>
+
+      <!-- Stage Plan Editor Dialog -->
+      <el-dialog v-model="stageEditorVisible" :title="editingStageId ? '编辑阶段计划' : '新增阶段计划'" width="760px">
+        <stage-plan-editor v-model="stageEditorData" />
+        <template #footer>
+          <el-button @click="stageEditorVisible = false">取消</el-button>
+          <el-button type="primary" :loading="stageSubmitLoading" @click="submitStage">保存</el-button>
+        </template>
+      </el-dialog>
+
       <!-- Planting Record Card -->
       <el-card class="section-card" v-if="dashboard.planting_record">
         <template #header>
@@ -269,12 +444,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
-import { cropApi, deviceApi } from '@/api'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowDown, ArrowLeft, Edit } from '@element-plus/icons-vue'
+import { cropApi, deviceApi, greenhouseApi, policyApi, recipeApi } from '@/api'
+import StagePlanEditor from '@/components/batch/StagePlanEditor.vue'
 import { formatDateTime } from '@/utils/format'
+import { buildIdLabelMap, fallbackIdLabel, growthStageLabel } from '@/utils/labels'
 import { usePermission } from '@/composables'
-import type { BatchDashboard, SensorDevice, ActuatorDevice } from '@/types'
+import type { BatchDashboard, BatchStagePlan, CreateBatchStagePlanRequest, GrowthStage, NutrientRecipe, ControlPolicy, SensorDevice, ActuatorDevice } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -297,9 +474,10 @@ const statusTagType = computed(() => {
 })
 
 const runningDays = computed(() => {
-  if (!dashboard.value?.batch.started_at) return 0
-  const start = new Date(dashboard.value.batch.started_at).getTime()
-  const end = dashboard.value.batch.ended_at
+  const startStr = dashboard.value?.batch.started_at || dashboard.value?.batch.created_at
+  if (!startStr) return 0
+  const start = new Date(startStr).getTime()
+  const end = dashboard.value?.batch.ended_at
     ? new Date(dashboard.value.batch.ended_at).getTime()
     : Date.now()
   return Math.max(0, Math.floor((end - start) / (1000 * 60 * 60 * 24)))
@@ -430,8 +608,295 @@ function alertLevelTag(level: string) {
   return map[level] || 'info'
 }
 
+// Batch edit
+const editDialogVisible = ref(false)
+const editing = ref(false)
+const editForm = ref({
+  batch_no: '',
+  greenhouse_id: 0,
+  growing_zone_id: undefined as number | undefined,
+  crop_variety_id: 0,
+  planting_density: undefined as number | undefined,
+  total_plants: undefined as number | undefined,
+  started_at: '',
+  expected_harvest_at: '',
+  note: ''
+})
+const greenhouseOptions = ref<{ id: number; name: string }[]>([])
+const zoneOptions = ref<{ id: number; name: string }[]>([])
+const varietyOptions = ref<{ id: number; name: string; code: string }[]>([])
+
+function openEditDialog() {
+  if (!dashboard.value) return
+  const b = dashboard.value.batch
+  editForm.value = {
+    batch_no: b.batch_no || '',
+    greenhouse_id: b.greenhouse_id || 0,
+    growing_zone_id: b.growing_zone_id,
+    crop_variety_id: b.crop_variety_id || 0,
+    planting_density: b.planting_density,
+    total_plants: b.total_plants,
+    started_at: b.started_at?.slice(0, 10) || '',
+    expected_harvest_at: b.expected_harvest_at?.slice(0, 10) || '',
+    note: b.note || ''
+  }
+  editDialogVisible.value = true
+}
+
+async function loadEditOptions() {
+  try {
+    const [ghRes, varRes] = await Promise.all([
+      greenhouseApi.getGreenhouses(),
+      cropApi.getCropVarieties()
+    ])
+    greenhouseOptions.value = ghRes.items || []
+    varietyOptions.value = varRes.items || []
+  } catch { /* ignore */ }
+  onEditGreenhouseChange(editForm.value.greenhouse_id)
+}
+
+async function onEditGreenhouseChange(greenhouseId: number | undefined) {
+  if (!greenhouseId) {
+    zoneOptions.value = []
+    return
+  }
+  try {
+    const res = await greenhouseApi.getGrowingZones({ greenhouse_id: greenhouseId })
+    zoneOptions.value = res.items || []
+  } catch {
+    zoneOptions.value = []
+  }
+}
+
+async function doEdit() {
+  if (!dashboard.value) return
+  editing.value = true
+  try {
+    const payload: Record<string, unknown> = {}
+    const f = editForm.value
+    if (f.batch_no) payload.batch_no = f.batch_no
+    if (f.greenhouse_id) payload.greenhouse_id = f.greenhouse_id
+    if (f.growing_zone_id !== undefined) payload.growing_zone_id = f.growing_zone_id
+    if (f.crop_variety_id) payload.crop_variety_id = f.crop_variety_id
+    if (f.planting_density !== undefined) payload.planting_density = f.planting_density
+    if (f.total_plants !== undefined) payload.total_plants = f.total_plants
+    if (f.started_at) payload.started_at = f.started_at
+    if (f.expected_harvest_at) payload.expected_harvest_at = f.expected_harvest_at
+    if (f.note !== undefined) payload.note = f.note
+
+    await cropApi.updateBatch(dashboard.value.batch.id, payload as any)
+    ElMessage.success('批次更新成功')
+    editDialogVisible.value = false
+    await fetchDashboard()
+  } catch {
+    ElMessage.error('更新失败')
+  } finally {
+    editing.value = false
+  }
+}
+
+// Stage Plans
+const stagePlans = ref<BatchStagePlan[]>([])
+const stageLoading = ref(false)
+const stageEditorVisible = ref(false)
+const stageSubmitLoading = ref(false)
+const editingStageId = ref<number>()
+const stageEditorData = ref<CreateBatchStagePlanRequest>({
+  batch_id: 0,
+  growth_stage_id: 0,
+  stage_start_at: new Date().toISOString(),
+  stage_end_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+  target_ec_min: 1,
+  target_ec_max: 2,
+  target_ph_min: 5.5,
+  target_ph_max: 6.5,
+  recipe_id: undefined,
+  policy_id: undefined,
+  climate_profile_id: undefined
+})
+
+// Reference data for labels
+const growthStages = ref<GrowthStage[]>([])
+const recipes = ref<NutrientRecipe[]>([])
+const policies = ref<ControlPolicy[]>([])
+
+const growthStageLabelById = computed(() =>
+  buildIdLabelMap(growthStages.value, s => s.id, growthStageLabel, '阶段')
+)
+const recipeLabelById = computed(() =>
+  buildIdLabelMap(recipes.value, r => r.id, r => `${r.name} (${r.recipe_code})`, '配方')
+)
+const policyLabelById = computed(() =>
+  buildIdLabelMap(policies.value, p => p.id, p => `${p.name} (${p.policy_code})`, '策略')
+)
+
+const nowForStage = computed(() => new Date())
+
+const stageConflictMessage = computed(() => {
+  const sorted = [...stagePlans.value].sort((a, b) => new Date(a.stage_start_at).getTime() - new Date(b.stage_start_at).getTime())
+  for (let i = 1; i < sorted.length; i++) {
+    const prevEnd = new Date(sorted[i - 1].stage_end_at).getTime()
+    const currStart = new Date(sorted[i].stage_start_at).getTime()
+    if (currStart < prevEnd) {
+      return `阶段时间窗冲突：阶段之间存在重叠。`
+    }
+  }
+  return ''
+})
+
+function stageStatusTag(stage: BatchStagePlan) {
+  const start = new Date(stage.stage_start_at)
+  const end = new Date(stage.stage_end_at)
+  if (nowForStage.value < start) return 'info'
+  if (nowForStage.value > end) return 'success'
+  return ''
+}
+
+function stageStatusText(stage: BatchStagePlan) {
+  const start = new Date(stage.stage_start_at)
+  const end = new Date(stage.stage_end_at)
+  if (nowForStage.value < start) return '未开始'
+  if (nowForStage.value > end) return '已完成'
+  return '进行中'
+}
+
+function stageRowClass({ row }: { row: BatchStagePlan }) {
+  const start = new Date(row.stage_start_at)
+  const end = new Date(row.stage_end_at)
+  if (nowForStage.value < start) return 'stage-pending'
+  if (nowForStage.value > end) return 'stage-completed'
+  return 'stage-active'
+}
+
+function stageRange(min?: number | null, max?: number | null) {
+  if (min == null && max == null) return '-'
+  return `${min ?? '-'} ~ ${max ?? '-'}`
+}
+
+async function loadStagePlans() {
+  if (!dashboard.value) return
+  stageLoading.value = true
+  try {
+    const result = await cropApi.getBatchStagePlans({ batch_id: dashboard.value.batch.id })
+    stagePlans.value = (result.items || []).sort(
+      (a, b) => new Date(a.stage_start_at).getTime() - new Date(b.stage_start_at).getTime()
+    )
+  } catch {
+    stagePlans.value = []
+  } finally {
+    stageLoading.value = false
+  }
+}
+
+async function loadStageRefData() {
+  try {
+    const [stageRes, recipeRes, policyRes] = await Promise.all([
+      cropApi.getGrowthStages({ page_size: 200 }),
+      recipeApi.getRecipes({ page_size: 200 }),
+      policyApi.getPolicies({ page_size: 200 })
+    ])
+    growthStages.value = stageRes.items
+    recipes.value = recipeRes.items
+    policies.value = policyRes.items
+  } catch { /* ignore */ }
+}
+
+function openCreateStageDialog() {
+  if (!dashboard.value) return
+  editingStageId.value = undefined
+  stageEditorData.value = {
+    batch_id: dashboard.value.batch.id,
+    growth_stage_id: growthStages.value[0]?.id || 0,
+    stage_start_at: new Date().toISOString(),
+    stage_end_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    target_ec_min: 1,
+    target_ec_max: 2,
+    target_ph_min: 5.5,
+    target_ph_max: 6.5,
+    recipe_id: undefined,
+    policy_id: undefined,
+    climate_profile_id: undefined
+  }
+  stageEditorVisible.value = true
+}
+
+function openEditStageDialog(stage: BatchStagePlan) {
+  editingStageId.value = stage.id
+  stageEditorData.value = {
+    batch_id: stage.batch_id,
+    growth_stage_id: stage.growth_stage_id,
+    recipe_id: stage.recipe_id ?? undefined,
+    policy_id: stage.policy_id ?? undefined,
+    climate_profile_id: stage.climate_profile_id ?? undefined,
+    stage_start_at: stage.stage_start_at,
+    stage_end_at: stage.stage_end_at,
+    target_ec_min: stage.target_ec_min ?? undefined,
+    target_ec_max: stage.target_ec_max ?? undefined,
+    target_ph_min: stage.target_ph_min ?? undefined,
+    target_ph_max: stage.target_ph_max ?? undefined
+  }
+  stageEditorVisible.value = true
+}
+
+function validateStageInput(payload: CreateBatchStagePlanRequest) {
+  if (!payload.growth_stage_id || !payload.stage_start_at || !payload.stage_end_at) return '请填写阶段和时间窗'
+  const start = new Date(payload.stage_start_at).getTime()
+  const end = new Date(payload.stage_end_at).getTime()
+  if (start >= end) return '阶段结束时间必须晚于开始时间'
+  const overlap = stagePlans.value.some((s) => {
+    if (editingStageId.value && s.id === editingStageId.value) return false
+    const sStart = new Date(s.stage_start_at).getTime()
+    const sEnd = new Date(s.stage_end_at).getTime()
+    return Math.max(start, sStart) < Math.min(end, sEnd)
+  })
+  if (overlap) return '阶段时间窗与现有阶段冲突'
+  return ''
+}
+
+async function submitStage() {
+  if (!dashboard.value) return
+  const validation = validateStageInput(stageEditorData.value)
+  if (validation) {
+    ElMessage.error(validation)
+    return
+  }
+  stageSubmitLoading.value = true
+  try {
+    if (editingStageId.value) {
+      await cropApi.updateBatchStagePlan(editingStageId.value, stageEditorData.value)
+      ElMessage.success('阶段计划已更新')
+    } else {
+      await cropApi.createBatchStagePlan(stageEditorData.value)
+      ElMessage.success('阶段计划已创建')
+    }
+    stageEditorVisible.value = false
+    await loadStagePlans()
+  } finally {
+    stageSubmitLoading.value = false
+  }
+}
+
+async function removeStage(stageId: number) {
+  try {
+    await ElMessageBox.confirm('确认删除该阶段计划？', '提示', { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await cropApi.deleteBatchStagePlan(stageId)
+    ElMessage.success('已删除')
+    await loadStagePlans()
+  } catch {
+    ElMessage.error('删除失败')
+  }
+}
+
 onMounted(() => {
   fetchDashboard()
+    .then(() => {
+      loadStagePlans()
+      loadStageRefData()
+    })
 })
 </script>
 
@@ -523,6 +988,11 @@ onMounted(() => {
     border-bottom: 1px solid var(--border-light);
     &:last-child { border-bottom: none; }
 
+    &.clickable {
+      cursor: pointer;
+      &:hover { background: var(--bg-page); }
+    }
+
     .device-name, .metric-name, .alert-msg, .cmd-type {
       flex: 1;
       font-weight: 500;
@@ -542,6 +1012,19 @@ onMounted(() => {
     margin-bottom: 12px;
     strong { color: var(--color-primary); }
   }
+  .conflict-alert {
+    margin-bottom: 10px;
+  }
+  :deep(.stage-completed) {
+    background-color: rgba(103, 194, 58, 0.06);
+  }
+  :deep(.stage-active) {
+    background-color: rgba(64, 158, 255, 0.06);
+  }
+  :deep(.stage-pending) {
+    background-color: rgba(144, 147, 153, 0.04);
+  }
+
   .grade-card {
     text-align: center;
     padding: 12px;

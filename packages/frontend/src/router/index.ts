@@ -15,30 +15,56 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/dashboard/index.vue'),
     meta: { requiresAuth: true, title: '首页' }
   },
-  // ── 资产中心 ──
+  // ── 批次管理 ──
   {
-    path: '/assets/sensor-devices',
-    name: 'SensorDevices',
-    component: () => import('@/views/devices/list.vue'),
-    meta: { requiresAuth: true, title: '传感器设备' }
+    path: '/batches/ledger',
+    name: 'BatchLedger',
+    component: () => import('@/views/batches/ledger.vue'),
+    meta: { requiresAuth: true, title: '批次台账' }
   },
   {
-    path: '/assets/actuator-devices',
-    name: 'ActuatorDevices',
-    component: () => import('@/views/devices/list.vue'),
-    meta: { requiresAuth: true, title: '执行器设备' }
+    path: '/batches/harvest',
+    name: 'HarvestRecords',
+    component: () => import('@/views/batches/harvest.vue'),
+    meta: { requiresAuth: true, title: '采收记录' }
   },
   {
-    path: '/assets/greenhouses',
-    name: 'Greenhouses',
-    component: () => import('@/views/greenhouses/index.vue'),
-    meta: { requiresAuth: true, roles: [Role.ADMIN], title: '温室管理' }
+    path: '/batches/review',
+    name: 'BatchReview',
+    component: () => import('@/views/batches/review.vue'),
+    meta: { requiresAuth: true, title: '批次复盘' }
   },
   {
-    path: '/assets/growing-zones',
-    name: 'GrowingZones',
-    component: () => import('@/views/greenhouses/zones.vue'),
-    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '种植区管理' }
+    path: '/batches/:id',
+    name: 'BatchDetail',
+    component: () => import('@/views/batches/detail.vue'),
+    meta: { requiresAuth: true, title: '批次详情' }
+  },
+  // ── 营养液 ──
+  {
+    path: '/nutrient/recipes',
+    name: 'NutrientRecipes',
+    component: () => import('@/views/recipes/index.vue'),
+    meta: { requiresAuth: true, title: '营养配方' }
+  },
+  {
+    path: '/nutrient/tanks',
+    name: 'NutrientTanks',
+    component: () => import('@/views/nutrient/tanks.vue'),
+    meta: { requiresAuth: true, title: '营养液槽' }
+  },
+  {
+    path: '/nutrient/ion-tests',
+    name: 'IonTests',
+    component: () => import('@/views/nutrient/ion-tests.vue'),
+    meta: { requiresAuth: true, title: '离子检测' }
+  },
+  // ── 植保 ──
+  {
+    path: '/pest/observations',
+    name: 'PestObservations',
+    component: () => import('@/views/pest/observations.vue'),
+    meta: { requiresAuth: true, title: '病虫害观察' }
   },
   // ── 采集中心 ──
   {
@@ -52,6 +78,19 @@ const routes: RouteRecordRaw[] = [
     name: 'TelemetryTrends',
     component: () => import('@/views/telemetry/trends.vue'),
     meta: { requiresAuth: true, title: '趋势分析' }
+  },
+  // ── 告警处置 ──
+  {
+    path: '/alerts/list',
+    name: 'Alerts',
+    component: () => import('@/views/alerts/index.vue'),
+    meta: { requiresAuth: true, title: '告警列表' }
+  },
+  {
+    path: '/alerts/timeline',
+    name: 'AlertTimeline',
+    component: () => import('@/views/alerts/timeline.vue'),
+    meta: { requiresAuth: true, title: '告警时间线' }
   },
   // ── 策略控制 ──
   {
@@ -72,75 +111,30 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/controls/commands.vue'),
     meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '指令下发' }
   },
-  // ── 营养液 ──
+  // ── 资产中心 ──
   {
-    path: '/nutrient/tanks',
-    name: 'NutrientTanks',
-    component: () => import('@/views/nutrient/tanks.vue'),
-    meta: { requiresAuth: true, title: '营养液槽' }
+    path: '/assets/greenhouses',
+    name: 'Greenhouses',
+    component: () => import('@/views/greenhouses/index.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN], title: '温室管理' }
   },
   {
-    path: '/nutrient/ion-tests',
-    name: 'IonTests',
-    component: () => import('@/views/nutrient/ion-tests.vue'),
-    meta: { requiresAuth: true, title: '离子检测' }
+    path: '/assets/growing-zones',
+    name: 'GrowingZones',
+    component: () => import('@/views/greenhouses/zones.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '种植区管理' }
   },
   {
-    path: '/nutrient/recipes',
-    name: 'NutrientRecipes',
-    component: () => import('@/views/recipes/index.vue'),
-    meta: { requiresAuth: true, title: '营养配方' }
-  },
-  // ── 告警处置 ──
-  {
-    path: '/alerts/list',
-    name: 'Alerts',
-    component: () => import('@/views/alerts/index.vue'),
-    meta: { requiresAuth: true, title: '告警列表' }
+    path: '/assets/sensor-devices',
+    name: 'SensorDevices',
+    component: () => import('@/views/devices/list.vue'),
+    meta: { requiresAuth: true, title: '传感器设备' }
   },
   {
-    path: '/alerts/timeline',
-    name: 'AlertTimeline',
-    component: () => import('@/views/alerts/timeline.vue'),
-    meta: { requiresAuth: true, title: '告警时间线' }
-  },
-  // ── 批次管理 ──
-  {
-    path: '/batches/ledger',
-    name: 'BatchLedger',
-    component: () => import('@/views/batches/ledger.vue'),
-    meta: { requiresAuth: true, title: '批次台账' }
-  },
-  {
-    path: '/batches/:id',
-    name: 'BatchDetail',
-    component: () => import('@/views/batches/detail.vue'),
-    meta: { requiresAuth: true, title: '批次详情' }
-  },
-  {
-    path: '/batches/harvest',
-    name: 'HarvestRecords',
-    component: () => import('@/views/batches/harvest.vue'),
-    meta: { requiresAuth: true, title: '采收记录' }
-  },
-  {
-    path: '/batches/stage-plans',
-    name: 'BatchStagePlans',
-    component: () => import('@/views/batches/stage-plans.vue'),
-    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '阶段计划' }
-  },
-  {
-    path: '/batches/review',
-    name: 'BatchReview',
-    component: () => import('@/views/batches/review.vue'),
-    meta: { requiresAuth: true, title: '批次复盘' }
-  },
-  // ── 植保 ──
-  {
-    path: '/pest/observations',
-    name: 'PestObservations',
-    component: () => import('@/views/pest/observations.vue'),
-    meta: { requiresAuth: true, title: '病虫害观察' }
+    path: '/assets/actuator-devices',
+    name: 'ActuatorDevices',
+    component: () => import('@/views/devices/list.vue'),
+    meta: { requiresAuth: true, title: '执行器设备' }
   },
   // ── 能耗 ──
   {
@@ -149,7 +143,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/energy/records.vue'),
     meta: { requiresAuth: true, title: '能耗记录' }
   },
-  // ── Admin ──
+  // ── 系统管理 ──
   {
     path: '/users',
     name: 'Users',
@@ -157,16 +151,16 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, roles: [Role.ADMIN], title: '用户管理' }
   },
   {
-    path: '/audit-logs',
-    name: 'AuditLogs',
-    component: () => import('@/views/audit-logs/index.vue'),
-    meta: { requiresAuth: true, roles: [Role.ADMIN], title: '审计日志' }
-  },
-  {
     path: '/settings/notification-channels',
     name: 'NotificationChannels',
     component: () => import('@/views/settings/notification-channels.vue'),
     meta: { requiresAuth: true, roles: [Role.ADMIN], title: '通知渠道' }
+  },
+  {
+    path: '/audit-logs',
+    name: 'AuditLogs',
+    component: () => import('@/views/audit-logs/index.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN], title: '审计日志' }
   },
   // ── Legacy redirects ──
   { path: '/devices', redirect: '/assets/sensor-devices' },

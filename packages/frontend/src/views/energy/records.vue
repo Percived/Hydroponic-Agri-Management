@@ -49,7 +49,12 @@
       <el-table :data="records" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column label="温室" width="160">
-          <template #default="{ row }">{{ greenhouseName(row.greenhouse_id) }}</template>
+          <template #default="{ row }">
+            <el-button v-if="row.greenhouse_id" type="primary" link size="small" @click="router.push('/assets/greenhouses')">
+              {{ greenhouseName(row.greenhouse_id) }}
+            </el-button>
+            <span v-else>-</span>
+          </template>
         </el-table-column>
         <el-table-column prop="record_type" label="能耗类型" width="120">
           <template #default="{ row }">{{ recordTypeName(row.record_type) }}</template>
@@ -64,7 +69,12 @@
           <template #default="{ row }">{{ formatDateTime(row.record_period_end) }}</template>
         </el-table-column>
         <el-table-column label="批次" width="160">
-          <template #default="{ row }">{{ batchName(row.batch_id) }}</template>
+          <template #default="{ row }">
+            <el-button v-if="row.batch_id" type="primary" link size="small" @click="router.push(`/batches/${row.batch_id}`)">
+              {{ batchName(row.batch_id) }}
+            </el-button>
+            <span v-else>-</span>
+          </template>
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
@@ -151,6 +161,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { energyApi, greenhouseApi, cropApi } from '@/api'
@@ -159,6 +170,7 @@ import { buildIdLabelMap, cropBatchLabel, fallbackIdLabel, greenhouseLabel } fro
 import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import type { EnergyConsumptionRecord, EnergySummary, Greenhouse, CropBatch } from '@/types'
 
+const router = useRouter()
 const loading = ref(false)
 const records = ref<EnergyConsumptionRecord[]>([])
 const total = ref(0)

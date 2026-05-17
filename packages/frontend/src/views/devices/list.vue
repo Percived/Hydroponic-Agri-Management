@@ -43,10 +43,20 @@
             <template #default="{ row }">{{ channelCountMap[row.id] ?? 0 }}</template>
           </el-table-column>
           <el-table-column label="所属温室" width="120">
-            <template #default="{ row }">{{ getGreenhouseName(row.greenhouse_id) }}</template>
+            <template #default="{ row }">
+              <el-button v-if="row.greenhouse_id" type="primary" link size="small" @click="router.push('/assets/greenhouses')">
+                {{ getGreenhouseName(row.greenhouse_id) }}
+              </el-button>
+              <span v-else>-</span>
+            </template>
           </el-table-column>
           <el-table-column label="种植区" width="120">
-            <template #default="{ row }">{{ getZoneName(row.growing_zone_id) }}</template>
+            <template #default="{ row }">
+              <el-button v-if="row.growing_zone_id" type="primary" link size="small" @click="router.push(`/assets/growing-zones?greenhouse_id=${row.greenhouse_id}`)">
+                {{ getZoneName(row.growing_zone_id) }}
+              </el-button>
+              <span v-else>-</span>
+            </template>
           </el-table-column>
           <el-table-column prop="status" label="状态" width="100">
             <template #default="{ row }">
@@ -553,6 +563,9 @@ async function handleDelete(device: AnyDevice) {
 }
 
 onMounted(() => {
+  // Support external links with pre-filled greenhouse filter
+  const ghId = route.query.greenhouse_id
+  if (ghId) filters.greenhouse_id = Number(ghId)
   fetchData()
   loadGreenhouses()
   loadGrowingZones()

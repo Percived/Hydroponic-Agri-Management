@@ -63,7 +63,12 @@
       <el-table :data="harvests" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column label="批次" width="180">
-          <template #default="{ row }">{{ batchName(row.batch_id) }}</template>
+          <template #default="{ row }">
+            <el-button v-if="row.batch_id" type="primary" link size="small" @click="router.push(`/batches/${row.batch_id}`)">
+              {{ batchName(row.batch_id) }}
+            </el-button>
+            <span v-else>-</span>
+          </template>
         </el-table-column>
         <el-table-column prop="harvested_at" label="采收时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.harvested_at) }}</template>
@@ -140,6 +145,7 @@
 
 <script setup lang="ts">
 import { computed, ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { cropApi } from '@/api'
@@ -147,6 +153,7 @@ import { formatDateTime } from '@/utils/format'
 import { buildIdLabelMap, cropBatchLabel, fallbackIdLabel } from '@/utils/labels'
 import type { CropBatch, HarvestRecord } from '@/types'
 
+const router = useRouter()
 const loading = ref(false)
 const harvests = ref<HarvestRecord[]>([])
 const batches = ref<CropBatch[]>([])

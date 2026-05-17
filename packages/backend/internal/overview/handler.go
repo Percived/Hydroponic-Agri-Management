@@ -76,7 +76,7 @@ func (h *Handler) Dashboard(c *gin.Context) {
 	go func() {
 		defer wg.Done()
 		if h.db.Migrator().HasTable("crop_batches") {
-			h.db.Table("crop_batches").Where("status = ?", "ACTIVE").Count(&activeBatchesCount)
+			h.db.Table("crop_batches").Where("status = ?", "RUNNING").Count(&activeBatchesCount)
 		}
 	}()
 
@@ -86,14 +86,14 @@ func (h *Handler) Dashboard(c *gin.Context) {
 		defer wg.Done()
 		if h.db.Migrator().HasTable("energy_consumption_records") {
 			todayStart := time.Now().Truncate(24 * time.Hour)
-			var totalEnergy struct {
-				Total float64
-			}
-			h.db.Table("energy_consumption_records").
-				Select("COALESCE(SUM(consumption_value), 0) as total").
+			row := h.db.Table("energy_consumption_records").
+				Select("COALESCE(SUM(consumption_value), 0)").
 				Where("record_type = ? AND record_period_start >= ?", "ELECTRICITY", todayStart).
-				Scan(&totalEnergy)
-			energyKwhToday = totalEnergy.Total
+				Row()
+			if err := row.Scan(&energyKwhToday); err != nil {
+				errCh <- err
+				return
+			}
 		}
 	}()
 
@@ -102,14 +102,14 @@ func (h *Handler) Dashboard(c *gin.Context) {
 		defer wg.Done()
 		if h.db.Migrator().HasTable("energy_consumption_records") {
 			todayStart := time.Now().Truncate(24 * time.Hour)
-			var totalWater struct {
-				Total float64
-			}
-			h.db.Table("energy_consumption_records").
-				Select("COALESCE(SUM(consumption_value), 0) as total").
+			row := h.db.Table("energy_consumption_records").
+				Select("COALESCE(SUM(consumption_value), 0)").
 				Where("record_type = ? AND record_period_start >= ?", "WATER", todayStart).
-				Scan(&totalWater)
-			waterLToday = totalWater.Total
+				Row()
+			if err := row.Scan(&waterLToday); err != nil {
+				errCh <- err
+				return
+			}
 		}
 	}()
 
@@ -132,7 +132,7 @@ func (h *Handler) Dashboard(c *gin.Context) {
 					CAST(cb.id AS CHAR) as batch_id,
 					cv.name as crop_name,
 					COALESCE(gs.name, cb.status) as stage,
-					DATEDIFF(NOW(), cb.started_at) as day,
+					COALESCE(DATEDIFF(NOW(), cb.started_at), DATEDIFF(NOW(), cb.created_at)) as day,
 					CAST(cb.greenhouse_id AS CHAR) as greenhouse_id
 				FROM crop_batches cb
 				JOIN crop_varieties cv ON cv.id = cb.crop_variety_id

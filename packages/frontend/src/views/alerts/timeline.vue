@@ -1,6 +1,9 @@
 <template>
   <div class="timeline-page">
     <div class="page-header">
+      <el-button @click="router.push('/alerts/list')" text>
+        <el-icon><ArrowLeft /></el-icon>返回告警列表
+      </el-button>
       <h1 class="page-title">告警时间线</h1>
     </div>
 
@@ -42,12 +45,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import { alertApi } from '@/api'
 import { formatDateTime } from '@/utils/format'
 import type { Alert, AlertTimelineEvent } from '@/types'
 
 const route = useRoute()
+const router = useRouter()
 
 const loading = ref(false)
 const alerts = ref<Alert[]>([])
