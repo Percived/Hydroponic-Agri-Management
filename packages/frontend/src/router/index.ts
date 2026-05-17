@@ -48,10 +48,22 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, title: '营养配方' }
   },
   {
+    path: '/nutrient/recipes/:id',
+    name: 'NutrientRecipeDetail',
+    component: () => import('@/views/recipes/detail.vue'),
+    meta: { requiresAuth: true, title: '配方详情' }
+  },
+  {
     path: '/nutrient/tanks',
     name: 'NutrientTanks',
     component: () => import('@/views/nutrient/tanks.vue'),
     meta: { requiresAuth: true, title: '营养液槽' }
+  },
+  {
+    path: '/nutrient/tanks/:id',
+    name: 'NutrientTankDetail',
+    component: () => import('@/views/nutrient/tank-detail.vue'),
+    meta: { requiresAuth: true, title: '液槽详情' }
   },
   {
     path: '/nutrient/ion-tests',
@@ -129,6 +141,12 @@ const routes: RouteRecordRaw[] = [
     name: 'Greenhouses',
     component: () => import('@/views/greenhouses/index.vue'),
     meta: { requiresAuth: true, roles: [Role.ADMIN], title: '温室管理' }
+  },
+  {
+    path: '/assets/greenhouses/:id',
+    name: 'GreenhouseDetail',
+    component: () => import('@/views/greenhouses/detail.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR, Role.VIEWER], title: '温室详情' }
   },
   {
     path: '/assets/growing-zones',

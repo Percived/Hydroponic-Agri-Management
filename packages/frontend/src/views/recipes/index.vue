@@ -35,8 +35,9 @@
         <el-table-column prop="effective_to" label="失效时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.effective_to) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="260" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" link @click="router.push(`/nutrient/recipes/${row.id}`)">详情</el-button>
             <el-button type="primary" link @click="openEditRecipe(row)">编辑</el-button>
             <el-button type="success" link @click="openTargetsDialog(row)">指标</el-button>
             <el-button type="danger" link @click="removeRecipe(row.id)">删除</el-button>
@@ -287,6 +288,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { recipeApi, metricApi, cropApi } from '@/api'
@@ -296,6 +298,8 @@ import { LARGE_PAGE_SIZE } from '@/utils/constants'
 import type { NutrientRecipe, RecipeStatus, RecipeStageTarget, RecipeIonTarget, MetricDefinition, CreateStageTargetParams, CreateIonTargetParams, GrowthStage } from '@/types'
 
 // ── Recipes ──
+const router = useRouter()
+
 const loading = ref(false)
 const recipes = ref<NutrientRecipe[]>([])
 const total = ref(0)

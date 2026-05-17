@@ -77,8 +77,9 @@
         <el-table-column prop="updated_at" label="更新时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.updated_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="210" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" link @click="router.push(`/nutrient/tanks/${row.id}`)">详情</el-button>
             <el-button type="primary" link @click="openEditDialog(row)">编辑</el-button>
             <el-button type="danger" link @click="removeTank(row.id)">删除</el-button>
           </template>
@@ -143,6 +144,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { nutrientApi, greenhouseApi, deviceApi, telemetryApi } from '@/api'
@@ -189,6 +191,8 @@ function formatTime(iso: string): string {
 }
 
 // ── State ──
+const router = useRouter()
+
 const loading = ref(false)
 const tanks = ref<NutrientTank[]>([])
 const total = ref(0)

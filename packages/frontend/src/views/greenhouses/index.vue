@@ -58,8 +58,9 @@
             {{ formatDateTime(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="230" fixed="right">
+        <el-table-column label="操作" width="290" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" link @click="router.push(`/assets/greenhouses/${row.id}`)">详情</el-button>
             <el-button
               v-if="isAdmin"
               type="primary"
