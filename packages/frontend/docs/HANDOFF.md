@@ -1,10 +1,55 @@
 # 交接文档
 
-最后更新: 2026-05-17
+最后更新: 2026-05-18
 当前分支: version2
-当前重点: v0.8.1 — 侧边栏菜单结构与路由顺序优化
+当前重点: v0.8.1 — 告警处置工作流页面 & StagePlanEditor 双向同步修复
+
+## 最新变更 (2026-05-18)
+
+### 新增告警处置工作流页面
+
+- **`src/views/alerts/workflow.vue`** (新建)
+  - 告警详情卡片：展示 ID、状态、类型、指标代码、触发值、时间、设备、消息等
+  - 状态操作按钮（仅 ADMIN/OPERATOR 可见）：根据当前状态展示可操作的流转按钮
+    - OPEN → 确认 / 解决 / 忽略
+    - ACKNOWLEDGED → 解决 / 忽略 / 重新打开
+    - RESOLVED → 重新打开
+    - IGNORED → 重新打开
+  - 状态流转弹窗：确认目标状态 + 可选备注
+  - 备注输入区：可独立添加 COMMENT 类型时间线事件
+  - 事件时间线卡片：展示告警生命周期所有事件
+  - 页面顶部导航：返回告警列表 + 跳转完整时间线
+- **`src/router/index.ts`**
+  - 新增路由 `/alerts/workflow` → `AlertWorkflow`，权限 `ADMIN/OPERATOR`
+  - 移除旧重定向 `{ path: '/alerts/workflow', redirect: '/alerts/timeline' }`
+- **`src/types/alert.ts`**
+  - `UpdateAlertStatusRequest` 新增 `resolved_by?: number` 字段，对齐后端 DTO
+
+### 修复批次详情新增阶段计划时 growth_stage_id 未正确保存
+
+- **`src/components/batch/StagePlanEditor.vue`**
+  - 将 `defineModel` 替换为 `props` + `emit` + `reactive` 本地状态
+  - 新增双向 watch 同步：父→子（props 变化时 Object.assign），子→父（用户交互后深比较 emit），用 `syncing` 标志防止死循环
+  - 修复日期选择器 `value-format`：`[Z]`（转义字面量）→ `Z`（时区格式标记），避免本地时间伪造成 UTC
 
 ## 最新变更 (2026-05-17)
+
+### 新增策略详情页（含执行历史查询）
+
+- **`src/router/index.ts`**
+  - 新增路由 `/strategy/policies/:id` → `PolicyDetail`，权限 `ADMIN/OPERATOR/VIEWER`
+- **`src/views/controls/detail.vue`** (新建)
+  - 顶部导航栏：返回按钮 + 策略名称 + 类型标签 + 编辑/发布按钮
+  - 支持在详情页直接编辑策略基本信息和调度配置
+  - 支持在详情页直接发布策略（带确认弹窗）
+  - Tab 1 基本信息：`el-descriptions` 展示策略元数据，触发条件表格（metric_code/operator/threshold_value/hysteresis/window_sec/aggregation），执行目标表格（执行器通道/命令类型/执行顺序/命令参数）
+  - Tab 2 执行历史：切换到该 Tab 时自动加载数据，支持时间范围/触发来源/决策结果筛选 + 分页表格（ID/触发来源/触发指标/触发值/决策/决策原因/执行时间）
+  - 复用 `getPolicy(id)` 获取策略详情，`getPolicyExecutions(params)` 查询执行历史
+  - 执行器通道名称通过 `actuatorChannelLabel` 展示
+- **`src/views/controls/rules.vue`**
+  - 操作列新增"详情"按钮，点击跳转至 `/strategy/policies/:id`
+- **`src/types/policy.ts`**
+  - `PolicyExecution` 新增 `policy_name?: string` 字段
 
 ### 侧边栏菜单结构与路由顺序优化
 
@@ -311,6 +356,7 @@ v0.7.0 完成了从 MVP 到业务域闭环的全量架构重构：
 | `/collection/history` | TelemetryHistory | `telemetry/` | 全部 |
 | `/collection/batch-trends` | BatchTrends | `telemetry/` | 全部 |
 | `/strategy/policies` | ControlPolicies | `controls/` | ADMIN, OPERATOR |
+| `/strategy/policies/:id` | PolicyDetail | `controls/` | ADMIN, OPERATOR, VIEWER |
 | `/strategy/climate` | ClimateProfiles | `climate/` | ADMIN, OPERATOR |
 | `/strategy/commands` | ControlCommands | `controls/` | ADMIN, OPERATOR |
 | `/nutrient/tanks` | NutrientTanks | `nutrient/` | 全部 |

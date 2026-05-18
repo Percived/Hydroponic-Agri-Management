@@ -104,6 +104,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/alerts/timeline.vue'),
     meta: { requiresAuth: true, title: '告警时间线' }
   },
+  {
+    path: '/alerts/workflow',
+    name: 'AlertWorkflow',
+    component: () => import('@/views/alerts/workflow.vue'),
+    meta: { requiresAuth: true, roles: [Role.ADMIN, Role.OPERATOR], title: '告警处置' }
+  },
   // ── 策略控制 ──
   {
     path: '/strategy/policies',
@@ -210,7 +216,6 @@ const routes: RouteRecordRaw[] = [
   { path: '/controls/commands', redirect: '/strategy/commands' },
   { path: '/controls/rules', redirect: '/strategy/policies' },
   { path: '/alerts', redirect: '/alerts/list' },
-  { path: '/alerts/workflow', redirect: '/alerts/timeline' },
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',

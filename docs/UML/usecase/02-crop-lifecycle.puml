@@ -1,0 +1,96 @@
+@startuml
+' ============================================
+' 作物生命周期管理 - 详细用例图
+' ============================================
+
+left to right direction
+skinparam packageStyle rectangle
+
+actor "系统管理员\n(ADMIN)" as Admin
+actor "运维人员\n(OPERATOR)" as Operator
+actor "查看者\n(VIEWER)" as Viewer
+actor "系统调度器\n(Scheduler)" as Scheduler
+
+rectangle "作物生命周期管理" {
+
+  package "品种与阶段管理" {
+    usecase "创建作物品种" as UC_CreateVariety
+    usecase "编辑作物品种" as UC_UpdateVariety
+    usecase "删除作物品种" as UC_DeleteVariety
+    usecase "查看品种列表" as UC_ListVariety
+    usecase "定义生长阶段" as UC_CreateStage
+    usecase "编辑生长阶段参数" as UC_UpdateStage
+    usecase "删除生长阶段" as UC_DeleteStage
+    usecase "查看阶段定义" as UC_ListStage
+  }
+
+  package "批次管理" {
+    usecase "创建种植批次" as UC_CreateBatch
+    usecase "编辑批次信息" as UC_UpdateBatch
+    usecase "删除批次" as UC_DeleteBatch
+    usecase "查看批次列表" as UC_ListBatch
+    usecase "批次状态流转\n(播种→定植→生长期→采收→完成)" as UC_Transition
+    usecase "绑定传感器/执行器" as UC_BindDevice
+    usecase "解绑设备" as UC_UnbindDevice
+    usecase "查看批次设备" as UC_ListBatchDevice
+  }
+
+  package "阶段计划" {
+    usecase "创建阶段计划" as UC_CreateStagePlan
+    usecase "编辑阶段计划" as UC_UpdateStagePlan
+    usecase "删除阶段计划" as UC_DeleteStagePlan
+    usecase "查看阶段计划" as UC_ListStagePlan
+    usecase "查看阶段进度" as UC_StageProgress
+  }
+
+  package "定植与采收" {
+    usecase "记录定植信息" as UC_Planting
+    usecase "编辑定植记录" as UC_UpdatePlanting
+    usecase "查看定植记录" as UC_ViewPlanting
+    usecase "记录采收" as UC_Harvest
+    usecase "查看采收汇总" as UC_HarvestSummary
+  }
+
+  package "批次仪表盘" {
+    usecase "查看批次综合仪表盘" as UC_BatchDashboard
+  }
+}
+
+' Admin: 全部品种/阶段管理
+Admin --> UC_CreateVariety
+Admin --> UC_UpdateVariety
+Admin --> UC_DeleteVariety
+Admin --> UC_CreateStage
+Admin --> UC_UpdateStage
+Admin --> UC_DeleteStage
+Admin --> UC_DeleteBatch
+Admin --> UC_DeleteStagePlan
+
+' Operator: 日常操作
+Operator --> UC_CreateBatch
+Operator --> UC_UpdateBatch
+Operator --> UC_Transition
+Operator --> UC_BindDevice
+Operator --> UC_UnbindDevice
+Operator --> UC_CreateStagePlan
+Operator --> UC_UpdateStagePlan
+Operator --> UC_Planting
+Operator --> UC_UpdatePlanting
+Operator --> UC_Harvest
+
+' Viewer: 只读
+Viewer --> UC_ListVariety
+Viewer --> UC_ListStage
+Viewer --> UC_ListBatch
+Viewer --> UC_ListBatchDevice
+Viewer --> UC_ListStagePlan
+Viewer --> UC_StageProgress
+Viewer --> UC_ViewPlanting
+Viewer --> UC_HarvestSummary
+Viewer --> UC_BatchDashboard
+
+' Scheduler: 自动阶段流转
+Scheduler --> UC_Transition
+Scheduler --> UC_StageProgress
+
+@enduml

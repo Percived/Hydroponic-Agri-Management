@@ -37,7 +37,11 @@
       "Bash(go vet:*)",
       "Bash(powershell.exe:*)",
       "Bash(npx vite:*)",
-      "Bash(cmd.exe:*)"
+      "Bash(cmd.exe:*)",
+      "Bash(npx add-skill:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(ln:*)",
+      "Bash(git clone:*)"
     ]
   }
 }

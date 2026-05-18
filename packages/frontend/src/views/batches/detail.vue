@@ -31,12 +31,15 @@
     </div>
 
     <template v-if="dashboard">
-      <!-- Info row -->
+      <!-- Info rows -->
       <el-row :gutter="16" class="info-row">
         <el-col :span="6">
           <div class="info-card">
             <div class="info-label">品种</div>
-            <div class="info-value">{{ dashboard.variety?.name || '-' }}</div>
+            <div class="info-value">
+              {{ dashboard.variety?.name || '-' }}
+              <span v-if="dashboard.variety?.code" class="info-sub">({{ dashboard.variety.code }})</span>
+            </div>
           </div>
         </el-col>
         <el-col :span="6">
@@ -63,8 +66,68 @@
         </el-col>
         <el-col :span="6">
           <div class="info-card">
+            <div class="info-label">总株数</div>
+            <div class="info-value">{{ dashboard.batch.total_plants ?? '-' }}</div>
+          </div>
+        </el-col>
+      </el-row>
+      <el-row :gutter="16" class="info-row">
+        <el-col :span="6">
+          <div class="info-card">
+            <div class="info-label">开始时间</div>
+            <div class="info-value">{{ dashboard.batch.started_at ? formatDate(dashboard.batch.started_at) : '-' }}</div>
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <div class="info-card">
+            <div class="info-label">预计采收</div>
+            <div class="info-value">{{ dashboard.batch.expected_harvest_at ? formatDate(dashboard.batch.expected_harvest_at) : '-' }}</div>
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <div class="info-card">
             <div class="info-label">运行天数</div>
             <div class="info-value">{{ runningDays }} 天</div>
+          </div>
+        </el-col>
+        <el-col :span="6">
+          <div class="info-card">
+            <div class="info-label">备注</div>
+            <div class="info-value info-note">{{ dashboard.batch.note || '-' }}</div>
+          </div>
+        </el-col>
+      </el-row>
+
+      <!-- Associated Resources -->
+      <el-row :gutter="16" class="info-row" v-if="dashboard.batch.active_recipe_id || dashboard.batch.active_policy_id || dashboard.batch.active_climate_profile_id">
+        <el-col :span="8" v-if="dashboard.batch.active_recipe_id">
+          <div class="info-card">
+            <div class="info-label">当前配方</div>
+            <div class="info-value">
+              <el-button type="primary" link size="small" @click="router.push('/nutrient/recipes')">
+                {{ activeRecipeLabel || `配方 #${dashboard.batch.active_recipe_id}` }}
+              </el-button>
+            </div>
+          </div>
+        </el-col>
+        <el-col :span="8" v-if="dashboard.batch.active_policy_id">
+          <div class="info-card">
+            <div class="info-label">当前策略</div>
+            <div class="info-value">
+              <el-button type="primary" link size="small" @click="router.push('/strategy/policies')">
+                {{ activePolicyLabel || `策略 #${dashboard.batch.active_policy_id}` }}
+              </el-button>
+            </div>
+          </div>
+        </el-col>
+        <el-col :span="8" v-if="dashboard.batch.active_climate_profile_id">
+          <div class="info-card">
+            <div class="info-label">当前气候Profile</div>
+            <div class="info-value">
+              <el-button type="primary" link size="small" @click="router.push('/strategy/climate')">
+                {{ activeClimateLabel || `Profile #${dashboard.batch.active_climate_profile_id}` }}
+              </el-button>
+            </div>
           </div>
         </el-col>
       </el-row>
@@ -198,7 +261,10 @@
         <el-col :span="12">
           <el-card class="section-card">
             <template #header>
-              <span class="card-title">最新遥测</span>
+              <div class="card-header-row">
+                <span class="card-title">最新遥测</span>
+                <el-button size="small" type="primary" link @click="router.push(`/collection/trends?batch_id=${dashboard!.batch.id}&greenhouse_id=${dashboard!.batch.greenhouse_id}`)">趋势分析 →</el-button>
+              </div>
             </template>
             <div v-if="dashboard.latest_telemetry?.length">
               <div
@@ -221,7 +287,10 @@
         <el-col :span="12">
           <el-card class="section-card">
             <template #header>
-              <span class="card-title">待处理告警</span>
+              <div class="card-header-row">
+                <span class="card-title">待处理告警</span>
+                <el-button size="small" type="primary" link @click="router.push('/alerts/list')">全部告警 →</el-button>
+              </div>
             </template>
             <div v-if="dashboard.recent_alerts?.length">
               <div
@@ -232,7 +301,9 @@
                 title="查看告警时间线"
               >
                 <el-tag :type="alertLevelTag(a.level)" size="small">{{ a.level }}</el-tag>
+                <el-tag v-if="a.type" type="info" size="small" effect="plain">{{ a.type }}</el-tag>
                 <span class="alert-msg">{{ a.message }}</span>
+                <el-tag :type="a.status === 'OPEN' ? 'danger' : 'warning'" size="small" effect="plain">{{ a.status === 'OPEN' ? '待处理' : '已确认' }}</el-tag>
                 <span class="alert-time">{{ formatDateTime(a.triggered_at) }}</span>
               </div>
             </div>
@@ -244,7 +315,10 @@
         <el-col :span="12">
           <el-card class="section-card">
             <template #header>
-              <span class="card-title">最近指令</span>
+              <div class="card-header-row">
+                <span class="card-title">最近指令</span>
+                <el-button size="small" type="primary" link @click="router.push('/strategy/commands')">全部指令 →</el-button>
+              </div>
             </template>
             <div v-if="dashboard.recent_commands?.length">
               <div
@@ -265,7 +339,10 @@
       <!-- Harvest Summary Card -->
       <el-card class="section-card" v-if="dashboard.harvest_summary">
         <template #header>
-          <span class="card-title">采收汇总</span>
+          <div class="card-header-row">
+            <span class="card-title">采收汇总</span>
+            <el-button size="small" type="primary" link @click="router.push('/batches/harvest')">采收记录 →</el-button>
+          </div>
         </template>
         <div class="harvest-total">
           总产量: <strong>{{ dashboard.harvest_summary.total_weight_kg }} kg</strong>
@@ -446,7 +523,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, ArrowLeft, Edit } from '@element-plus/icons-vue'
-import { cropApi, deviceApi, greenhouseApi, policyApi, recipeApi } from '@/api'
+import { cropApi, deviceApi, greenhouseApi, policyApi, recipeApi, climateApi } from '@/api'
 import StagePlanEditor from '@/components/batch/StagePlanEditor.vue'
 import { formatDateTime } from '@/utils/format'
 import { buildIdLabelMap, fallbackIdLabel, growthStageLabel } from '@/utils/labels'
@@ -603,6 +680,10 @@ async function handleStatusTransition(newStatus: string) {
   }
 }
 
+function formatDate(isoStr: string) {
+  return isoStr.slice(0, 10)
+}
+
 function alertLevelTag(level: string) {
   const map: Record<string, string> = { INFO: 'info', WARN: 'warning', CRITICAL: 'danger' }
   return map[level] || 'info'
@@ -730,6 +811,25 @@ const policyLabelById = computed(() =>
   buildIdLabelMap(policies.value, p => p.id, p => `${p.name} (${p.policy_code})`, '策略')
 )
 
+const climateProfiles = ref<{ id: number; name: string; code: string }[]>([])
+
+const activeRecipeLabel = computed(() => {
+  const id = dashboard.value?.batch.active_recipe_id
+  if (!id) return ''
+  return recipeLabelById.value[id] || ''
+})
+const activePolicyLabel = computed(() => {
+  const id = dashboard.value?.batch.active_policy_id
+  if (!id) return ''
+  return policyLabelById.value[id] || ''
+})
+const activeClimateLabel = computed(() => {
+  const id = dashboard.value?.batch.active_climate_profile_id
+  if (!id) return ''
+  const p = climateProfiles.value.find(c => c.id === id)
+  return p ? `${p.name} (${p.code})` : ''
+})
+
 const nowForStage = computed(() => new Date())
 
 const stageConflictMessage = computed(() => {
@@ -790,14 +890,16 @@ async function loadStagePlans() {
 
 async function loadStageRefData() {
   try {
-    const [stageRes, recipeRes, policyRes] = await Promise.all([
+    const [stageRes, recipeRes, policyRes, climateRes] = await Promise.all([
       cropApi.getGrowthStages({ page_size: 200 }),
       recipeApi.getRecipes({ page_size: 200 }),
-      policyApi.getPolicies({ page_size: 200 })
+      policyApi.getPolicies({ page_size: 200 }),
+      climateApi.getClimateProfiles({ page_size: 200 })
     ])
     growthStages.value = stageRes.items
     recipes.value = recipeRes.items
     policies.value = policyRes.items
+    climateProfiles.value = climateRes.items || []
   } catch { /* ignore */ }
 }
 
@@ -936,6 +1038,19 @@ onMounted(() => {
     .info-value {
       font-size: 16px;
       font-weight: 600;
+      .info-sub {
+        font-size: 12px;
+        color: var(--text-secondary);
+        font-weight: 400;
+      }
+    }
+    .info-note {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   }
 

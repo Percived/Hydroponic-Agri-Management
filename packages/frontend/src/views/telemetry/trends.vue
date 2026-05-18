@@ -162,6 +162,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { deviceApi, greenhouseApi, telemetryApi, metricApi, cropApi } from '@/api'
 import { LARGE_PAGE_SIZE, EXTRA_LARGE_PAGE_SIZE } from '@/utils/constants'
 import { formatDate, formatNumber, getMetricName, populateMetricNames } from '@/utils/format'
@@ -181,6 +182,8 @@ interface TableRow {
   value: number
   quality_flag: string
 }
+
+const route = useRoute()
 
 // Cascade selects
 const greenhouses = ref<Greenhouse[]>([])
@@ -546,10 +549,19 @@ function reset() {
   queryError.value = ''
 }
 
-onMounted(() => {
-  loadGreenhouses()
-  loadMetrics()
-  loadBatches()
+onMounted(async () => {
+  await Promise.all([loadGreenhouses(), loadMetrics(), loadBatches()])
+
+  // Read batch_id and greenhouse_id from URL query params
+  const batchIdParam = route.query.batch_id
+  const greenhouseIdParam = route.query.greenhouse_id
+  if (greenhouseIdParam) {
+    selectedGreenhouseId.value = Number(greenhouseIdParam)
+    await onGreenhouseChange()
+  }
+  if (batchIdParam) {
+    selectedBatchId.value = Number(batchIdParam)
+  }
 })
 
 // Remove selected metrics that are no longer available when channels change
@@ -565,7 +577,7 @@ watch(selectedChannelIds, (ids) => {
   )
 })
 
-// When a batch is selected, load its devices and auto-select channels
+// When a batch is selected, load its devices and auto-select channels + auto-query
 watch(selectedBatchId, async (batchId) => {
   if (!batchId) return
   try {
@@ -581,12 +593,23 @@ watch(selectedBatchId, async (batchId) => {
         )
       )
       const allCh = results.flatMap((r) => r.items)
-      channels.value = allCh
-      channelMap.value = new Map(allCh.map((c) => [c.id, c]))
-      selectedChannelIds.value = allCh.map((c) => c.id)
-      // Auto-select the metrics that these channels collect
-      const codes = [...new Set(allCh.map((c: SensorChannel) => c.metric_code).filter(Boolean))]
-      selectedMetricCodes.value = codes
+      if (allCh.length > 0) {
+        channels.value = allCh
+        channelMap.value = new Map(allCh.map((c) => [c.id, c]))
+        selectedChannelIds.value = allCh.map((c) => c.id)
+        const codes = [...new Set(allCh.map((c: SensorChannel) => c.metric_code).filter(Boolean))]
+        selectedMetricCodes.value = codes
+      }
+    }
+    // Fallback: if no channels selected yet but greenhouse channels are available, use them
+    if (selectedChannelIds.value.length === 0 && channels.value.length > 0) {
+      selectedChannelIds.value = channels.value.map((c) => c.id)
+      const codes = [...new Set(channels.value.map((c: SensorChannel) => c.metric_code).filter(Boolean))]
+      if (codes.length > 0) selectedMetricCodes.value = codes
+    }
+    // Auto-query when channels and metrics are selected
+    if (selectedChannelIds.value.length > 0 && selectedMetricCodes.value.length > 0) {
+      doQuery()
     }
   } catch { /* ignore */ }
 })

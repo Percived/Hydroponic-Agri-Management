@@ -51,6 +51,7 @@ export interface CreateAlertRequest {
 export interface UpdateAlertStatusRequest {
   status: AlertStatus
   resolved_at?: string
+  resolved_by?: number
   comment?: string
 }
 

@@ -1,0 +1,119 @@
+@startuml
+' ============================================
+' 水培农业管理系统 - 系统总览用例图
+' 基于 Hydroponic-Agri-Management v2.3.1
+' ============================================
+
+left to right direction
+
+<style>
+usecaseDiagram {
+  usecase {
+    BackgroundColor #E8F5E9
+    BorderColor #388E3C
+    FontColor #1B5E20
+    FontSize 12
+    RoundCorner 10
+  }
+  actor {
+    FontColor #0D47A1
+  }
+  arrow {
+    LineColor #689F38
+    LineThickness 1.5
+  }
+  rectangle {
+    BorderColor #BDBDBD
+    FontColor #424242
+    FontStyle bold
+  }
+}
+</style>
+
+' === 左侧角色 ===
+actor "系统管理员\n(ADMIN)" as Admin
+actor "运维人员\n(OPERATOR)" as Operator
+
+' === 系统边界 ===
+rectangle "水培农业管理系统" as System {
+
+  ' --- 第1行: ADMIN 配置层 ---
+  usecase "管理用户与权限" as UC_User
+  usecase "管理温室与种植区" as UC_Greenhouse
+  usecase "管理作物品种\n与生长阶段" as UC_CropDef
+
+  ' --- 第2行: ADMIN 发布 + OPERATOR 批次 ---
+  usecase "发布配方与策略" as UC_Publish
+  usecase "查看审计日志" as UC_Audit
+  usecase "管理种植批次\n与阶段计划" as UC_Batch
+
+  ' --- 第3行: OPERATOR 运营层 ---
+  usecase "管理设备与营养液" as UC_DeviceNutrient
+  usecase "执行气候曲线\n与控制策略" as UC_Execute
+  usecase "处理告警与\n记录病虫害" as UC_AlertPest
+
+  ' --- 第4行: OPERATOR 记录 + VIEWER 监控 ---
+  usecase "记录定植采收\n与能耗数据" as UC_Record
+  usecase "查看仪表盘与\n批次进展" as UC_Dashboard
+  usecase "查看遥测数据\n与历史趋势" as UC_Telemetry
+
+  ' --- 第5行: VIEWER + Device ---
+  usecase "查看告警与\n复盘报告" as UC_Review
+  usecase "上报传感器数据" as UC_Ingest
+  usecase "接收并执行\n控制命令" as UC_ReceiveCmd
+
+  ' --- 第6行: 自动化（内部用例） ---
+  usecase "自动化策略评估\n与气候控制" as UC_AutoControl
+  usecase "批次阶段自动流转" as UC_AutoTransition
+}
+
+' === 右侧角色 ===
+actor "查看者\n(VIEWER)" as Viewer
+actor "物联网设备\n(IoT Device)" as Device
+
+' ===== 隐藏线：强制横向排列（每行≤3个） =====
+UC_User -[hidden]right-> UC_Greenhouse
+UC_Greenhouse -[hidden]right-> UC_CropDef
+UC_CropDef -[hidden]down-> UC_Publish
+UC_Publish -[hidden]right-> UC_Audit
+UC_Audit -[hidden]right-> UC_Batch
+UC_Batch -[hidden]down-> UC_DeviceNutrient
+UC_DeviceNutrient -[hidden]right-> UC_Execute
+UC_Execute -[hidden]right-> UC_AlertPest
+UC_AlertPest -[hidden]down-> UC_Record
+UC_Record -[hidden]right-> UC_Dashboard
+UC_Dashboard -[hidden]right-> UC_Telemetry
+UC_Telemetry -[hidden]down-> UC_Review
+UC_Review -[hidden]right-> UC_Ingest
+UC_Ingest -[hidden]right-> UC_ReceiveCmd
+UC_ReceiveCmd -[hidden]down-> UC_AutoControl
+UC_AutoControl -[hidden]right-> UC_AutoTransition
+
+' ===== ADMIN（左侧） =====
+Admin --> UC_User
+Admin --> UC_Greenhouse
+Admin --> UC_CropDef
+Admin --> UC_Publish
+Admin --> UC_Audit
+
+' ===== OPERATOR（左侧） =====
+Operator --> UC_Batch
+Operator --> UC_DeviceNutrient
+Operator --> UC_Execute
+Operator --> UC_AlertPest
+Operator --> UC_Record
+
+' ===== VIEWER（右侧） =====
+Viewer --> UC_Dashboard
+Viewer --> UC_Telemetry
+Viewer --> UC_Review
+
+' ===== Device（右侧） =====
+Device --> UC_Ingest
+Device --> UC_ReceiveCmd
+
+' ===== 系统内部依赖 =====
+UC_AutoControl ..> UC_Execute : <<调度>>
+UC_AutoTransition ..> UC_Batch : <<调度>>
+
+@enduml

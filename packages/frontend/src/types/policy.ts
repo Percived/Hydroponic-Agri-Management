@@ -59,6 +59,7 @@ export interface PolicyTarget {
 export interface PolicyExecution {
   id: number
   policy_id: number
+  policy_name?: string
   trigger_source: 'TELEMETRY' | 'SCHEDULE' | 'MANUAL'
   trigger_metric_code?: string
   trigger_value?: number

@@ -6,10 +6,10 @@
       </el-select>
     </el-form-item>
     <el-form-item label="开始时间" required>
-      <el-date-picker v-model="editorData.stage_start_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss.SSS[Z]" />
+      <el-date-picker v-model="editorData.stage_start_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss.SSSZ" />
     </el-form-item>
     <el-form-item label="结束时间" required>
-      <el-date-picker v-model="editorData.stage_end_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss.SSS[Z]" />
+      <el-date-picker v-model="editorData.stage_end_at" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss.SSSZ" />
     </el-form-item>
     <el-form-item label="目标EC下限">
       <el-input-number v-model="editorData.target_ec_min" :min="0" :precision="4" />
@@ -42,11 +42,33 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { climateApi, cropApi, policyApi, recipeApi } from '@/api'
 import type { ClimateProfile, ControlPolicy, CreateBatchStagePlanRequest, GrowthStage, NutrientRecipe } from '@/types'
 
-const editorData = defineModel<CreateBatchStagePlanRequest>({ required: true })
+const props = defineProps<{ modelValue: CreateBatchStagePlanRequest }>()
+const emit = defineEmits<{ 'update:modelValue': [value: CreateBatchStagePlanRequest] }>()
+
+const editorData = reactive<CreateBatchStagePlanRequest>({ ...props.modelValue })
+
+// Parent → local sync
+watch(
+  () => props.modelValue,
+  (val) => { Object.assign(editorData, val) }
+)
+
+// Local → parent sync (after user interaction)
+let syncing = false
+watch(
+  () => ({ ...editorData }),
+  (val) => {
+    if (syncing) return
+    syncing = true
+    emit('update:modelValue', val as CreateBatchStagePlanRequest)
+    nextTick(() => { syncing = false })
+  },
+  { deep: true }
+)
 
 const stages = ref<GrowthStage[]>([])
 const recipes = ref<NutrientRecipe[]>([])

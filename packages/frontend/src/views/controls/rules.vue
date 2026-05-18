@@ -41,6 +41,7 @@
         <el-table-column prop="version" label="版本" width="100" />
         <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
+            <el-button type="info" link @click="router.push(`/strategy/policies/${row.id}`)">详情</el-button>
             <el-button type="primary" link @click="openEditDialog(row)">编辑</el-button>
             <el-button type="warning" link :disabled="isPolicyPublished(row)" @click="handlePublish(row)">
               {{ isPolicyPublished(row) ? '已发布' : '发布' }}
@@ -407,6 +408,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { deviceApi, policyApi, greenhouseApi, metricApi } from '@/api'
@@ -589,6 +591,7 @@ function parseTargetFromPayload(raw: string, commandType: string): Pick<TargetIt
   return { payloadRaw: raw, switchState: 'ON', payloadKey: '', payloadValue: '' }
 }
 
+const router = useRouter()
 const loading = ref(false)
 const submitLoading = ref(false)
 const policies = ref<ControlPolicy[]>([])
