@@ -41,7 +41,10 @@
       "Bash(npx add-skill:*)",
       "WebFetch(domain:github.com)",
       "Bash(ln:*)",
-      "Bash(git clone:*)"
+      "Bash(git clone:*)",
+      "Bash(python:*)",
+      "Bash(java:*)",
+      "Skill(plantuml-ascii)"
     ]
   }
 }
