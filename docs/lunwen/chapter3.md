@@ -18,7 +18,7 @@
 对于本功能的总体设计为：在前端登录页面，用户输入信息并点击登录后，前端系统会调用 `handleLogin()` 函数。该函数首先在客户端进行基础的表单校验（如判断输入框是否为空、用户名是否过短）。校验通过后，将用户名与密码打包成 JSON 数据发送至后端的 `POST /api/auth/login` 接口。
 在后端，路由接收到请求后交由 Auth Handler 处理。系统首先连接 MySQL 数据库，根据 `username` 寻找对应的用户记录。若未找到用户，则直接返回 HTTP 401 状态码，并在 `message` 中提示“用户名或密码错误”。若找到用户，系统会提取数据库中存储的 Bcrypt 哈希密码，并调用 Go 语言的 `bcrypt.CompareHashAndPassword` 方法与用户上传的明文密码进行安全比对。比对成功后，系统利用 HMAC SHA-256 算法与服务端配置的 `JWT_SECRET` 密钥，签发一个有效期为 2 小时（7200 秒，可通过配置文件中的 `token_expire_secs` 字段灵活调整）的 JWT Token。该 Token 的 Payload 部分封装了用户的 `user_id` 和 `role` 信息。最后，后端将包含 Token 的 JSON 响应返回给客户端。
 本模块对于输入的要求有：用户名和密码不能为空、密码长度必须符合复杂度要求。
-在反馈提示方面：如果用户输入的账号密码有误，后端返回业务错误码 `10001`（参数验证失败）并附带具体的错误描述信息。
+在反馈提示方面：如果用户输入的账号密码有误，后端返回 HTTP 401 状态码以及业务错误码 `10002`（未授权），并附带具体的错误描述信息（如 `invalid_credentials`）。
 
 （3）**Token 存储与路由守卫功能**
 本功能为了提升用户体验并维持会话状态，系统提供了基于 Token 的持久化登录功能。
@@ -30,7 +30,7 @@
 在后端安全防范方面，系统在 Gin 框架的路由层设计了自定义的 `AuthMiddleware`。该中间件拦截所有 API 请求，提取并解析 Token。随后，系统基于预设的权限矩阵对请求进行鉴权。若 VIEWER 尝试通过抓包工具恶意发起 `POST /api/policies` 请求，中间件将直接阻断该请求，返回业务错误码 `10003`，并在前端提示“权限不足，拒绝访问”。
 
 （5）**Token 校验与后端接口响应处理**
-为验证认证机制的正确性，系统在前后端对接过程中对关键的边界情况进行了重点测试。当用户使用正确的凭证调用 `POST /api/auth/login` 接口时，后端返回的 JSON 响应遵循统一的 Envelope 规范，`data` 字段中包含签发的 JWT Token 与用户基本信息（用户名、昵称、角色列表）。前端将该 Token 存入 `localStorage` 后，所有后续的 API 请求均由 Axios 请求拦截器自动附加 `Authorization: Bearer <Token>` 请求头。
+为验证认证机制的正确性，系统在前后端对接过程中对关键的边界情况进行了重点测试。当用户使用正确的凭证调用 `POST /api/auth/login` 接口时，后端返回的 JSON 响应遵循统一的 Envelope 规范，`data` 字段中包含签发的 JWT Token 与用户基本信息（用户名、角色列表）。前端将该 Token 存入 `localStorage` 后，所有后续的 API 请求均由 Axios 请求拦截器自动附加 `Authorization: Bearer <Token>` 请求头。
 当 Token 过期（默认 2 小时）或人为篡改后，后端的 `AuthMiddleware` 在解析 Token 时会返回业务错误码 `10002`（未授权），前端拦截器捕获该响应后自动清除本地 Token 并将页面重定向至登录页。对于未携带 Token 的请求，中间件同样返回 `10002`，不依赖 HTTP 状态码即可让前端准确区分”未登录”与”权限不足”（`10003`）两种不同的异常场景。对于本模块的认证与权限拦截逻辑，其泳道图如图 3-1 所示。
 
 （此处可插入图片：图 3-1 用户登录认证与 RBAC 路由拦截泳道图）
@@ -187,6 +187,7 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 
 （1）**气候配置模型设计**
 在数据模型层面，系统采用三层嵌套结构来组织气候调控逻辑：
+
 - `climate_profiles`（气候配置）：顶层抽象，绑定至特定温室，并指定一个触发传感器通道（`trigger_sensor_channel_id`）和触发指标类型（`trigger_metric_code`）。每个配置包含一个启用标志（`enabled`）。
 - `climate_stages`（气候阶段）：每个配置下按 `stage_level` 排序的多个阶段，每个阶段定义触发条件——比较操作符（`>/>=/</<=`）、触发阈值（`trigger_threshold`）以及防抖滞回值（`hysteresis`）。
 - `climate_stage_actions`（阶段执行动作）：每个阶段下可绑定多个执行器动作，每个动作指定目标执行器通道（`actuator_channel_id`）、命令类型（`command_type`）、命令负载（`command_payload`）以及执行顺序（`execution_order`）。
@@ -223,6 +224,7 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 
 （2）**同步与异步双模式下发**
 为满足不同业务场景的需求，系统提供了两种命令下发模式：
+
 - **异步下发（dispatch-async）**：调用 `POST /api/commands/dispatch-async` 接口，后端创建命令并立即通过 MQTT 发送，接口即刻返回命令 ID。适用于批量控制或非关键场景。
 - **同步下发（dispatch-and-wait）**：调用 `POST /api/commands/dispatch-and-wait` 接口，后端创建命令并发送后，阻塞等待边缘设备的 ACK 回执到达（通过 EventHub 订阅 `command:acked` 事件），在配置的超时时间（`timeout_sec`）内收到 ACK 后返回完整的执行结果。适用于关键操作（如水泵启停）需要确认执行结果的场景。
 
@@ -232,6 +234,7 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 
 **3.2.1 数据库结构设计**
 系统的业务实体繁多且关联复杂。为了保证数据的一致性并减少冗余，数据库设计严格遵循第三范式（3NF）。核心 E-R 模型主要包含四大核心域：
+
 - **空间域**：`greenhouses`（温室） 包含多个 `growing_zones`（种植区）。
 - **设备域**：`sensor_devices`（传感器设备）包含多个 `sensor_channels`（采集通道）；`actuator_devices`（执行器设备）包含多个 `actuator_channels`（执行通道）。
 - **策略域**：`control_policies` 采用一对多设计，包含多个 `policy_conditions`（触发条件）与 `policy_targets`（目标动作）；`control_commands` 记录每一条下发的执行命令，通过 `control_command_receipts` 追踪设备的执行回执。
@@ -246,82 +249,82 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 **表 3-1 控制策略核心表（control_policies）**
 此表用于存储自动化调度的核心元数据。
 
-| 字段名 | 数据类型 | 约束 | 描述说明 |
-| :--- | :--- | :--- | :--- |
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 策略唯一标识 |
-| policy_code | VARCHAR(64) | UNIQUE, NOT NULL | 策略编码（如 POL-TEMP-CTRL） |
-| policy_type | VARCHAR(32) | NOT NULL | 策略类型 (THRESHOLD/SCHEDULE/DURATION) |
-| greenhouse_id | BIGINT | NOT NULL, FK | 关联的温室 ID |
-| enabled | TINYINT(1) | DEFAULT 1 | 策略启用状态 (1=启用, 0=停用) |
-| schedule_mode | VARCHAR(16) | NULL | 定时模式 (ONCE/DAILY/WEEKLY) |
-| weekdays_mask | INT | NULL | 每周执行掩码（用于位运算匹配） |
-| time_of_day | TIME | NULL | 每日触发具体时刻 |
-| published_by | BIGINT | NULL, FK | 策略发布者（用户 ID） |
+| 字段名        | 数据类型    | 约束                        | 描述说明                               |
+| :------------ | :---------- | :-------------------------- | :------------------------------------- |
+| id            | BIGINT      | PRIMARY KEY, AUTO_INCREMENT | 策略唯一标识                           |
+| policy_code   | VARCHAR(64) | UNIQUE, NOT NULL            | 策略编码（如 POL-TEMP-CTRL）           |
+| policy_type   | VARCHAR(32) | NOT NULL                    | 策略类型 (THRESHOLD/SCHEDULE/DURATION) |
+| greenhouse_id | BIGINT      | NOT NULL, FK                | 关联的温室 ID                          |
+| enabled       | TINYINT(1)  | DEFAULT 1                   | 策略启用状态 (1=启用, 0=停用)          |
+| schedule_mode | VARCHAR(16) | NULL                        | 定时模式 (ONCE/DAILY/WEEKLY)           |
+| weekdays_mask | INT         | NULL                        | 每周执行掩码（用于位运算匹配）         |
+| time_of_day   | TIME        | NULL                        | 每日触发具体时刻                       |
+| published_by  | BIGINT      | NULL, FK                    | 策略发布者（用户 ID）                  |
 
 **表 3-2 策略触发条件表（policy_conditions）**
 用于实现灵活的组合逻辑判定（如“温度>28 且 湿度>80”）。
 
-| 字段名 | 数据类型 | 约束 | 描述说明 |
-| :--- | :--- | :--- | :--- |
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 条件唯一标识 |
-| policy_id | BIGINT | NOT NULL, FK | 归属的策略 ID |
-| sensor_channel_id| BIGINT | NOT NULL, FK | 依赖的传感器通道 ID |
-| operator | VARCHAR(16) | NOT NULL | 比较操作符 (GT/LT/EQ/GTE/LTE) |
-| threshold_value | DECIMAL(10,2) | NOT NULL | 触发阈值数值 |
-| hysteresis | DECIMAL(10,2) | DEFAULT 0 | 防抖滞后值 |
-| required_duration| INT | DEFAULT 0 | 需持续的时间要求（秒） |
+| 字段名            | 数据类型      | 约束                        | 描述说明                      |
+| :---------------- | :------------ | :-------------------------- | :---------------------------- |
+| id                | BIGINT        | PRIMARY KEY, AUTO_INCREMENT | 条件唯一标识                  |
+| policy_id         | BIGINT        | NOT NULL, FK                | 归属的策略 ID                 |
+| sensor_channel_id | BIGINT        | NOT NULL, FK                | 依赖的传感器通道 ID           |
+| operator          | VARCHAR(16)   | NOT NULL                    | 比较操作符 (GT/LT/EQ/GTE/LTE) |
+| threshold_value   | DECIMAL(10,2) | NOT NULL                    | 触发阈值数值                  |
+| hysteresis        | DECIMAL(10,2) | DEFAULT 0                   | 防抖滞后值                    |
+| required_duration | INT           | DEFAULT 0                   | 需持续的时间要求（秒）        |
 
 **表 3-3 执行器通道表（actuator_channels）**
 此表用于映射物理硬件上的具体继电器或控制接口。
 
-| 字段名 | 数据类型 | 约束 | 描述说明 |
-| :--- | :--- | :--- | :--- |
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 通道唯一标识 |
-| actuator_device_id | BIGINT | NOT NULL, FK | 所属执行器设备 ID |
-| channel_code | VARCHAR(64) | NOT NULL | 通道硬件编码（结合 actuator_device_id 唯一） |
-| channel_type | VARCHAR(32) | NOT NULL | 通道类型（如 SWITCH, PUMP） |
-| state | VARCHAR(32) | NOT NULL | 当前状态（ON/OFF/OPEN） |
-| updated_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 状态最后上报时间 |
+| 字段名             | 数据类型    | 约束                        | 描述说明                                     |
+| :----------------- | :---------- | :-------------------------- | :------------------------------------------- |
+| id                 | BIGINT      | PRIMARY KEY, AUTO_INCREMENT | 通道唯一标识                                 |
+| actuator_device_id | BIGINT      | NOT NULL, FK                | 所属执行器设备 ID                            |
+| channel_code       | VARCHAR(64) | NOT NULL                    | 通道硬件编码（结合 actuator_device_id 唯一） |
+| channel_type       | VARCHAR(32) | NOT NULL                    | 通道类型（如 SWITCH, PUMP）                  |
+| state              | VARCHAR(32) | NOT NULL                    | 当前状态（ON/OFF/OPEN）                      |
+| updated_at         | TIMESTAMP   | DEFAULT CURRENT_TIMESTAMP   | 状态最后上报时间                             |
 
 **表 3-4 作物批次追踪表（crop_batches）**
 此表用于追踪水培作物的全生命周期，串联空间与营养配方。
 
-| 字段名 | 数据类型 | 约束 | 描述说明 |
-| :--- | :--- | :--- | :--- |
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 批次唯一标识 |
-| batch_code | VARCHAR(64) | UNIQUE, NOT NULL | 批次追踪码 |
-| variety_id | BIGINT | NOT NULL, FK | 作物品种 ID |
-| greenhouse_id | BIGINT | NOT NULL, FK | 种植所在温室 ID |
-| status | VARCHAR(32) | NOT NULL | 状态 (PLANNED/RUNNING/HARVESTING/COMPLETED/ABORTED) |
-| active_recipe_id| BIGINT | NULL, FK | 当前绑定的活跃营养配方 ID |
-| planted_at | TIMESTAMP | NULL | 实际定植时间 |
+| 字段名           | 数据类型    | 约束                        | 描述说明                                            |
+| :--------------- | :---------- | :-------------------------- | :-------------------------------------------------- |
+| id               | BIGINT      | PRIMARY KEY, AUTO_INCREMENT | 批次唯一标识                                        |
+| batch_code       | VARCHAR(64) | UNIQUE, NOT NULL            | 批次追踪码                                          |
+| variety_id       | BIGINT      | NOT NULL, FK                | 作物品种 ID                                         |
+| greenhouse_id    | BIGINT      | NOT NULL, FK                | 种植所在温室 ID                                     |
+| status           | VARCHAR(32) | NOT NULL                    | 状态 (PLANNED/RUNNING/HARVESTING/COMPLETED/ABORTED) |
+| active_recipe_id | BIGINT      | NULL, FK                    | 当前绑定的活跃营养配方 ID                           |
+| planted_at       | TIMESTAMP   | NULL                        | 实际定植时间                                        |
 
 **表 3-5 气候多级调控配置表（climate_profiles）**
 此表用于存储温室气候递进调控的顶层配置。
 
-| 字段名 | 数据类型 | 约束 | 描述说明 |
-| :--- | :--- | :--- | :--- |
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 配置唯一标识 |
-| greenhouse_id | BIGINT | NOT NULL, FK | 关联的温室 ID |
-| code | VARCHAR(64) | UNIQUE, NOT NULL | 配置编码 |
-| name | VARCHAR(128) | NOT NULL | 配置名称 |
-| trigger_metric_code | VARCHAR(32) | NOT NULL | 触发指标编码（如 TEMP） |
-| trigger_sensor_channel_id | BIGINT | NOT NULL, FK | 触发传感器通道 ID |
-| enabled | TINYINT(1) | DEFAULT 1 | 启用状态 |
+| 字段名                    | 数据类型     | 约束                        | 描述说明                |
+| :------------------------ | :----------- | :-------------------------- | :---------------------- |
+| id                        | BIGINT       | PRIMARY KEY, AUTO_INCREMENT | 配置唯一标识            |
+| greenhouse_id             | BIGINT       | NOT NULL, FK                | 关联的温室 ID           |
+| code                      | VARCHAR(64)  | UNIQUE, NOT NULL            | 配置编码                |
+| name                      | VARCHAR(128) | NOT NULL                    | 配置名称                |
+| trigger_metric_code       | VARCHAR(32)  | NOT NULL                    | 触发指标编码（如 TEMP） |
+| trigger_sensor_channel_id | BIGINT       | NOT NULL, FK                | 触发传感器通道 ID       |
+| enabled                   | TINYINT(1)   | DEFAULT 1                   | 启用状态                |
 
 **表 3-6 控制命令与回执表（control_commands / control_command_receipts）**
 此表用于追踪每一条下发至边缘设备的控制指令及其执行回执。
 
-| 字段名 | 数据类型 | 约束 | 描述说明 |
-| :--- | :--- | :--- | :--- |
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 命令唯一标识 |
-| actuator_channel_id | BIGINT | NOT NULL, FK | 目标执行器通道 ID |
-| command_type | VARCHAR(32) | NOT NULL | 命令类型（如 SWITCH, PUMP） |
-| payload | JSON | NOT NULL | 命令负载（如 {"state":"ON"}） |
-| status | VARCHAR(16) | NOT NULL | 状态 (PENDING/QUEUED/SENT/ACKED/TIMEOUT/FAILED) |
-| sent_at | TIMESTAMP | NULL | MQTT 发送时间 |
-| acked_at | TIMESTAMP | NULL | 设备 ACK 回执时间 |
-| created_by | BIGINT | NOT NULL, FK | 命令创建者（用户 ID） |
+| 字段名              | 数据类型    | 约束                        | 描述说明                                        |
+| :------------------ | :---------- | :-------------------------- | :---------------------------------------------- |
+| id                  | BIGINT      | PRIMARY KEY, AUTO_INCREMENT | 命令唯一标识                                    |
+| actuator_channel_id | BIGINT      | NOT NULL, FK                | 目标执行器通道 ID                               |
+| command_type        | VARCHAR(32) | NOT NULL                    | 命令类型（如 SWITCH, PUMP）                     |
+| payload             | JSON        | NOT NULL                    | 命令负载（如 {"state":"ON"}）                   |
+| status              | VARCHAR(16) | NOT NULL                    | 状态 (PENDING/QUEUED/SENT/ACKED/TIMEOUT/FAILED) |
+| sent_at             | TIMESTAMP   | NULL                        | MQTT 发送时间                                   |
+| acked_at            | TIMESTAMP   | NULL                        | 设备 ACK 回执时间                               |
+| created_by          | BIGINT      | NOT NULL, FK                | 命令创建者（用户 ID）                           |
 
 其中，`control_command_receipts` 表通过 `command_id` 外键关联至 `control_commands`，记录每一次 ACK 回执的序列号（`receipt_seq`）、状态码（`ack_code`）、回执消息（`ack_message`）及附加负载（`ack_payload`），支持同一命令的多次回执追踪。
 

@@ -33,3 +33,12 @@ data/
 .worktrees/
 worktrees
 worktrees/
+
+# docs
+shared
+docs
+diagrams
+.claude
+.agent
+.trae
+.superpowers

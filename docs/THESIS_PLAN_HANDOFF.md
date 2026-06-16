@@ -1,14 +1,15 @@
 # 水培农植信息管理系统后端的设计与实现 - 毕业论文规划与交接包
 
 ## 1. 论文元数据 (Metadata)
+
 - **项目名称**: 水培农植信息管理系统 (Hydroponic Agriculture Management System)
 - **系统类型**: 全栈管理系统（侧重后端）
-- **技术栈**: 
+- **技术栈**:
   - 后端: Go, Gin, GORM
   - 数据存储: MySQL, InfluxDB (时序数据)
   - 消息队列/物联网: MQTT, EMQX
   - 前端: Vue 3, TypeScript, Element Plus
-- **核心业务模块**: 
+- **核心业务模块**:
   - 温室/种植区管理 (Greenhouse/Growing Zones)
   - 物联网设备管理 (Sensor & Actuator Devices/Channels)
   - 气候与控制策略 (Climate Profiles, Control Policies, Commands)
@@ -149,7 +150,7 @@ Through this system, agricultural managers can grasp the status of the greenhous
    这是本系统实现自动化的核心需求。系统需提供灵活的控制策略（Control Policy）配置功能。策略引擎必须支持至少两种模式：
    - **阈值触发（Threshold）**：允许用户设置组合条件（如：温度 > 28°C 且持续 60 秒），当条件满足时自动触发特定的执行器通道（如开启风机）。
    - **定时调度（Schedule）**：允许用户设定周期性任务（如：每周一三五的早上8点）或单次任务。
-   此外，系统需支持手动或由策略引擎自动生成“控制命令（Control Command）”，并通过 MQTT 链路安全、可靠地下发至边缘执行器，同时需具备完善的命令回执（ACK）追踪与重试机制。
+     此外，系统需支持手动或由策略引擎自动生成“控制命令（Control Command）”，并通过 MQTT 链路安全、可靠地下发至边缘执行器，同时需具备完善的命令回执（ACK）追踪与重试机制。
 
    （此处可插入图片：控制策略与命令下发业务用例图）
 
@@ -238,7 +239,7 @@ Through this system, agricultural managers can grasp the status of the greenhous
 对于本功能的总体设计为：在前端登录页面，用户输入信息并点击登录后，前端系统会调用 `handleLogin()` 函数。该函数首先在客户端进行基础的表单校验（如判断输入框是否为空、用户名是否过短）。校验通过后，将用户名与密码打包成 JSON 数据发送至后端的 `POST /api/auth/login` 接口。
 在后端，路由接收到请求后交由 Auth Handler 处理。系统首先连接 MySQL 数据库，根据 `username` 寻找对应的用户记录。若未找到用户，则直接返回 HTTP 401 状态码，并在 `message` 中提示“用户名或密码错误”。若找到用户，系统会提取数据库中存储的 Bcrypt 哈希密码，并调用 Go 语言的 `bcrypt.CompareHashAndPassword` 方法与用户上传的明文密码进行安全比对。比对成功后，系统利用 HMAC SHA-256 算法与服务端配置的 `JWT_SECRET` 密钥，签发一个有效期为 2 小时（7200 秒，可通过配置文件中的 `token_expire_secs` 字段灵活调整）的 JWT Token。该 Token 的 Payload 部分封装了用户的 `user_id` 和 `role` 信息。最后，后端将包含 Token 的 JSON 响应返回给客户端。
 本模块对于输入的要求有：用户名和密码不能为空、密码长度必须符合复杂度要求。
-在反馈提示方面：如果用户输入的账号密码有误，后端返回业务错误码 `10001`（参数验证失败）并附带具体的错误描述信息。
+在反馈提示方面：如果用户输入的账号密码有误，后端返回 HTTP 401 状态码以及业务错误码 `10002`（未授权），并附带具体的错误描述信息（如 `invalid_credentials`）。
 
 （3）**Token 存储与路由守卫功能**
 本功能为了提升用户体验并维持会话状态，系统提供了基于 Token 的持久化登录功能。
@@ -250,7 +251,7 @@ Through this system, agricultural managers can grasp the status of the greenhous
 在后端安全防范方面，系统在 Gin 框架的路由层设计了自定义的 `AuthMiddleware`。该中间件拦截所有 API 请求，提取并解析 Token。随后，系统基于预设的权限矩阵对请求进行鉴权。若 VIEWER 尝试通过抓包工具恶意发起 `POST /api/policies` 请求，中间件将直接阻断该请求，返回业务错误码 `10003`，并在前端提示“权限不足，拒绝访问”。
 
 （5）**Token 校验与后端接口响应处理**
-为验证认证机制的正确性，系统在前后端对接过程中对关键的边界情况进行了重点测试。当用户使用正确的凭证调用 `POST /api/auth/login` 接口时，后端返回的 JSON 响应遵循统一的 Envelope 规范，`data` 字段中包含签发的 JWT Token 与用户基本信息（用户名、昵称、角色列表）。前端将该 Token 存入 `localStorage` 后，所有后续的 API 请求均由 Axios 请求拦截器自动附加 `Authorization: Bearer <Token>` 请求头。
+为验证认证机制的正确性，系统在前后端对接过程中对关键的边界情况进行了重点测试。当用户使用正确的凭证调用 `POST /api/auth/login` 接口时，后端返回的 JSON 响应遵循统一的 Envelope 规范，`data` 字段中包含签发的 JWT Token 与用户基本信息（用户名、角色列表）。前端将该 Token 存入 `localStorage` 后，所有后续的 API 请求均由 Axios 请求拦截器自动附加 `Authorization: Bearer <Token>` 请求头。
 当 Token 过期（默认 2 小时）或人为篡改后，后端的 `AuthMiddleware` 在解析 Token 时会返回业务错误码 `10002`（未授权），前端拦截器捕获该响应后自动清除本地 Token 并将页面重定向至登录页。对于未携带 Token 的请求，中间件同样返回 `10002`，不依赖 HTTP 状态码即可让前端准确区分”未登录”与”权限不足”（`10003`）两种不同的异常场景。对于本模块的认证与权限拦截逻辑，其泳道图如图 3-1 所示。
 
 （此处可插入图片：图 3-1 用户登录认证与 RBAC 路由拦截泳道图）
@@ -399,6 +400,7 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 
 （1）**气候配置模型设计**
 在数据模型层面，系统采用三层嵌套结构来组织气候调控逻辑：
+
 - `climate_profiles`（气候配置）：顶层抽象，绑定至特定温室，并指定一个触发传感器通道（`trigger_sensor_channel_id`）和触发指标类型（`trigger_metric_code`）。每个配置包含一个启用标志（`enabled`）。
 - `climate_stages`（气候阶段）：每个配置下按 `stage_level` 排序的多个阶段，每个阶段定义触发条件——比较操作符（`>/>=/</<=`）、触发阈值（`trigger_threshold`）以及防抖滞回值（`hysteresis`）。
 - `climate_stage_actions`（阶段执行动作）：每个阶段下可绑定多个执行器动作，每个动作指定目标执行器通道（`actuator_channel_id`）、命令类型（`command_type`）、命令负载（`command_payload`）以及执行顺序（`execution_order`）。
@@ -431,6 +433,7 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 
 （2）**同步与异步双模式下发**
 为满足不同业务场景的需求，系统提供了两种命令下发模式：
+
 - **异步下发（dispatch-async）**：调用 `POST /api/commands/dispatch-async` 接口，后端创建命令并立即通过 MQTT 发送，接口即刻返回命令 ID。适用于批量控制或非关键场景。
 - **同步下发（dispatch-and-wait）**：调用 `POST /api/commands/dispatch-and-wait` 接口，后端创建命令并发送后，阻塞等待边缘设备的 ACK 回执到达（通过 EventHub 订阅 `command:acked` 事件），在配置的超时时间（`timeout_sec`）内收到 ACK 后返回完整的执行结果。适用于关键操作（如水泵启停）需要确认执行结果的场景。
 
@@ -440,6 +443,7 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 
 **3.2.1 数据库结构设计**
 系统的业务实体繁多且关联复杂。为了保证数据的一致性并减少冗余，数据库设计严格遵循第三范式（3NF）。核心 E-R 模型主要包含四大核心域：
+
 - **空间域**：`greenhouses`（温室） 包含多个 `growing_zones`（种植区）。
 - **设备域**：`sensor_devices`（传感器设备）包含多个 `sensor_channels`（采集通道）；`actuator_devices`（执行器设备）包含多个 `actuator_channels`（执行通道）。
 - **策略域**：`control_policies` 采用一对多设计，包含多个 `policy_conditions`（触发条件）与 `policy_targets`（目标动作）；`control_commands` 记录每一条下发的执行命令，通过 `control_command_receipts` 追踪设备的执行回执。
@@ -454,82 +458,82 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 **表 3-1 控制策略核心表（control_policies）**
 此表用于存储自动化调度的核心元数据。
 
-| 字段名 | 数据类型 | 约束 | 描述说明 |
-| :--- | :--- | :--- | :--- |
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 策略唯一标识 |
-| policy_code | VARCHAR(64) | UNIQUE, NOT NULL | 策略编码（如 POL-TEMP-CTRL） |
-| policy_type | VARCHAR(32) | NOT NULL | 策略类型 (THRESHOLD/SCHEDULE/DURATION) |
-| greenhouse_id | BIGINT | NOT NULL, FK | 关联的温室 ID |
-| enabled | TINYINT(1) | DEFAULT 1 | 策略启用状态 (1=启用, 0=停用) |
-| schedule_mode | VARCHAR(16) | NULL | 定时模式 (ONCE/DAILY/WEEKLY) |
-| weekdays_mask | INT | NULL | 每周执行掩码（用于位运算匹配） |
-| time_of_day | TIME | NULL | 每日触发具体时刻 |
-| published_by | BIGINT | NULL, FK | 策略发布者（用户 ID） |
+| 字段名        | 数据类型    | 约束                        | 描述说明                               |
+| :------------ | :---------- | :-------------------------- | :------------------------------------- |
+| id            | BIGINT      | PRIMARY KEY, AUTO_INCREMENT | 策略唯一标识                           |
+| policy_code   | VARCHAR(64) | UNIQUE, NOT NULL            | 策略编码（如 POL-TEMP-CTRL）           |
+| policy_type   | VARCHAR(32) | NOT NULL                    | 策略类型 (THRESHOLD/SCHEDULE/DURATION) |
+| greenhouse_id | BIGINT      | NOT NULL, FK                | 关联的温室 ID                          |
+| enabled       | TINYINT(1)  | DEFAULT 1                   | 策略启用状态 (1=启用, 0=停用)          |
+| schedule_mode | VARCHAR(16) | NULL                        | 定时模式 (ONCE/DAILY/WEEKLY)           |
+| weekdays_mask | INT         | NULL                        | 每周执行掩码（用于位运算匹配）         |
+| time_of_day   | TIME        | NULL                        | 每日触发具体时刻                       |
+| published_by  | BIGINT      | NULL, FK                    | 策略发布者（用户 ID）                  |
 
 **表 3-2 策略触发条件表（policy_conditions）**
 用于实现灵活的组合逻辑判定（如“温度>28 且 湿度>80”）。
 
-| 字段名 | 数据类型 | 约束 | 描述说明 |
-| :--- | :--- | :--- | :--- |
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 条件唯一标识 |
-| policy_id | BIGINT | NOT NULL, FK | 归属的策略 ID |
-| sensor_channel_id| BIGINT | NOT NULL, FK | 依赖的传感器通道 ID |
-| operator | VARCHAR(16) | NOT NULL | 比较操作符 (GT/LT/EQ/GTE/LTE) |
-| threshold_value | DECIMAL(10,2) | NOT NULL | 触发阈值数值 |
-| hysteresis | DECIMAL(10,2) | DEFAULT 0 | 防抖滞后值 |
-| required_duration| INT | DEFAULT 0 | 需持续的时间要求（秒） |
+| 字段名            | 数据类型      | 约束                        | 描述说明                      |
+| :---------------- | :------------ | :-------------------------- | :---------------------------- |
+| id                | BIGINT        | PRIMARY KEY, AUTO_INCREMENT | 条件唯一标识                  |
+| policy_id         | BIGINT        | NOT NULL, FK                | 归属的策略 ID                 |
+| sensor_channel_id | BIGINT        | NOT NULL, FK                | 依赖的传感器通道 ID           |
+| operator          | VARCHAR(16)   | NOT NULL                    | 比较操作符 (GT/LT/EQ/GTE/LTE) |
+| threshold_value   | DECIMAL(10,2) | NOT NULL                    | 触发阈值数值                  |
+| hysteresis        | DECIMAL(10,2) | DEFAULT 0                   | 防抖滞后值                    |
+| required_duration | INT           | DEFAULT 0                   | 需持续的时间要求（秒）        |
 
 **表 3-3 执行器通道表（actuator_channels）**
 此表用于映射物理硬件上的具体继电器或控制接口。
 
-| 字段名 | 数据类型 | 约束 | 描述说明 |
-| :--- | :--- | :--- | :--- |
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 通道唯一标识 |
-| actuator_device_id | BIGINT | NOT NULL, FK | 所属执行器设备 ID |
-| channel_code | VARCHAR(64) | NOT NULL | 通道硬件编码（结合 actuator_device_id 唯一） |
-| channel_type | VARCHAR(32) | NOT NULL | 通道类型（如 SWITCH, PUMP） |
-| state | VARCHAR(32) | NOT NULL | 当前状态（ON/OFF/OPEN） |
-| updated_at | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | 状态最后上报时间 |
+| 字段名             | 数据类型    | 约束                        | 描述说明                                     |
+| :----------------- | :---------- | :-------------------------- | :------------------------------------------- |
+| id                 | BIGINT      | PRIMARY KEY, AUTO_INCREMENT | 通道唯一标识                                 |
+| actuator_device_id | BIGINT      | NOT NULL, FK                | 所属执行器设备 ID                            |
+| channel_code       | VARCHAR(64) | NOT NULL                    | 通道硬件编码（结合 actuator_device_id 唯一） |
+| channel_type       | VARCHAR(32) | NOT NULL                    | 通道类型（如 SWITCH, PUMP）                  |
+| state              | VARCHAR(32) | NOT NULL                    | 当前状态（ON/OFF/OPEN）                      |
+| updated_at         | TIMESTAMP   | DEFAULT CURRENT_TIMESTAMP   | 状态最后上报时间                             |
 
 **表 3-4 作物批次追踪表（crop_batches）**
 此表用于追踪水培作物的全生命周期，串联空间与营养配方。
 
-| 字段名 | 数据类型 | 约束 | 描述说明 |
-| :--- | :--- | :--- | :--- |
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 批次唯一标识 |
-| batch_code | VARCHAR(64) | UNIQUE, NOT NULL | 批次追踪码 |
-| variety_id | BIGINT | NOT NULL, FK | 作物品种 ID |
-| greenhouse_id | BIGINT | NOT NULL, FK | 种植所在温室 ID |
-| status | VARCHAR(32) | NOT NULL | 状态 (PLANNED/RUNNING/HARVESTING/COMPLETED/ABORTED) |
-| active_recipe_id| BIGINT | NULL, FK | 当前绑定的活跃营养配方 ID |
-| planted_at | TIMESTAMP | NULL | 实际定植时间 |
+| 字段名           | 数据类型    | 约束                        | 描述说明                                            |
+| :--------------- | :---------- | :-------------------------- | :-------------------------------------------------- |
+| id               | BIGINT      | PRIMARY KEY, AUTO_INCREMENT | 批次唯一标识                                        |
+| batch_code       | VARCHAR(64) | UNIQUE, NOT NULL            | 批次追踪码                                          |
+| variety_id       | BIGINT      | NOT NULL, FK                | 作物品种 ID                                         |
+| greenhouse_id    | BIGINT      | NOT NULL, FK                | 种植所在温室 ID                                     |
+| status           | VARCHAR(32) | NOT NULL                    | 状态 (PLANNED/RUNNING/HARVESTING/COMPLETED/ABORTED) |
+| active_recipe_id | BIGINT      | NULL, FK                    | 当前绑定的活跃营养配方 ID                           |
+| planted_at       | TIMESTAMP   | NULL                        | 实际定植时间                                        |
 
 **表 3-5 气候多级调控配置表（climate_profiles）**
 此表用于存储温室气候递进调控的顶层配置。
 
-| 字段名 | 数据类型 | 约束 | 描述说明 |
-| :--- | :--- | :--- | :--- |
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 配置唯一标识 |
-| greenhouse_id | BIGINT | NOT NULL, FK | 关联的温室 ID |
-| code | VARCHAR(64) | UNIQUE, NOT NULL | 配置编码 |
-| name | VARCHAR(128) | NOT NULL | 配置名称 |
-| trigger_metric_code | VARCHAR(32) | NOT NULL | 触发指标编码（如 TEMP） |
-| trigger_sensor_channel_id | BIGINT | NOT NULL, FK | 触发传感器通道 ID |
-| enabled | TINYINT(1) | DEFAULT 1 | 启用状态 |
+| 字段名                    | 数据类型     | 约束                        | 描述说明                |
+| :------------------------ | :----------- | :-------------------------- | :---------------------- |
+| id                        | BIGINT       | PRIMARY KEY, AUTO_INCREMENT | 配置唯一标识            |
+| greenhouse_id             | BIGINT       | NOT NULL, FK                | 关联的温室 ID           |
+| code                      | VARCHAR(64)  | UNIQUE, NOT NULL            | 配置编码                |
+| name                      | VARCHAR(128) | NOT NULL                    | 配置名称                |
+| trigger_metric_code       | VARCHAR(32)  | NOT NULL                    | 触发指标编码（如 TEMP） |
+| trigger_sensor_channel_id | BIGINT       | NOT NULL, FK                | 触发传感器通道 ID       |
+| enabled                   | TINYINT(1)   | DEFAULT 1                   | 启用状态                |
 
 **表 3-6 控制命令与回执表（control_commands / control_command_receipts）**
 此表用于追踪每一条下发至边缘设备的控制指令及其执行回执。
 
-| 字段名 | 数据类型 | 约束 | 描述说明 |
-| :--- | :--- | :--- | :--- |
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 命令唯一标识 |
-| actuator_channel_id | BIGINT | NOT NULL, FK | 目标执行器通道 ID |
-| command_type | VARCHAR(32) | NOT NULL | 命令类型（如 SWITCH, PUMP） |
-| payload | JSON | NOT NULL | 命令负载（如 {"state":"ON"}） |
-| status | VARCHAR(16) | NOT NULL | 状态 (PENDING/QUEUED/SENT/ACKED/TIMEOUT/FAILED) |
-| sent_at | TIMESTAMP | NULL | MQTT 发送时间 |
-| acked_at | TIMESTAMP | NULL | 设备 ACK 回执时间 |
-| created_by | BIGINT | NOT NULL, FK | 命令创建者（用户 ID） |
+| 字段名              | 数据类型    | 约束                        | 描述说明                                        |
+| :------------------ | :---------- | :-------------------------- | :---------------------------------------------- |
+| id                  | BIGINT      | PRIMARY KEY, AUTO_INCREMENT | 命令唯一标识                                    |
+| actuator_channel_id | BIGINT      | NOT NULL, FK                | 目标执行器通道 ID                               |
+| command_type        | VARCHAR(32) | NOT NULL                    | 命令类型（如 SWITCH, PUMP）                     |
+| payload             | JSON        | NOT NULL                    | 命令负载（如 {"state":"ON"}）                   |
+| status              | VARCHAR(16) | NOT NULL                    | 状态 (PENDING/QUEUED/SENT/ACKED/TIMEOUT/FAILED) |
+| sent_at             | TIMESTAMP   | NULL                        | MQTT 发送时间                                   |
+| acked_at            | TIMESTAMP   | NULL                        | 设备 ACK 回执时间                               |
+| created_by          | BIGINT      | NOT NULL, FK                | 命令创建者（用户 ID）                           |
 
 其中，`control_command_receipts` 表通过 `command_id` 外键关联至 `control_commands`，记录每一次 ACK 回执的序列号（`receipt_seq`）、状态码（`ack_code`）、回执消息（`ack_message`）及附加负载（`ack_payload`），支持同一命令的多次回执追踪。
 
@@ -570,10 +574,22 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 **4.2.1 认证与权限拦截验证**
 
 首先验证后端 Auth 模块的 JWT 认证与 RBAC 权限拦截机制。
+
 1. **正常登录与 Token 签发**：使用 Postman 向 `POST /api/auth/login` 发送管理员凭证（`{“username”:”admin”,”password”:”admin123”}`）。后端查询 MySQL `users` 表校验 Bcrypt 密码后，返回成功响应：
+
    ```json
-   {“code”:0, “message”:”ok”, “data”:{“token”:”eyJhbGciOiJIUzI1NiIs...”,”user”:{“id”:1,”username”:”admin”,”nickname”:”管理员”,”roles”:[“ADMIN”]}}, “request_id”:”req_a1b2c3”}
+   {
+     "code": 0,
+     "message": "ok",
+     "data": {
+       "token": "eyJhbGciOiJIUzI1NiIs...",
+       "expires_in": 7200,
+       "user": { "id": 1, "username": "admin", "roles": ["ADMIN"] }
+     },
+     "request_id": "req_a1b2c3"
+   }
    ```
+
    通过 jwt.io 解析 Token，确认 Payload 中包含 `user_id`、`username`、`roles` 字段及 `exp` 过期时间。
 
 2. **未认证拦截**：不带 `Authorization` 请求头直接访问 `GET /api/greenhouses`。后端 `AuthMiddleware` 拦截该请求，返回 `{“code”:10002, “message”:”未授权，请先登录”}`。验证了中间件对所有受保护路由的全局拦截有效。
@@ -586,12 +602,15 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 **4.2.2 设备接入与遥测数据处理验证**
 
 验证后端 MQTT Ingress 模块的物联网数据接入能力。
+
 1. **设备注册**：通过 `POST /api/devices/register` 接口批量注册一台传感器设备（含 TEMP、HUMIDITY 两个通道）和一台执行器设备（含 FAN 通道）。后端在 MySQL `sensor_devices`、`sensor_channels`、`actuator_devices`、`actuator_channels` 四张表中分别创建对应记录，并返回完整的设备与通道信息（含自增 ID）。
 
 2. **遥测数据接收与双库写入**：启动 Go 模拟器向 EMQX 的 `hydroponic/DEV001/telemetry/TEMP_CH1` 主题持续发布温度数据。观察后端控制台日志输出：
+
    ```
    [MQTT Ingress] telemetry received device=DEV001 channel=TEMP_CH1 metric=TEMP value=25.3
    ```
+
    随后通过 `GET /api/telemetry/channels/:id/latest` 接口查询 MySQL 中该通道的最新遥测记录，返回数据与模拟器推送值一致。同时通过 InfluxDB 的 Web UI 查询 `telemetry` Bucket 中的时序数据，确认数据点与上报时间戳完全对应，验证了双库同步写入机制的正确性。
 
 3. **设备离线检测**：停止模拟器的心跳消息发送，等待约 600 秒后，通过 `GET /api/sensor-devices` 查询设备列表，该设备状态已自动更新为 `OFFLINE`。同时查询 `GET /api/alerts` 接口，确认系统自动生成了一条 `type=DEVICE_OFFLINE`、`level=CRITICAL` 的告警记录。
@@ -602,6 +621,7 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 **4.2.3 策略引擎与命令下发验证**
 
 验证后端的自动化控制全链路——从策略配置到命令下发的完整闭环。
+
 1. **策略创建**：通过 `POST /api/policies/full` 接口一次性提交一条完整的阈值策略。请求体包含策略基本信息（`policy_type=THRESHOLD`）、触发条件（`metric_code=TEMP, operator=GT, threshold_value=28, required_duration_sec=30`）和目标动作（`actuator_channel_id` 指向风机通道、`command_type=SWITCH, command_payload={“state”:”ON”}`）。后端在一个数据库事务中完成策略、条件与目标的原子性创建，返回策略 ID。
 
 2. **策略触发验证**：将模拟温度值上调至 30°C 并稳定发送 30 秒以上。通过 `GET /api/policies/:id/executions` 查询策略执行记录，确认生成了一条 `decision=EXECUTED` 的执行记录。通过 `GET /api/commands` 查询命令列表，确认生成了一条 `command_type=SWITCH`、`status=ACKED` 的控制命令，`payload` 字段为 `{“state”:”ON”}`。同时，通过 `GET /api/alerts` 确认策略引擎同步创建了对应的告警记录。
@@ -624,6 +644,7 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 系统的测试目标是验证各个业务模块是否满足第2章所定义的各项功能需求，同时确保系统在面对非正常输入时具有良好的鲁棒性。
 
 **5.1.1 测试环境**
+
 - **操作系统**：Windows 11
 - **数据库**：MySQL 8.0, InfluxDB 2.x
 - **消息代理**：EMQX 5.0
@@ -631,6 +652,7 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 
 **5.1.2 测试用例**
 为保证测试的全面性，提取了以下核心业务场景进行测试用例设计：
+
 1. **用例1：非法越权访问测试**。使用 VIEWER（观察员）角色的 Token 发起 `POST /api/policies`（新建策略）的请求。预期结果：后端 AuthMiddleware 拦截请求，返回业务错误码 `10003`（权限不足）。
 2. **用例2：设备高频并发写入测试**。通过 JMeter 配置 100 个线程，持续向后端 MQTT Ingress 模块推送遥测数据，持续 5 分钟。预期结果：所有数据均成功落入 InfluxDB，后端进程无 Panic（崩溃）或死锁报错，系统内存占用处于稳定区间。
 3. **用例3：策略引擎防抖与执行测试**。配置阈值策略（>28°C 持续 10秒）。在 10 秒内将模拟温度在 27°C 与 29°C 之间反复横跳。预期结果：策略未被误触发。将温度稳定在 29°C 并维持 15 秒。预期结果：成功生成并下发执行命令。
@@ -646,10 +668,12 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 在系统的开发与集成测试阶段，暴露出了部分性能与逻辑缺陷。以下是针对这些问题所实施的核心优化措施。
 
 **5.2.1 接口响应与时序查询优化**
+
 - **问题描述**：在数据大盘（Overview）页面，前端需要同时查询温室列表、气候策略以及运行中批次的营养配方。初期开发时，由于未对关联查询进行收敛，导致在温室数量较多时，Dashboard 接口响应时间逼近 1.5 秒。
 - **优化措施**：后端对 `loadGreenhouseActiveStrategies()` 进行了重构。摒弃了针对每个温室单独发起 SQL 查询的 `N+1` 性能反模式。改为一次性拉取所有开启状态（`enabled=true`）的气候策略，以及关联 `status='RUNNING'` 批次的营养配方，随后在应用层的内存中通过 `Map` 按 `greenhouse_id` 进行数据组装，并执行 `DISTINCT` 去重操作。优化后，大盘数据的 P99 响应时间降至 150ms 以内，性能提升近 10 倍。
 
 **5.2.2 MQTT 状态更新防死锁优化**
+
 - **问题描述**：当大量的执行器同时上报当前状态（State）时，后端原逻辑使用一条复杂的嵌套 SQL：`UPDATE actuator_channels ... WHERE id IN (SELECT ... FROM actuator_channels JOIN ...)`。这不仅在 MySQL 中触发了 `Error 1093` 报错，而且长事务极易引发锁表死锁。
 - **优化措施**：将单条复杂更新语句拆解。在 `handleState()` 函数中，首先通过极快的只读查询（按 `device_code + channel_code`）定位到唯一的 `actuator_channel.id`。拿到主键后，再发起基于主键的单行精确更新（`UPDATE ... WHERE id=?`）。这种基于主键的行级锁更新极大地提高了并发性能，彻底消除了更新死锁的隐患。同时，在日志记录层面，将“解析/查询失败”与“未知通道”两类错误进行了区分捕获，避免了排查时的误导。
 
@@ -683,17 +707,19 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 ### 哈尔滨工业大学本科毕业论文（设计）原创性声明和使用权限
 
 #### 本科毕业论文（设计）原创性声明
+
 本人郑重声明：所呈交的毕业论文（设计）《水培农植信息管理系统后端的设计与实现》，是本人在导师的指导下，独立进行研究工作所取得的成果。除文中已经注明引用的内容外，本论文不包含任何其他个人或集体已经发表或撰写过的作品成果。对本文的研究做出重要贡献的个人和集体，均已在文中以明确方式标明。本人完全意识到本声明的法律结果由本人承担。
 
-学生签名：___________________         日期：______年____月____日
+学生签名：**\*\*\*\***\_\_\_**\*\*\*\*** 日期：**\_\_**年\_**\_月\_\_**日
 
 #### 本科毕业论文（设计）使用权限
+
 本毕业论文（设计）是本人在哈尔滨工业大学攻读学士学位期间完成的成果，知识产权归属哈尔滨工业大学。本人同意哈尔滨工业大学保留并向国家有关部门或机构送交论文的复印件和电子版，允许论文被查阅和借阅。本人授权哈尔滨工业大学可以将本毕业论文（设计）的全部或部分内容编入有关数据库进行检索，可以采用影印、缩印或扫描等复制手段保存和汇编本毕业论文（设计）。
 保密的毕业论文（设计）在解密后适用本授权书。
 
-学生签名：___________________         日期：______年____月____日
+学生签名：**\*\*\*\***\_\_\_**\*\*\*\*** 日期：**\_\_**年\_**\_月\_\_**日
 
-导师签名：___________________         日期：______年____月____日
+导师签名：**\*\*\*\***\_\_\_**\*\*\*\*** 日期：**\_\_**年\_**\_月\_\_**日
 
 ### 致 谢
 
@@ -712,7 +738,9 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 ---
 
 ## 3. 证据映射 (Evidence Map)
+
 **禁止虚构内容，所有描述必须有代码依据：**
+
 - **MQTT通信与设备**: 基于 `packages/backend/internal/platform/mqtt/ingress.go`（消息订阅与路由）、`internal/device/`（传感器/执行器设备与通道模型）。
 - **设备离线检测**: 基于 `internal/device/offline_detector.go`（定时扫描 MySQL `last_seen_at` 字段，默认 30 秒间隔）。
 - **时序数据**: 基于 InfluxDB 写入 `internal/platform/mqtt/ingress.go` 中 `writeToInflux` 方法；MySQL 遥测记录见 `telemetry_records` 表；指标定义见 `migrations/merged/all.up.sql` 中 14 个指标 (TEMP, HUMIDITY, PH, EC, DO, WATER_TEMP, CO2, LIGHT, LEVEL, ORP, TDS, O3, TURBIDITY, FLOW_RATE)。
@@ -727,6 +755,7 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 - **API契约**: 见 `shared/docs/API_SPEC.md` 统一格式 `{"code": 0, "message": "ok", "data": {}, "request_id": ""}`；错误码定义见 `internal/platform/errors/errors.go`。
 
 ## 4. 图表重绘与截图计划 (Figure & Screenshot Plan)
+
 - **系统架构图**: 包含设备端(MQTT) -> 中间件(EMQX) -> 后端(Go/Gin) -> 数据库(MySQL/InfluxDB) -> 前端(Vue 测试客户端)。
 - **E-R图**: 展示六大核心域：空间域(Greenhouse/GrowingZone)、设备域(SensorDevice/ActuatorDevice及通道)、策略域(Policy/Condition/Target/Command)、气候域(ClimateProfile/Stage/Action)、业务域(CropBatch/Recipe/NutrientTank/IonTest)、审计域(AuditLog/Alert)。
 - **时序图**:
@@ -736,6 +765,7 @@ Gin 框架本身提供了 `gin.Recovery()` 中间件来捕获 Goroutine 中的 p
 - **后端验证截图**: Postman API 请求/响应截图（含 Token 签发、越权拦截返回 10003）、后端控制台 MQTT Ingress 日志截图、InfluxDB Web UI 遥测数据点查询截图、策略执行记录与命令状态流转的数据库查询截图。
 
 ## 5. Composer 交接说明 (Handoff to Composer)
+
 - **目标**: 将此计划作为输入，交给 `academic-paper-composer`，由其按标准格式直接生成正文（MD 或 DOCX）。
 - **约束**:
   - 不要保留任何”孕妇/医生”模板的内容，全面替换为水培物联网系统的内容。
